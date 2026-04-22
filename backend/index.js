@@ -9,7 +9,8 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 )
-
+const authRouter = require('./auth')
+app.use('/auth', authRouter)
 app.get('/', (req, res) => {
   res.send('知識王後端運作中')
 })
