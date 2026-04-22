@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知識王 題目生成器</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3e;
+    --accent: #7c6dfa;
+    --accent2: #fa6d9a;
+    --gold: #f5c842;
+    --text: #e8e8f0;
+    --text2: #888899;
+    --success: #4ade80;
+    --error: #f87171;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans TC', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,109,250,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,109,250,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 20px;
+  }
+
+  header { text-align: center; margin-bottom: 48px; }
+
+  .crown {
+    font-size: 48px;
+    animation: float 3s ease-in-out infinite;
+    display: block;
+    margin-bottom: 12px;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  h1 {
+    font-size: 2.2rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--gold), var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -1px;
+    margin-bottom: 8px;
+  }
+
+  .subtitle { color: var(--text2); font-size: 0.95rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  .category-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .cat-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text2);
+    font-size: 0.85rem;
+    font-family: 'Noto Sans TC', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .cat-btn:hover { border-color: var(--accent); color: var(--text); }
+
+  .cat-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    font-weight: 700;
+  }
+
+  .cat-btn.special {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: transparent;
+  }
+
+  .count-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .count-label { color: var(--text2); font-size: 0.9rem; }
+
+  .count-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1rem;
+    padding: 8px 14px;
+    width: 90px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .count-input:focus { border-color: var(--accent); }
+  .count-hint { color: var(--text2); font-size: 0.8rem; }
+
+  .gen-btn {
+    width: 100%;
+    padding: 16px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-family: 'Noto Sans TC', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .gen-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(124,109,250,0.4); }
+  .gen-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .progress-wrap { display: none; margin-top: 20px; }
+
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    color: var(--text2);
+  }
+
+  .progress-bar-bg {
+    background: var(--surface2);
+    border-radius: 99px;
+    height: 8px;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 99px;
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+
+  .log-area {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text2);
+    max-height: 160px;
+    overflow-y: auto;
+    line-height: 1.8;
+  }
+
+  .log-area .ok { color: var(--success); }
+  .log-area .err { color: var(--error); }
+  .log-area .info { color: var(--accent); }
+
+  .results-section { display: none; margin-top: 20px; }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .stat-num {
+    font-size: 2rem;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    background: linear-gradient(135deg, var(--gold), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .stat-label { color: var(--text2); font-size: 0.8rem; margin-top: 4px; }
+
+  .action-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+  .action-btn {
+    flex: 1;
+    min-width: 140px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .action-btn.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-color: transparent;
+    color: white;
+  }
+
+  .action-btn.primary:hover { transform: translateY(-2px); }
+
+  .preview-wrap {
+    overflow-x: auto;
+    margin-top: 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+
+  th {
+    background: var(--surface2);
+    padding: 10px 12px;
+    text-align: left;
+    color: var(--text2);
+    font-weight: 700;
+    letter-spacing: 1px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(42,42,62,0.5);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(124,109,250,0.05); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: rgba(124,109,250,0.15);
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  .answer-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(245,200,66,0.15);
+    color: var(--gold);
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-size: 0.88rem;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 100;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { border-color: var(--success); color: var(--success); }
+  .toast.error { border-color: var(--error); color: var(--error); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <span class="crown">👑</span>
+    <h1>知識王 題目生成器</h1>
+    <p class="subtitle">AI 自動出題 → 直接存入 Supabase 資料庫</p>
+  </header>
+
+  <div class="card">
+    <div class="card-title">選擇分類</div>
+    <div class="category-grid" id="catGrid"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">生成數量</div>
+    <div class="count-row">
+      <span class="count-label">每次生成</span>
+      <input type="number" class="count-input" id="countInput" value="10" min="1" max="50">
+      <span class="count-hint">題（建議每次 5~20 題，避免超時）</span>
+    </div>
+  </div>
+
+  <button class="gen-btn" id="genBtn" onclick="startGenerate()">
+    ⚡ 開始 AI 生題並存入資料庫
+  </button>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-info">
+      <span id="progressText">準備中...</span>
+      <span id="progressPct">0%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+    <div class="log-area" id="logArea"></div>
+  </div>
+
+  <div class="results-section" id="resultsSection">
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-num" id="statTotal">0</div>
+        <div class="stat-label">本次生成</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="statSaved">0</div>
+        <div class="stat-label">成功存入</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="statFail">0</div>
+        <div class="stat-label">失敗</div>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button class="action-btn primary" onclick="startGenerate()">🔄 再生一批</button>
+      <button class="action-btn" onclick="exportSQL()">💾 匯出 SQL</button>
+      <button class="action-btn" onclick="showPreview()">👁 預覽題目</button>
+    </div>
+
+    <div id="previewArea"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://bxbeoigmbqrmurrfoike.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ4YmVvaWdtYnFybXVycmZvaWtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MzI4NzMsImV4cCI6MjA5MjQwODg3M30.G3_78QdeDgry6PTEJRM87vhkwSPbaNjBsOoLARXaUsQ';
+
+const CATEGORIES = ['體育','美術','國文','英文','數學','歷史','地理','公民','自然','物理','化學','生物','地科','程式','健教','家政','軍教','人文','常識','新聞','其他'];
+
+let selectedCats = [...CATEGORIES];
+let generatedQuestions = [];
+
+// Init buttons
+const grid = document.getElementById('catGrid');
+
+const allBtn = document.createElement('button');
+allBtn.className = 'cat-btn special';
+allBtn.textContent = '全選';
+allBtn.onclick = () => {
+  selectedCats = [...CATEGORIES];
+  document.querySelectorAll('.cat-btn.cat-item').forEach(b => b.classList.add('active'));
+};
+grid.appendChild(allBtn);
+
+const noneBtn = document.createElement('button');
+noneBtn.className = 'cat-btn special';
+noneBtn.textContent = '全清';
+noneBtn.onclick = () => {
+  selectedCats = [];
+  document.querySelectorAll('.cat-btn.cat-item').forEach(b => b.classList.remove('active'));
+};
+grid.appendChild(noneBtn);
+
+CATEGORIES.forEach(cat => {
+  const btn = document.createElement('button');
+  btn.className = 'cat-btn cat-item active';
+  btn.textContent = cat;
+  btn.onclick = () => {
+    if (selectedCats.includes(cat)) {
+      selectedCats = selectedCats.filter(c => c !== cat);
+      btn.classList.remove('active');
+    } else {
+      selectedCats.push(cat);
+      btn.classList.add('active');
+    }
+  };
+  grid.appendChild(btn);
+});
+
+function log(msg, type = '') {
+  const area = document.getElementById('logArea');
+  const line = document.createElement('div');
+  line.className = type;
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  area.appendChild(line);
+  area.scrollTop = area.scrollHeight;
+}
+
+function setProgress(pct, text) {
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+  document.getElementById('progressText').textContent = text;
+}
+
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+async function generateQuestions(categories, count) {
+  const catList = categories.join('、');
+  const prompt = `你是一個知識王問答遊戲的出題專家。請生成 ${count} 道繁體中文單選題。
+
+題目分類請從以下選擇：${catList}
+每個分類盡量均勻分配。
+
+請只回傳 JSON 陣列，格式如下，不要有任何其他文字、不要用 markdown 代碼塊：
+[{"category":"分類","question":"題目","answer_a":"選項A","answer_b":"選項B","answer_c":"選項C","answer_d":"選項D","correct_answer":"A"}]
+
+規則：
+- 題目要有趣、有教育意義，難度適中
+- correct_answer 只能是 A、B、C、D 其中一個
+- 四個選項要合理，干擾選項不能太明顯
+- 絕對只輸出 JSON 陣列，不輸出任何其他內容`;
+
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer 你的OpenAI_API_Key`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  // const response = await fetch('https://api.anthropic.com/v1/messages', {
+  //   method: 'POST',
+  //   headers: { 'Content-Type': 'application/json' },
+  //   body: JSON.stringify({
+  //     model: 'claude-sonnet-4-20250514',
+  //     max_tokens: 4000,
+  //     messages: [{ role: 'user', content: prompt }]
+  //   })
+  // });
+
+  if (!response.ok) throw new Error(`API 錯誤: ${response.status}`);
+  const data = await response.json();
+  const text = data.choices[0].message.content;
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+async function saveToSupabase(questions) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/questions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify(questions)
+  });
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(err);
+  }
+}
+
+async function startGenerate() {
+  if (selectedCats.length === 0) {
+    showToast('請至少選擇一個分類！', 'error');
+    return;
+  }
+
+  const count = parseInt(document.getElementById('countInput').value) || 10;
+  if (count < 1 || count > 50) {
+    showToast('數量請設定在 1~50 之間', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 生成中...';
+
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('resultsSection').style.display = 'none';
+  document.getElementById('logArea').innerHTML = '';
+  document.getElementById('previewArea').innerHTML = '';
+  generatedQuestions = [];
+
+  let saved = 0, failed = 0;
+
+  try {
+    setProgress(10, 'AI 正在生成題目...');
+    log(`開始生成 ${count} 題，分類：${selectedCats.join('、')}`, 'info');
+
+    const questions = await generateQuestions(selectedCats, count);
+    log(`✓ AI 生成了 ${questions.length} 題`, 'ok');
+    setProgress(60, '正在存入資料庫...');
+
+    const batchSize = 10;
+    for (let i = 0; i < questions.length; i += batchSize) {
+      const batch = questions.slice(i, i + batchSize);
+      try {
+        await saveToSupabase(batch);
+        saved += batch.length;
+        generatedQuestions.push(...batch);
+        log(`✓ 已存入第 ${i+1}～${Math.min(i+batchSize, questions.length)} 題`, 'ok');
+      } catch(e) {
+        failed += batch.length;
+        log(`✗ 存入失敗: ${e.message}`, 'err');
+      }
+      setProgress(60 + Math.round(((i + batchSize) / questions.length) * 40), '存入中...');
+    }
+
+    setProgress(100, '完成！');
+    log(`完成！成功 ${saved} 題，失敗 ${failed} 題`, saved > 0 ? 'ok' : 'err');
+
+    document.getElementById('statTotal').textContent = questions.length;
+    document.getElementById('statSaved').textContent = saved;
+    document.getElementById('statFail').textContent = failed;
+    document.getElementById('resultsSection').style.display = 'block';
+    showToast(`✅ 成功存入 ${saved} 題！`, 'success');
+
+  } catch(e) {
+    log(`✗ 發生錯誤: ${e.message}`, 'err');
+    showToast('生成失敗：' + e.message, 'error');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '⚡ 開始 AI 生題並存入資料庫';
+}
+
+function showPreview() {
+  if (generatedQuestions.length === 0) return;
+  const preview = generatedQuestions.slice(0, 5);
+  document.getElementById('previewArea').innerHTML = `
+    <div class="preview-wrap">
+      <table>
+        <thead><tr><th>#</th><th>分類</th><th>題目</th><th>A</th><th>B</th><th>C</th><th>D</th><th>答案</th></tr></thead>
+        <tbody>
+          ${preview.map((q, i) => `
+            <tr>
+              <td style="color:var(--text2);font-family:monospace">${i+1}</td>
+              <td><span class="badge">${q.category}</span></td>
+              <td>${q.question}</td>
+              <td>${q.answer_a}</td><td>${q.answer_b}</td><td>${q.answer_c}</td><td>${q.answer_d}</td>
+              <td><span class="answer-badge">${q.correct_answer}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <p style="color:var(--text2);font-size:0.8rem;margin-top:8px;text-align:center">顯示前 ${preview.length} 題預覽</p>
+  `;
+}
+
+function exportSQL() {
+  if (generatedQuestions.length === 0) return;
+  const esc = s => (s||'').replace(/'/g,"''");
+  const sql = generatedQuestions.map(q =>
+    `INSERT INTO questions (category, question, answer_a, answer_b, answer_c, answer_d, correct_answer) VALUES ('${esc(q.category)}', '${esc(q.question)}', '${esc(q.answer_a)}', '${esc(q.answer_b)}', '${esc(q.answer_c)}', '${esc(q.answer_d)}', '${esc(q.correct_answer)}');`
+  ).join('\n');
+  const blob = new Blob([sql], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `questions_${new Date().toISOString().slice(0,10)}.sql`;
+  a.click();
+  showToast('SQL 已下載！', 'success');
+}
+</script>
+</body>
+</html>
