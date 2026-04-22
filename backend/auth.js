@@ -20,16 +20,16 @@ router.post('/register', async (req, res) => {
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!emailRegex.test(email)) {
-    return res.status(400).json({ error: 'Email 格式不正確' })
+    return res.status(400).json({ error: 'Email格式不正確' })
   }
 
   const idRegex = /^[a-zA-Z0-9]{4,20}$/
   if (!idRegex.test(custom_id)) {
-    return res.status(400).json({ error: 'ID 只能使用英文和數字，長度 4-20 字' })
+    return res.status(400).json({ error: 'ID 只能使用英文和數字，長度4-20字' })
   }
 
   if (password.length < 6) {
-    return res.status(400).json({ error: '密碼至少需要 6 位數' })
+    return res.status(400).json({ error: '密碼至少需要6位數' })
   }
 
   const { data, error } = await supabase.auth.signUp({ email, password })
