@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>網路知識王</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="stars" id="stars"></div>
+<div class="effect-overlay" id="effectOverlay"></div>
+
+<!-- HOME -->
+<div class="screen active" id="homeScreen">
+<div class="content">
+  <div class="player-bar" id="playerBar">
+    <div class="avatar-wrap">
+      <div class="avatar" id="playerAvatar">🧠</div>
+      <div class="avatar-frame" id="playerFrame"></div>
+    </div>
+    <div>
+      <div class="player-name" id="playerNameDisplay">知識戰士<span class="player-tag tag-master" id="playerTagDisplay">大師</span></div>
+      <div style="font-size:12px;color:var(--text2)">Lv.<span id="playerLevel">7</span> · XP <span id="playerXP">2840</span>/3000</div>
+      <div class="xp-bar-wrap"><div class="xp-bar" id="xpBar" style="width:95%"></div></div>
+    </div>
+    <div class="coins"><span>🪙</span><span id="coinDisplay">1200</span></div>
+  </div>
+
+  <div class="logo">知識王</div>
+  <div class="logo-sub">KNOWLEDGE KING · ONLINE</div>
+
+  <div class="hero-grid">
+    <div class="hero-card" onclick="startBattle()">
+      <span class="hero-icon">⚔️</span>
+      <div class="hero-title">快速對戰</div>
+      <div class="hero-desc">隨機匹配對手<br>10輪知識競技</div>
+    </div>
+    <div class="hero-card" onclick="showScreen('analyticsScreen')">
+      <span class="hero-icon">📊</span>
+      <div class="hero-title">數據分析</div>
+      <div class="hero-desc">主題分佈・能力雷達圖<br>戰績趨勢</div>
+    </div>
+    <div class="hero-card" onclick="showScreen('shopScreen')">
+      <span class="hero-icon">🏪</span>
+      <div class="hero-title">裝備商店</div>
+      <div class="hero-desc">頭像框・名字標籤<br>特效道具</div>
+    </div>
+    <div class="hero-card" onclick="showScreen('rankScreen')">
+      <span class="hero-icon">🏆</span>
+      <div class="hero-title">排行榜</div>
+      <div class="hero-desc">全球知識戰士排名<br>本週榜首</div>
+    </div>
+  </div>
+
+  <div class="card" style="text-align:center">
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px">今日挑戰主題</div>
+    <div>
+      <span class="topic-chip">🔬 科學</span>
+      <span class="topic-chip">🌍 地理</span>
+      <span class="topic-chip">🎮 電競</span>
+      <span class="topic-chip">🎵 音樂</span>
+      <span class="topic-chip">⚡ 額外 x2 積分</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- BATTLE -->
+<div class="screen" id="battleScreen">
+<div class="content">
+  <div class="battle-header">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-sm btn-outline" onclick="showScreen('homeScreen')">← 離開</button>
+      <div class="score-badge">⚡ 積分 x<span id="comboMult">1</span></div>
+    </div>
+    <div style="font-size:13px;color:var(--text2)">第 <span id="roundNum">1</span>/10 回合</div>
+    <div class="timer-ring">
+      <svg class="timer-svg" viewBox="0 0 72 72">
+        <circle class="timer-bg" cx="36" cy="36" r="30"/>
+        <circle class="timer-fg" id="timerCircle" cx="36" cy="36" r="30" stroke-dasharray="188.4" stroke-dashoffset="0"/>
+      </svg>
+      <div class="timer-text" id="timerText">15</div>
+    </div>
+  </div>
+
+  <div class="vs-area">
+    <div class="fighter active-fighter" id="playerFighter">
+      <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:8px">
+        <div class="avatar" style="width:40px;height:40px;font-size:18px" id="battleAvatar">🧠</div>
+        <div>
+          <div style="font-size:13px;font-weight:900" id="battleName">知識戰士</div>
+          <div style="font-size:11px;color:var(--accent)">你</div>
+        </div>
+      </div>
+      <div style="font-size:24px;font-weight:900;color:var(--accent)" id="playerScore">0</div>
+      <div style="font-size:11px;color:var(--text2)">得分</div>
+      <div class="fighter-hp"><div class="fighter-hp-bar hp-player" id="playerHp" style="width:100%"></div></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="fighter opponent">
+      <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:8px">
+        <div class="avatar" style="width:40px;height:40px;font-size:18px;background:linear-gradient(135deg,#7b2ff7,#00d4ff)">🤖</div>
+        <div>
+          <div style="font-size:13px;font-weight:900" id="oppName">電腦挑戰者</div>
+          <div style="font-size:11px;color:var(--accent3)">對手</div>
+        </div>
+      </div>
+      <div style="font-size:24px;font-weight:900;color:var(--accent3)" id="oppScore">0</div>
+      <div style="font-size:11px;color:var(--text2)">得分</div>
+      <div class="fighter-hp"><div class="fighter-hp-bar hp-opp" id="oppHp" style="width:100%"></div></div>
+    </div>
+  </div>
+
+  <div class="skills-bar">
+    <button class="skill-btn" id="skill50" onclick="useSkill50()">🎯 50/50 消去兩個錯誤</button>
+    <button class="skill-btn" id="skillTime" onclick="useSkillTime()">⏱️ 加時 +10秒</button>
+    <button class="skill-btn" id="skillHint" onclick="useSkillHint()">💡 提示</button>
+  </div>
+
+  <div class="question-card">
+    <span class="topic-badge" id="topicBadge">🔬 科學</span>
+    <div class="question-text" id="questionText">正在載入問題...</div>
+    <div class="options-grid" id="optionsGrid"></div>
+  </div>
+</div>
+</div>
+
+<!-- RESULT -->
+<div class="screen" id="resultScreen">
+<div class="content">
+  <div class="result-banner">
+    <span class="result-icon" id="resultIcon">🏆</span>
+    <div class="result-title" id="resultTitle">勝利！</div>
+    <div style="color:var(--text2);font-size:16px" id="resultSub">你擊敗了對手！</div>
+  </div>
+  <div class="result-stats">
+    <div class="stat-box"><div class="stat-val" id="statScore">0</div><div class="stat-label">最終得分</div></div>
+    <div class="stat-box"><div class="stat-val" id="statCorrect">0</div><div class="stat-label">答對題數</div></div>
+    <div class="stat-box"><div class="stat-val" id="statAccuracy">0%</div><div class="stat-label">答題準確率</div></div>
+    <div class="stat-box"><div class="stat-val" id="statCoins">+0</div><div class="stat-label">獲得金幣</div></div>
+  </div>
+  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+    <button class="btn btn-gold" onclick="startBattle()">⚔️ 再次挑戰</button>
+    <button class="btn btn-outline" onclick="showScreen('homeScreen')">🏠 回首頁</button>
+    <button class="btn btn-blue" onclick="showScreen('analyticsScreen')">📊 查看分析</button>
+  </div>
+</div>
+</div>
+
+<!-- ANALYTICS -->
+<div class="screen" id="analyticsScreen">
+<div class="content">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <button class="btn btn-sm btn-outline" onclick="showScreen('homeScreen')">← 返回</button>
+    <div class="section-title" style="margin:0">📊 數據分析中心</div>
+  </div>
+
+  <div class="nav" id="analyticsNav">
+    <button class="nav-btn active" onclick="switchAnalytics('distribution')">主題分佈</button>
+    <button class="nav-btn" onclick="switchAnalytics('radar')">個人能力</button>
+    <button class="nav-btn" onclick="switchAnalytics('trend')">戰績趨勢</button>
+  </div>
+
+  <div class="tab-content active" id="tab-distribution">
+    <div class="chart-container">
+      <div class="chart-title">🗺️ 21 種主題題目分佈（總答題數）</div>
+      <div class="chart-wrap" style="height:420px"><canvas id="distributionChart" role="img" aria-label="21種知識主題答題分佈長條圖">主題分佈圖表</canvas></div>
+    </div>
+    <div class="chart-container">
+      <div class="chart-title">🥧 主題類別比例</div>
+      <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+        <div class="chart-wrap" style="height:260px;flex:1;min-width:200px"><canvas id="pieChart" role="img" aria-label="主題類別比例圓餅圖">類別比例</canvas></div>
+        <div id="pieLegend" style="flex:1;min-width:160px;font-size:12px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-radar">
+    <div class="chart-container">
+      <div class="chart-title">🕸️ 個人能力雷達分析</div>
+      <div class="chart-wrap" style="height:380px"><canvas id="radarChart" role="img" aria-label="個人能力雷達圖">能力雷達圖</canvas></div>
+    </div>
+    <div class="result-stats">
+      <div class="stat-box"><div class="stat-val" style="font-size:20px">🔬</div><div class="stat-val" id="bestTopic">科學</div><div class="stat-label">最強主題</div></div>
+      <div class="stat-box"><div class="stat-val" id="avgAccuracy">78%</div><div class="stat-label">平均準確率</div></div>
+      <div class="stat-box"><div class="stat-val" id="totalAnswered">142</div><div class="stat-label">累計答題</div></div>
+      <div class="stat-box"><div class="stat-val" id="winRate">63%</div><div class="stat-label">勝率</div></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-trend">
+    <div class="chart-container">
+      <div class="chart-title">📈 近 10 場戰績得分趨勢</div>
+      <div class="chart-wrap" style="height:280px"><canvas id="trendChart" role="img" aria-label="近期戰績趨勢折線圖">趨勢圖</canvas></div>
+    </div>
+    <div class="chart-container">
+      <div class="chart-title">🎯 每日正確率</div>
+      <div class="chart-wrap" style="height:220px"><canvas id="accuracyChart" role="img" aria-label="每日答題正確率圖">正確率圖</canvas></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- SHOP -->
+<div class="screen" id="shopScreen">
+<div class="content">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn btn-sm btn-outline" onclick="showScreen('homeScreen')">← 返回</button>
+      <div class="section-title" style="margin:0">🏪 裝備商店</div>
+    </div>
+    <div class="coins"><span>🪙</span><span id="shopCoins">1200</span> 金幣</div>
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn active" onclick="switchShop('frames')">頭像框</button>
+    <button class="nav-btn" onclick="switchShop('tags')">名字標籤</button>
+    <button class="nav-btn" onclick="switchShop('effects')">特效道具</button>
+  </div>
+
+  <div id="shopContent"></div>
+</div>
+</div>
+
+<!-- RANK -->
+<div class="screen" id="rankScreen">
+<div class="content">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+    <button class="btn btn-sm btn-outline" onclick="showScreen('homeScreen')">← 返回</button>
+    <div class="section-title" style="margin:0">🏆 全球排行榜</div>
+  </div>
+  <div id="rankList"></div>
+</div>
+</div>
+
+<script src="main.js"></script>
+</body>
+</html>
