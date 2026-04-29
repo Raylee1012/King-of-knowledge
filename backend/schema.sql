@@ -25,17 +25,14 @@ CREATE TABLE users (
 -- 開啟資料列層級安全控制，開啟後沒有符合規則的操作都會被拒絕
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
--- 允許新增資料（註冊新帳號用）
--- TODO: 正式上線前收緊規則
+-- 允許新增資料（註冊新帳號用，任何人都可以註冊）
 CREATE POLICY "allow insert" ON public.users
 FOR INSERT WITH CHECK (true);
 
--- 允許讀取資料（查詢玩家資料用）
--- TODO: 正式上線前改成 USING (auth.uid() = id)，只能讀取自己的資料
+-- 允許讀取資料（只能讀取自己的資料）
 CREATE POLICY "allow select" ON public.users
-FOR SELECT USING (true);
+FOR SELECT USING (auth.uid() = id);
 
--- 允許更新資料（更新驗證狀態、金幣等用）
--- TODO: 正式上線前改成 USING (auth.uid() = id)，只能更新自己的資料
+-- 允許更新資料（只能更新自己的資料）
 CREATE POLICY "allow update" ON public.users
-FOR UPDATE USING (true);
+FOR UPDATE USING (auth.uid() = id);
