@@ -1,0 +1,8 @@
+.env
+    不能有任何空格/註解在裡面，敏感到讓人生氣。
+
+    SUPABASE_URL=https://ixxwtzkdbygjxabxhtpq.supabase.co 
+    project url, 在supabase找，
+    Supabase 連線資訊
+    
+    在 Supabase > Project Settings > API 裡找

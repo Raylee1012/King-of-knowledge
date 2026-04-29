@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知識王 題目生成器</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+    <div class="container">
+
+        <!-- Header -->
+        <header>
+            <span class="crown">👑</span>
+            <h1>知識王 題目生成器</h1>
+            <p class="subtitle">AI 自動出題 → 直接存入 Supabase 資料庫</p>
+        </header>
+
+        <!-- 分類選擇 -->
+        <div class="card">
+            <div class="card-title">選擇分類</div>
+            <div class="category-grid" id="catGrid"></div>
+        </div>
+
+        <!-- 數量設定 -->
+        <div class="card">
+            <div class="card-title">生成數量</div>
+            <div class="count-row">
+                <span style="color:var(--text2)">每次生成</span>
+                <input type="number" class="count-input" id="countInput" value="10" min="1" max="50">
+                <span style="color:var(--text2);font-size:0.85rem">題（建議 5~20 題）</span>
+            </div>
+        </div>
+
+        <!-- 生成按鈕 -->
+        <button class="gen-btn" id="genBtn" onclick="startGenerate()">
+            ⚡ 開始 AI 生題並存入資料庫
+        </button>
+
+        <!-- 進度 -->
+        <div class="progress-wrap" id="progressWrap">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:0.85rem;color:var(--text2)">
+                <span id="progressText">準備中...</span>
+                <span id="progressPct">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressBar"></div>
+            </div>
+            <div class="log-area" id="logArea"></div>
+        </div>
+
+        <!-- 結果 -->
+        <div id="resultsSection" style="display:none;margin-top:20px">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+                <div class="card" style="text-align:center">
+                    <div style="font-size:2rem;font-weight:900;font-family:monospace;color:var(--gold)" id="statTotal">0</div>
+                    <div style="color:var(--text2);font-size:0.8rem;margin-top:4px">本次生成</div>
+                </div>
+                <div class="card" style="text-align:center">
+                    <div style="font-size:2rem;font-weight:900;font-family:monospace;color:var(--success)" id="statSaved">0</div>
+                    <div style="color:var(--text2);font-size:0.8rem;margin-top:4px">成功存入</div>
+                </div>
+                <div class="card" style="text-align:center">
+                    <div style="font-size:2rem;font-weight:900;font-family:monospace;color:var(--error)" id="statFail">0</div>
+                    <div style="color:var(--text2);font-size:0.8rem;margin-top:4px">失敗</div>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+                <button class="gen-btn" style="flex:1" onclick="startGenerate()">🔄 再生一批</button>
+                <button class="gen-btn" style="flex:1;background:var(--surface2);border:1px solid var(--border)" onclick="showPreview()">👁 預覽題目</button>
+                <button class="gen-btn" style="flex:1;background:var(--surface2);border:1px solid var(--border)" onclick="exportSQL()">💾 匯出 SQL</button>
+            </div>
+
+            <div id="previewArea"></div>
+        </div>
+
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- Scripts -->
+    <script src="/static/js/api.js"></script>
+    <script>
+        let selectedCats = [...CATEGORIES];
+        let generatedQuestions = [];
+
+        // 初始化分類按鈕
+        const grid = document.getElementById('catGrid');
+
+        // 全選/全清
+        ['全選', '全清'].forEach(label => {
+            const btn = document.createElement('button');
+            btn.className = 'cat-btn special';
+            btn.textContent = label;
+            btn.onclick = () => {
+                const active = label === '全選';
+                selectedCats = active ? [...CATEGORIES] : [];
+                document.querySelectorAll('.cat-btn.cat-item').forEach(b => {
+                    b.classList.toggle('active', active);
+                });
+            };
+            grid.appendChild(btn);
+        });
+
+        // 分類按鈕
+        CATEGORIES.forEach(cat => {
+            const btn = document.createElement('button');
+            btn.className = 'cat-btn cat-item active';
+            btn.textContent = cat;
+            btn.onclick = () => {
+                if (selectedCats.includes(cat)) {
+                    selectedCats = selectedCats.filter(c => c !== cat);
+                    btn.classList.remove('active');
+                } else {
+                    selectedCats.push(cat);
+                    btn.classList.add('active');
+                }
+            };
+            grid.appendChild(btn);
+        });
+
+
+        async function startGenerate() {
+            if (selectedCats.length === 0) {
+                showToast('請至少選擇一個分類！', 'error');
+                return;
+            }
+
+            const count = parseInt(document.getElementById('countInput').value) || 10;
+            const btn = document.getElementById('genBtn');
+
+            btn.disabled = true;
+            btn.textContent = "⏳ 生成中...";
+
+            document.getElementById('progressWrap').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('logArea').innerHTML = '';
+            document.getElementById('previewArea').innerHTML = '';
+            generatedQuestions = [];
+
+            setProgress(10, 'AI 正在生成題目...');
+            log(`開始生成 ${count} 題，分類：${selectedCats.join('、')}`, 'info');
+
+            try {
+                const questions = await API.generateQuestions(selectedCats, count);
+                generatedQuestions = questions;
+
+                setProgress(100, '完成！');
+                log(`✓ 完成！共生成並存入 ${questions.length} 題`, 'ok');
+
+                document.getElementById('statTotal').textContent = questions.length;
+                document.getElementById('statSaved').textContent = questions.length;
+                document.getElementById('statFail').textContent = 0;
+                document.getElementById('resultsSection').style.display = 'block';
+
+                showToast(`✅ 成功存入 ${questions.length} 題！`, 'success');
+
+            } catch (e) {
+                log(`✗ 錯誤: ${e.message}`, 'err');
+                showToast('生成失敗：' + e.message, 'error');
+                setProgress(0, '失敗');
+            }
+
+            btn.disabled = false;
+            btn.textContent = "⚡ 開始 AI 生題並存入資料庫";
+        }
+
+
+        function log(msg, type = '') {
+            const area = document.getElementById('logArea');
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            area.appendChild(div);
+            area.scrollTop = area.scrollHeight;
+        }
+
+        function setProgress(pct, text) {
+            document.getElementById('progressBar').style.width = pct + '%';
+            document.getElementById('progressText').textContent = text;
+            document.getElementById('progressPct').textContent = pct + '%';
+        }
+
+        function showToast(msg, type = '') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast ${type} show`;
+            setTimeout(() => t.className = 'toast', 3000);
+        }
+
+        function showPreview() {
+            if (!generatedQuestions.length) return;
+            const preview = generatedQuestions.slice(0, 5);
+            document.getElementById('previewArea').innerHTML = `
+                <div class="preview-wrap" style="margin-top:16px">
+                    <table>
+                        <thead>
+                            <tr><th>#</th><th>分類</th><th>題目</th><th>A</th><th>B</th><th>C</th><th>D</th><th>答案</th></tr>
+                        </thead>
+                        <tbody>
+                            ${preview.map((q, i) => `
+                                <tr>
+                                    <td style="color:var(--text2)">${i + 1}</td>
+                                    <td><span style="background:rgba(124,109,250,0.15);color:var(--accent);padding:2px 8px;border-radius:99px;font-size:0.75rem">${q.category}</span></td>
+                                    <td>${q.question}</td>
+                                    <td>${q.answer_a}</td>
+                                    <td>${q.answer_b}</td>
+                                    <td>${q.answer_c}</td>
+                                    <td>${q.answer_d}</td>
+                                    <td><strong style="color:var(--gold)">${q.correct_answer}</strong></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <p style="color:var(--text2);font-size:0.8rem;margin-top:8px;text-align:center">顯示前 ${preview.length} 題預覽</p>
+            `;
+        }
+
+        function exportSQL() {
+            if (!generatedQuestions.length) return;
+            const esc = s => (s || '').replace(/'/g, "''");
+            const sql = generatedQuestions.map(q =>
+                `INSERT INTO questions (category, question, answer_a, answer_b, answer_c, answer_d, correct_answer) VALUES ('${esc(q.category)}', '${esc(q.question)}', '${esc(q.answer_a)}', '${esc(q.answer_b)}', '${esc(q.answer_c)}', '${esc(q.answer_d)}', '${esc(q.correct_answer)}');`
+            ).join('\n');
+            const blob = new Blob([sql], { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `questions_${new Date().toISOString().slice(0, 10)}.sql`;
+            a.click();
+        }
+    </script>
+</body>
+
+</html>
