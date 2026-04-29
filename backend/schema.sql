@@ -18,6 +18,9 @@ CREATE TABLE users (
   -- 驗證用的 token，驗證完後會清空，格式：隨機亂碼.過期時間戳記
   verify_token text,
   
+  -- 頭貼網址，NULL 代表使用預設頭貼（由前端處理）
+  avatar_url text DEFAULT NULL,
+  
   -- 帳號建立時間，系統自動填入
   created_at timestamptz DEFAULT now()
 );
