@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知識王對戰</title>
+<style>
+/* ── 基礎重置 ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: system-ui, sans-serif; font-size: 15px; background: #f5f5f0; color: #1a1a1a; }
+
+/* ── 畫面切換 ── */
+.screen { display: none; min-height: 100vh; padding: 1.5rem; }
+.screen.active { display: block; }
+
+/* ── 通用元件 ── */
+.card { background: #fff; border: 0.5px solid #ddd; border-radius: 12px; padding: 1.25rem; }
+.btn { display: inline-block; padding: 10px 22px; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; color: #1a1a1a; font-size: 14px; cursor: pointer; transition: background 0.12s; }
+.btn:hover { background: #f0f0ec; }
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: #185FA5; color: #E6F1FB; border-color: #185FA5; }
+.btn-primary:hover { background: #0C447C; }
+.btn-block { width: 100%; }
+input[type=text] { width: 100%; padding: 9px 12px; border: 0.5px solid #ccc; border-radius: 8px; font-size: 14px; }
+input[type=text]:focus { outline: none; border-color: #185FA5; }
+label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+.msg { font-size: 13px; color: #666; text-align: center; min-height: 18px; }
+.msg.error { color: #a32d2d; }
+
+/* ── 大廳 ── */
+#lobby-screen .inner { max-width: 380px; margin: 0 auto; }
+#lobby-screen h1 { text-align: center; font-size: 22px; font-weight: 500; margin-bottom: 1.5rem; }
+.field { margin-bottom: 14px; }
+.divider { text-align: center; color: #999; font-size: 12px; margin: 14px 0; position: relative; }
+.divider::before, .divider::after { content:''; position:absolute; top:50%; width:42%; height:0.5px; background:#ddd; }
+.divider::before { left:0; } .divider::after { right:0; }
+
+/* ── 等待室 ── */
+#waiting-screen .inner { max-width: 340px; margin: 0 auto; text-align: center; }
+#waiting-screen h2 { font-size: 18px; font-weight: 500; margin-bottom: 1.5rem; }
+.room-id-box { font-size: 32px; font-weight: 500; letter-spacing: 6px; color: #185FA5; margin: 8px 0 4px; }
+.players-list { font-size: 14px; margin: 12px 0; }
+.players-list .p-row { padding: 6px 0; border-bottom: 0.5px solid #eee; }
+/* 等待動畫（三點跳動） */
+.dots span { animation: blink 1.2s infinite; opacity: 0; }
+.dots span:nth-child(2) { animation-delay: 0.2s; }
+.dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
+
+/* ── 遊戲 ── */
+#game-screen { position: relative; }
+#game-layout { display: grid; grid-template-columns: 150px 1fr 150px; gap: 1rem; max-width: 720px; margin: 0 auto; }
+
+/* 計分板 */
+.score-panel { font-size: 13px; }
+.score-panel .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
+.score-panel .score-num { font-size: 24px; font-weight: 500; }
+.score-panel .q-label { font-size: 11px; color: #888; }
+.score-panel .status { font-size: 12px; min-height: 16px; margin-top: 2px; }
+.p1-color { color: #185FA5; }
+.p2-color { color: #A32D2D; }
+
+/* 中央題目區 */
+#game-center { min-width: 0; }
+.q-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; color: #888; }
+.timer-num { font-size: 15px; font-weight: 500; }
+.timer-bar-wrap { height: 4px; background: #eee; border-radius: 4px; margin-bottom: 12px; overflow: hidden; }
+#timer-bar { height: 100%; background: #185FA5; width: 100%; transition: width 1s linear; }
+.q-card { min-height: 90px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+#q-text { font-size: 16px; font-weight: 500; text-align: center; line-height: 1.65; }
+.options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.opt-btn { padding: 12px 8px; font-size: 14px; text-align: center; width: 100%; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.opt-btn:hover:not(:disabled) { background: #f0f0ec; }
+.opt-btn:disabled { cursor: default; }
+.opt-btn.correct { background: #EAF3DE; border-color: #639922; color: #27500A; }
+.opt-btn.wrong { background: #FCEBEB; border-color: #A32D2D; color: #791F1F; }
+.opt-btn.highlight { background: #E6F1FB; border-color: #185FA5; }
+#q-feedback { text-align: center; font-size: 13px; min-height: 18px; margin-top: 10px; }
+#opp-answered-badge { display: none; font-size: 12px; color: #185FA5; text-align: right; margin-top: 4px; }
+
+/* ── 結算 ── */
+#result-screen .inner { max-width: 460px; margin: 0 auto; }
+#result-screen h2 { font-size: 18px; font-weight: 500; text-align: center; margin-bottom: 1.5rem; }
+#result-winner { font-size: 17px; font-weight: 500; text-align: center; margin-bottom: 1rem; }
+.result-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.5rem; }
+.result-card { text-align: center; }
+.result-card .r-name { font-size: 12px; color: #666; margin-bottom: 4px; }
+.result-card .r-score { font-size: 28px; font-weight: 500; margin: 4px 0; }
+.result-card .r-detail { font-size: 12px; color: #888; }
+.detail-table { width: 100%; font-size: 12px; border-collapse: collapse; margin-bottom: 1.5rem; }
+.detail-table td { padding: 5px 4px; border-bottom: 0.5px solid #eee; }
+.detail-table .q-col { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #555; }
+.c-ok { color: #3B6D11; }
+.c-err { color: #A32D2D; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     大廳畫面
+     讓玩家輸入名稱，並選擇匹配方式
+════════════════════════════════════════════════════ -->
+<div id="lobby-screen" class="screen active">
+  <div class="inner">
+    <h1>知識王對戰</h1>
+
+    <!-- 玩家名稱欄位 -->
+    <div class="card field">
+      <label>玩家名稱</label>
+      <input type="text" id="input-name" placeholder="輸入你的名稱（最多12字）" maxlength="12">
+    </div>
+
+    <!-- 隨機匹配 -->
+    <div class="card" style="margin-bottom:12px;">
+      <button class="btn btn-primary btn-block" id="btn-random">隨機匹配</button>
+      <div class="msg" style="margin-top:8px;" id="random-hint">系統自動幫你找對手</div>
+    </div>
+
+    <div class="divider">或</div>
+
+    <!-- 建立/加入房間 -->
+    <div class="card">
+      <div class="field">
+        <label>建立私人房間</label>
+        <button class="btn btn-block" id="btn-create">建立房間</button>
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label>輸入房號加入</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="input-room" placeholder="6位房號" maxlength="6">
+          <button class="btn" id="btn-join" style="white-space:nowrap;">加入</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="msg error" id="lobby-error" style="margin-top:12px;"></div>
+
+    <!-- 連線狀態指示 -->
+    <div class="msg" id="conn-status" style="margin-top:8px;">連接伺服器中...</div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════
+     等待室畫面
+     顯示房號，等待對手加入才進入遊戲
+════════════════════════════════════════════════════ -->
+<div id="waiting-screen" class="screen">
+  <div class="inner">
+    <h2>等待中</h2>
+    <div class="card" style="margin-bottom:1rem; text-align:center;">
+      <div style="font-size:12px; color:#888;">房間號碼</div>
+      <div class="room-id-box" id="disp-room-id">------</div>
+      <div style="font-size:12px; color:#888;">將此號碼告訴朋友</div>
+    </div>
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="players-list" id="waiting-players"></div>
+      <div class="msg" id="waiting-status" style="margin-top:8px;">
+        等待對手加入<span class="dots"><span>.</span><span>.</span><span>.</span></span>
+      </div>
+    </div>
+    <button class="btn btn-block" id="btn-cancel">取消</button>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════
+     遊戲畫面
+     左右計分板 + 中央題目/選項
+════════════════════════════════════════════════════ -->
+<div id="game-screen" class="screen">
+  <div id="game-layout">
+
+    <!-- 左側：本地玩家計分板 -->
+    <div class="card score-panel" id="panel-p1">
+      <div class="name" id="p1-name">玩家1</div>
+      <div class="score-num p1-color" id="p1-score">0</div>
+      <div class="q-label" id="p1-qlabel">第1題</div>
+      <div class="status" id="p1-status"></div>
+    </div>
+
+    <!-- 中央：題目與選項 -->
+    <div id="game-center">
+      <div class="q-header">
+        <span id="q-counter">1 / 10</span>
+        <span class="timer-num" id="timer-label">10</span>
+      </div>
+      <div class="timer-bar-wrap">
+        <div id="timer-bar"></div>
+      </div>
+      <div class="card q-card">
+        <div id="q-text"></div>
+      </div>
+      <div class="options-grid" id="options-grid">
+        <button class="opt-btn" data-idx="0"></button>
+        <button class="opt-btn" data-idx="1"></button>
+        <button class="opt-btn" data-idx="2"></button>
+        <button class="opt-btn" data-idx="3"></button>
+      </div>
+      <div id="opp-answered-badge">對手已作答</div>
+      <div id="q-feedback"></div>
+    </div>
+
+    <!-- 右側：對手計分板 -->
+    <div class="card score-panel" id="panel-p2">
+      <div class="name" id="p2-name">對手</div>
+      <div class="score-num p2-color" id="p2-score">0</div>
+      <div class="q-label" id="p2-qlabel">第1題</div>
+      <div class="status" id="p2-status"></div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════
+     結算畫面
+     顯示雙方最終分數、勝負、逐題明細
+════════════════════════════════════════════════════ -->
+<div id="result-screen" class="screen">
+  <div class="inner">
+    <h2>遊戲結算</h2>
+    <div id="result-winner"></div>
+    <div class="result-cards" id="result-cards"></div>
+    <table class="detail-table" id="detail-table">
+      <thead>
+        <tr>
+          <td style="color:#888;">你</td>
+          <td class="q-col" style="color:#888;">題目</td>
+          <td style="color:#888; text-align:right;">對手</td>
+        </tr>
+      </thead>
+      <tbody id="detail-body"></tbody>
+    </table>
+    <button class="btn btn-primary btn-block" id="btn-again">再玩一局</button>
+  </div>
+</div>
+
+
+<script>
+// ═══════════════════════════════════════════════════
+// client.js（內嵌）- 前端邏輯
+// 負責 WebSocket 連線、畫面切換、計時器、答題互動
+// ═══════════════════════════════════════════════════
+
+// ── WebSocket 連線 ────────────────────────────────
+// 自動偵測協議：Railway 用 wss://，本機用 ws://
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+let ws = null;
+
+// 遊戲狀態物件
+const state = {
+  playerIndex: 0,       // 0或1，本地玩家在房間的索引
+  myName: '',
+  oppName: '',
+  scores: [0, 0],
+  timeLeft: 10,
+  timerInterval: null,
+  startSec: 0,          // 本題開始時的時間戳（計算用時）
+  answered: false,      // 本題是否已作答
+  currentQ: 0,
+  totalQ: 10,
+  questionResults: [],  // 每題結果，用於結算明細
+};
+
+// ── 連線建立 ─────────────────────────────────────
+function connect() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    setConnStatus('已連線，可以開始對戰', false);
+    enableLobbyButtons(true);
+  };
+
+  // 接收伺服器訊息，依 type 分派處理
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    dispatch(msg);
+  };
+
+  ws.onclose = () => {
+    setConnStatus('與伺服器斷線，請重新整理', true);
+    enableLobbyButtons(false);
+  };
+
+  ws.onerror = () => {
+    setConnStatus('連線失敗，請確認伺服器已啟動', true);
+  };
+}
+
+// ── 訊息分派 ─────────────────────────────────────
+function dispatch(msg) {
+  switch (msg.type) {
+    case 'queued':
+      // 已進入隨機佇列，等待配對
+      showScreen('waiting');
+      document.getElementById('disp-room-id').textContent = '配對中';
+      updateWaitingPlayers([state.myName]);
+      break;
+
+    case 'room_created':
+      // 成功建立房間，顯示房號
+      showScreen('waiting');
+      document.getElementById('disp-room-id').textContent = msg.roomId;
+      updateWaitingPlayers([state.myName]);
+      break;
+
+    case 'error':
+      // 顯示錯誤（如房號不存在）
+      lobbyError(msg.message);
+      break;
+
+    case 'cancelled':
+      showScreen('lobby');
+      break;
+
+    case 'game_start':
+      // 收到遊戲開始：記錄玩家索引與名稱
+      state.playerIndex = msg.playerIndex;
+      state.myName = msg.myName;
+      state.oppName = msg.opponentName;
+      state.scores = [0, 0];
+      state.questionResults = [];
+      initGameUI();
+      showScreen('game');
+      break;
+
+    case 'question':
+      // 收到新題目
+      loadQuestion(msg);
+      break;
+
+    case 'opponent_answered':
+      // 對手已作答（不揭露答案，只顯示徽章）
+      showOppAnswered();
+      break;
+
+    case 'question_result':
+      // 本題結算（含正確答案與雙方得分）
+      showQuestionResult(msg);
+      break;
+
+    case 'game_end':
+      // 全部題目結束，顯示結算畫面
+      showGameEnd(msg);
+      break;
+
+    case 'opponent_disconnected':
+      alert(msg.message);
+      showScreen('lobby');
+      break;
+
+    default:
+      console.warn('[Client] 未知訊息:', msg.type);
+  }
+}
+
+// ── 大廳邏輯 ─────────────────────────────────────
+
+document.getElementById('btn-random').addEventListener('click', () => {
+  const name = getInputName();
+  if (!name) return;
+  state.myName = name;
+  lobbyError('');
+  wsSend({ type: 'join_queue', name });
+});
+
+document.getElementById('btn-create').addEventListener('click', () => {
+  const name = getInputName();
+  if (!name) return;
+  state.myName = name;
+  lobbyError('');
+  // 伺服器會自動產生房號並回傳
+  wsSend({ type: 'create_room', name });
+});
+
+document.getElementById('btn-join').addEventListener('click', () => {
+  const name = getInputName();
+  const roomId = document.getElementById('input-room').value.trim();
+  if (!name) return;
+  if (!roomId || roomId.length !== 6) { lobbyError('請輸入6位房號'); return; }
+  state.myName = name;
+  lobbyError('');
+  wsSend({ type: 'join_room', name, roomId });
+});
+
+// ── 等待室邏輯 ────────────────────────────────────
+
+document.getElementById('btn-cancel').addEventListener('click', () => {
+  wsSend({ type: 'cancel_queue' });
+  showScreen('lobby');
+});
+
+// 更新等待室玩家列表
+function updateWaitingPlayers(names) {
+  const el = document.getElementById('waiting-players');
+  el.innerHTML = names.map(n => `<div class="p-row">${n}</div>`).join('');
+}
+
+// ── 遊戲 UI 初始化 ────────────────────────────────
+
+function initGameUI() {
+  // 根據 playerIndex 決定哪側顯示自己
+  const myIdx = state.playerIndex;
+  const oppIdx = 1 - myIdx;
+
+  document.getElementById('p1-name').textContent = state.myName;
+  document.getElementById('p2-name').textContent = state.oppName;
+  document.getElementById('p1-score').textContent = '0';
+  document.getElementById('p2-score').textContent = '0';
+}
+
+// ── 載入題目 ─────────────────────────────────────
+
+function loadQuestion(msg) {
+  clearInterval(state.timerInterval);
+  state.answered = false;
+  state.timeLeft = 10;
+  state.startSec = Date.now() / 1000;
+  state.currentQ = msg.index;
+
+  // 更新題號標籤
+  document.getElementById('q-counter').textContent = `${msg.index + 1} / ${msg.total}`;
+  document.getElementById('p1-qlabel').textContent = `第${msg.index + 1}題`;
+  document.getElementById('p2-qlabel').textContent = `第${msg.index + 1}題`;
+  document.getElementById('p1-status').textContent = '';
+  document.getElementById('p2-status').textContent = '';
+  document.getElementById('q-feedback').textContent = '';
+  document.getElementById('opp-answered-badge').style.display = 'none';
+
+  // 顯示題目文字
+  document.getElementById('q-text').textContent = msg.question;
+
+  // 設定選項按鈕文字與樣式
+  document.querySelectorAll('.opt-btn').forEach((btn, i) => {
+    btn.textContent = msg.options[i];
+    btn.className = 'opt-btn';
+    btn.disabled = false;
+  });
+
+  // 重置計時條（先停止過渡，移到100%，再啟動過渡到0%）
+  const bar = document.getElementById('timer-bar');
+  bar.style.transition = 'none';
+  bar.style.width = '100%';
+  bar.style.background = '#185FA5';
+  document.getElementById('timer-label').textContent = '10';
+  document.getElementById('timer-label').style.color = '#185FA5';
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      bar.style.transition = 'width 10s linear';
+      bar.style.width = '0%';
+    });
+  });
+
+  // 啟動倒數（每秒更新顯示，10秒到期送超時答案）
+  state.timerInterval = setInterval(() => {
+    state.timeLeft--;
+    document.getElementById('timer-label').textContent = state.timeLeft;
+    if (state.timeLeft <= 3) {
+      bar.style.background = '#A32D2D';
+      document.getElementById('timer-label').style.color = '#A32D2D';
+    }
+    if (state.timeLeft <= 0) {
+      clearInterval(state.timerInterval);
+      // 超時自動提交 -1（伺服器視為未作答）
+      if (!state.answered) submitAnswer(-1);
+    }
+  }, 1000);
+}
+
+// ── 玩家點選選項 ──────────────────────────────────
+
+document.querySelectorAll('.opt-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (state.answered) return;
+    submitAnswer(parseInt(btn.dataset.idx));
+  });
+});
+
+// 送出答案到伺服器
+function submitAnswer(idx) {
+  state.answered = true;
+  clearInterval(state.timerInterval);
+  const usedSec = Math.min(10, (Date.now() / 1000) - state.startSec);
+
+  // 標示玩家選擇的選項（尚未知道對錯）
+  if (idx >= 0) {
+    document.querySelectorAll('.opt-btn')[idx].classList.add('highlight');
+  }
+
+  wsSend({ type: 'submit_answer', answerIdx: idx, usedSec });
+}
+
+// 對手已作答通知
+function showOppAnswered() {
+  document.getElementById('opp-answered-badge').style.display = 'block';
+  document.getElementById('p2-status').textContent = '已作答';
+  document.getElementById('p2-status').style.color = '#185FA5';
+}
+
+// ── 本題結算 ─────────────────────────────────────
+
+function showQuestionResult(msg) {
+  clearInterval(state.timerInterval);
+
+  // 更新雙方分數
+  state.scores = msg.scores;
+  const myIdx = state.playerIndex;
+  const oppIdx = 1 - myIdx;
+
+  document.getElementById('p1-score').textContent = state.scores[myIdx];
+  document.getElementById('p2-score').textContent = state.scores[oppIdx];
+
+  // 取得自己和對手的結果
+  const myResult = msg.results[myIdx];
+  const oppResult = msg.results[oppIdx];
+
+  // 記錄到結算明細
+  state.questionResults.push({ myResult, oppResult, questionIdx: msg.index });
+
+  // 標示選項正確/錯誤
+  document.querySelectorAll('.opt-btn').forEach((btn, i) => {
+    btn.disabled = true;
+    btn.classList.remove('highlight');
+    if (i === msg.correctAns) btn.classList.add('correct');
+    else if (i === myResult.answerIdx) btn.classList.add('wrong');
+  });
+
+  // 顯示我的得分回饋
+  if (myResult.answerIdx === -1) {
+    setFeedback('時間到，本題未作答', '#888');
+  } else if (myResult.correct) {
+    setFeedback(`答對！+${myResult.gained} 分（${myResult.usedSec.toFixed(1)} 秒）`, '#3B6D11');
+    document.getElementById('p1-status').textContent = '答對';
+    document.getElementById('p1-status').style.color = '#3B6D11';
+  } else {
+    setFeedback('答錯，本題不扣分', '#A32D2D');
+    document.getElementById('p1-status').textContent = '答錯';
+    document.getElementById('p1-status').style.color = '#A32D2D';
+  }
+
+  // 更新對手狀態（若對手超時）
+  if (!oppResult.correct && oppResult.answerIdx !== -1) {
+    document.getElementById('p2-status').textContent = '答錯';
+    document.getElementById('p2-status').style.color = '#A32D2D';
+  } else if (oppResult.correct) {
+    document.getElementById('p2-status').textContent = '答對';
+    document.getElementById('p2-status').style.color = '#3B6D11';
+  } else {
+    document.getElementById('p2-status').textContent = '超時';
+    document.getElementById('p2-status').style.color = '#888';
+  }
+}
+
+// ── 遊戲結算畫面 ──────────────────────────────────
+
+function showGameEnd(msg) {
+  const myIdx = state.playerIndex;
+  const oppIdx = 1 - myIdx;
+  const myScore = msg.scores[myIdx];
+  const oppScore = msg.scores[oppIdx];
+
+  // 決定勝負文字
+  let winnerText = '';
+  if (msg.winner === null) winnerText = '平局！';
+  else if (msg.winner === myIdx) winnerText = '你獲勝！';
+  else winnerText = `${state.oppName} 獲勝`;
+
+  document.getElementById('result-winner').textContent = winnerText;
+
+  // 分數卡片
+  const myCorrect = state.questionResults.filter(r => r.myResult.correct).length;
+  const oppCorrect = state.questionResults.filter(r => r.oppResult.correct).length;
+
+  document.getElementById('result-cards').innerHTML = `
+    <div class="card result-card">
+      <div class="r-name">${state.myName}（你）</div>
+      <div class="r-score p1-color">${myScore}</div>
+      <div class="r-detail">答對 ${myCorrect} / ${state.totalQ} 題</div>
+    </div>
+    <div class="card result-card">
+      <div class="r-name">${state.oppName}</div>
+      <div class="r-score p2-color">${oppScore}</div>
+      <div class="r-detail">答對 ${oppCorrect} / ${state.totalQ} 題</div>
+    </div>
+  `;
+
+  // 逐題明細
+  const tbody = document.getElementById('detail-body');
+  tbody.innerHTML = state.questionResults.map((r, i) => {
+    const myTag = r.myResult.correct ? `<span class="c-ok">+${r.myResult.gained}</span>` : '<span class="c-err">×</span>';
+    const oppTag = r.oppResult.correct ? `<span class="c-ok">+${r.oppResult.gained}</span>` : '<span class="c-err">×</span>';
+    return `<tr>
+      <td>${myTag}</td>
+      <td class="q-col">Q${i + 1}</td>
+      <td style="text-align:right;">${oppTag}</td>
+    </tr>`;
+  }).join('');
+
+  showScreen('result');
+}
+
+// 再玩一局：回大廳
+document.getElementById('btn-again').addEventListener('click', () => {
+  lobbyError('');
+  showScreen('lobby');
+});
+
+// ── 工具函式 ─────────────────────────────────────
+
+// 切換顯示的畫面（lobby / waiting / game / result）
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(`${name}-screen`).classList.add('active');
+}
+
+// 取得並驗證玩家名稱輸入
+function getInputName() {
+  const v = document.getElementById('input-name').value.trim();
+  if (!v) { lobbyError('請輸入名稱'); return ''; }
+  return v;
+}
+
+// 顯示大廳錯誤訊息
+function lobbyError(msg) {
+  document.getElementById('lobby-error').textContent = msg;
+}
+
+// 更新連線狀態顯示
+function setConnStatus(msg, isError) {
+  const el = document.getElementById('conn-status');
+  el.textContent = msg;
+  el.className = isError ? 'msg error' : 'msg';
+}
+
+// 啟用/禁用大廳按鈕（斷線時禁用）
+function enableLobbyButtons(ok) {
+  ['btn-random', 'btn-create', 'btn-join'].forEach(id => {
+    document.getElementById(id).disabled = !ok;
+  });
+}
+
+// 設定題目回饋文字
+function setFeedback(text, color) {
+  const el = document.getElementById('q-feedback');
+  el.textContent = text;
+  el.style.color = color;
+}
+
+// 安全送出 WebSocket JSON
+function wsSend(data) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
+  }
+}
+
+// ── 啟動 ─────────────────────────────────────────
+connect();
+enableLobbyButtons(false); // 連線前禁用按鈕
+</script>
+</body>
+</html>
