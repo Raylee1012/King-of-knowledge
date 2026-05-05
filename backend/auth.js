@@ -14,9 +14,12 @@ const supabase = createClient(
 // 格式：{ 'email': { code: 123456, expireAt: 1234567890 } }
 const verificationCodes = {}
 
-// 建立 Gmail 寄信器，之後用 transporter.sendMail() 寄信
+// 建立 Gmail 寄信器，強制使用 IPv4（Render 免費方案不支援 IPv6）
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // 使用 Gmail 服務
+  host: 'smtp.gmail.com', // 直接指定 Gmail SMTP 主機
+  port: 465,              // SSL 連接埠
+  secure: true,           // 使用 SSL
+  family: 4,              // 強制使用 IPv4
   auth: {
     user: process.env.MAIL_USER, // 寄件人 Gmail，從 .env 讀取
     pass: process.env.MAIL_PASS  // Gmail 應用程式密碼，從 .env 讀取
@@ -259,7 +262,7 @@ router.post('/login', async (req, res) => {
   }
 
   // 用 email 和密碼登入 Supabase Auth
-  const { data, error } = await supabase.signInWithPassword({ email, password })
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) return res.status(400).json({ error: error.message }) // 400 客戶端錯誤：例如密碼錯誤
 
   res.json({ message: '登入成功', user: data.user }) // 200 成功，回傳玩家資料
