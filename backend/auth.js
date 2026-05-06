@@ -1,7 +1,7 @@
 const express = require('express') // 用來建立伺服器和定義 API 路由的套件，去 node_modules 找 express 並載入
 const router = express.Router() // 子路由器，所有路徑前面會自動加上 /auth，例如 /auth/register
 const { createClient } = require('@supabase/supabase-js') // 從套件取出 createClient 函式
-const nodemailer = require('nodemailer') // 寄 Email 的套件
+const { Resend } = require('resend') // 寄信套件，取代 nodemailer
 const crypto = require('crypto') // Node.js 內建加密套件，不需要安裝，用來產生隨機 token
 
 // 建立 Supabase 連線，之後用 supabase.from() 或 supabase.auth 操作資料庫
@@ -10,21 +10,12 @@ const supabase = createClient(
   process.env.SUPABASE_KEY  // API 金鑰，secret key 有最高權限可繞過 RLS
 )
 
+// 建立 Resend 連線，之後用 resend.emails.send() 寄信
+const resend = new Resend(process.env.RESEND_API_KEY)
+
 // 暫存驗證碼的物件，伺服器重啟後會消失
 // 格式：{ 'email': { code: 123456, expireAt: 1234567890 } }
 const verificationCodes = {}
-
-// 建立 Gmail 寄信器，強制使用 IPv4（Render 免費方案不支援 IPv6）
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com', // 直接指定 Gmail SMTP 主機
-  port: 465,              // SSL 連接埠
-  secure: true,           // 使用 SSL
-  family: 4,              // 強制使用 IPv4
-  auth: {
-    user: process.env.MAIL_USER, // 寄件人 Gmail，從 .env 讀取
-    pass: process.env.MAIL_PASS  // Gmail 應用程式密碼，從 .env 讀取
-  }
-})
 
 // 註冊 API
 // 路徑：POST /auth/register
@@ -91,9 +82,9 @@ router.post('/register', async (req, res) => {
   const verifyLink = `${process.env.BACKEND_URL}/auth/verify-link?token=${token}`
 
   // TODO: 替換 - 等第三組設計好 Email 模板後，替換這裡的 html 內容
-  await transporter.sendMail({
-    from: `知識王 <${process.env.MAIL_USER}>`, // 寄件人顯示名稱和地址
-    to: email,                                  // 收件人
+  await resend.emails.send({
+    from: '知識王 <onboarding@resend.dev>', // 寄件人（免費版只能用 resend.dev 網域）
+    to: email,                               // 收件人
     subject: '知識王 - 帳號驗證',
     html: `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#f9f9f9;padding:30px;border-radius:10px;">
