@@ -1,7 +1,7 @@
 const express = require('express') // 用來建立伺服器和定義 API 路由的套件，去 node_modules 找 express 並載入
 const router = express.Router() // 子路由器，所有路徑前面會自動加上 /auth，例如 /auth/register
 const { createClient } = require('@supabase/supabase-js') // 從套件取出 createClient 函式
-const { Resend } = require('resend') // 寄信套件，取代 nodemailer
+const nodemailer = require('nodemailer') // 寄 Email 的套件
 const crypto = require('crypto') // Node.js 內建加密套件，不需要安裝，用來產生隨機 token
 
 // 建立 Supabase 連線，之後用 supabase.from() 或 supabase.auth 操作資料庫
@@ -10,8 +10,24 @@ const supabase = createClient(
   process.env.SUPABASE_KEY  // API 金鑰，secret key 有最高權限可繞過 RLS
 )
 
-// 建立 Resend 連線，之後用 resend.emails.send() 寄信
-const resend = new Resend(process.env.RESEND_API_KEY)
+// 建立 Gmail OAuth2 寄信器
+// 用 OAuth2 取代應用程式密碼，不會被雲端平台封鎖
+// 直接用 Gmail SMTP 的 IPv4 地址，避免 IPv6 連線問題
+const transporter = nodemailer.createTransport({
+  host: '74.125.24.108', // Gmail SMTP 的 IPv4 地址，避免解析到 IPv6
+  port: 465,             // SSL 連接埠
+  secure: true,          // 使用 SSL
+  tls: {
+    rejectUnauthorized: false // 跳過憑證驗證，因為用 IP 直連會有自簽憑證問題
+  },
+  auth: {
+    type: 'OAuth2',                                // 使用 OAuth2 授權
+    user: process.env.GMAIL_USER,                  // 寄件人 Gmail，從 .env 讀取
+    clientId: process.env.GMAIL_CLIENT_ID,         // Google OAuth2 用戶端 ID
+    clientSecret: process.env.GMAIL_CLIENT_SECRET, // Google OAuth2 用戶端密鑰
+    refreshToken: process.env.GMAIL_REFRESH_TOKEN  // Refresh Token，用來取得寄信權限
+  }
+})
 
 // 暫存驗證碼的物件，伺服器重啟後會消失
 // 格式：{ 'email': { code: 123456, expireAt: 1234567890 } }
@@ -82,9 +98,9 @@ router.post('/register', async (req, res) => {
   const verifyLink = `${process.env.BACKEND_URL}/auth/verify-link?token=${token}`
 
   // TODO: 替換 - 等第三組設計好 Email 模板後，替換這裡的 html 內容
-  await resend.emails.send({
-    from: '知識王 <onboarding@resend.dev>', // 寄件人（免費版只能用 resend.dev 網域）
-    to: email,                               // 收件人
+  await transporter.sendMail({
+    from: `知識王 <${process.env.GMAIL_USER}>`, // 寄件人顯示名稱和地址
+    to: email,                                   // 收件人
     subject: '知識王 - 帳號驗證',
     html: `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#f9f9f9;padding:30px;border-radius:10px;">
