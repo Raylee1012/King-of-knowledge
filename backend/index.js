@@ -1,4 +1,4 @@
-require('dotenv').config() // 讀取 .env 檔案，讓程式可以用 process.env 取得環境變數
+require('dotenv').config({ override: false }) // 不覆蓋已存在的環境變數，讓 Railway 的變數優先
 const express = require('express') // 用來建立伺服器和定義 API 路由的套件，去 node_modules 找 express 並載入
 const { createClient } = require('@supabase/supabase-js') // 從套件取出 createClient 函式
 
