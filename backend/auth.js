@@ -11,14 +11,15 @@ const supabase = createClient(
 )
 
 // 建立 Gmail OAuth2 寄信器
-// 用 OAuth2 取代應用程式密碼，不會被雲端平台封鎖
-// 改用 port 587 TLS，避免 port 465 被封鎖
+// 用 IPv4 地址避免 Railway 解析到 IPv6
+// 用 port 587 TLS，避免 port 465 被封鎖
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com', // Gmail SMTP 主機
+  host: '74.125.24.108',  // Gmail SMTP 的 IPv4 地址，避免解析到 IPv6
   port: 587,              // TLS 連接埠
-  secure: false,          // 587 用 TLS 不是 SSL
+  secure: false,          // 587 用 TLS 不是 SSL，先連線再升級加密
   tls: {
-    rejectUnauthorized: false // 跳過憑證驗證
+    rejectUnauthorized: false,       // 跳過憑證驗證，因為用 IP 直連會有自簽憑證問題
+    servername: 'smtp.gmail.com'     // 告訴伺服器我們要連的是 smtp.gmail.com
   },
   auth: {
     type: 'OAuth2',                                // 使用 OAuth2 授權
