@@ -4,6 +4,8 @@
  * 啟動方式: node server/server.js
  */
 
+require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -12,6 +14,11 @@ const path = require('path');
 const { MatchManager } = require('./matchManager');
 const { GameRoom } = require('./gameRoom');
 const { loadQuestions } = require('./db');
+
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+  console.error('[Server] 找不到環境變數 SUPABASE_URL 或 SUPABASE_ANON_KEY，請建立 .env 或在部署環境中設定變數');
+  process.exit(1);
+}
 
 const PORT = process.env.PORT || 3000;
 
