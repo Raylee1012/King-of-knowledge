@@ -13,12 +13,12 @@ const supabase = createClient(
 // 建立 Gmail 寄信器，使用應用程式密碼
 // 強制使用 IPv4 避免 IPv6 連線問題
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',       // 直接指定 Gmail SMTP 主機，避免 DNS 解析到 IPv6
-  port: 465,                    // SSL 連接埠，Gmail SSL 固定用 465
-  secure: true,                 // true 代表一開始就用 SSL 加密連線
-  family: 4,                    // 強制使用 IPv4，避免連到 IPv6 地址被拒絕
+  host: 'smtp.gmail.com',     // 直接指定 Gmail SMTP 主機，避免 DNS 解析到 IPv6
+  port: 465,                  // SSL 連接埠，Gmail SSL 固定用 465
+  secure: true,               // true 代表一開始就用 SSL 加密連線
+  family: 4,                  // 強制使用 IPv4，避免連到 IPv6 地址被拒絕
   tls: {
-    rejectUnauthorized: false   // 跳過憑證驗證，避免自簽憑證錯誤
+    rejectUnauthorized: false // 跳過憑證驗證，避免自簽憑證錯誤
   },
   auth: {
     user: process.env.GMAIL_USER, // 寄件人 Gmail 帳號，從 .env 讀取
@@ -277,6 +277,186 @@ router.post('/login', async (req, res) => {
   if (error) return res.status(400).json({ error: error.message }) // 400 客戶端錯誤：例如密碼錯誤
 
   res.json({ message: '登入成功', user: data.user }) // 200 成功，回傳玩家資料
+})
+
+// 忘記密碼 API
+// 路徑：POST /auth/forgot-password
+// 傳入：{ email }
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body // 解構取出前端傳來的 email
+
+  // 防呆：email 必填
+  if (!email) {
+    return res.status(400).json({ error: '請填寫 Email' }) // 400 客戶端錯誤：欄位未填寫
+  }
+
+  // 查詢玩家是否存在
+  const { data: userData, error } = await supabase
+    .from('users')
+    .select('id, email') // 只需要 id 和 email
+    .eq('email', email) // 條件：找這個 email 的玩家
+    .single() // 只取一筆
+
+  // 找不到玩家，回傳一樣的訊息，避免被用來查詢哪些 email 已註冊
+  if (error || !userData) {
+    return res.json({ message: '重設密碼信已寄出，請查收信箱' }) // 200 成功但不透漏是否存在
+  }
+
+  // 產生重設密碼 token
+  const expireAt = Date.now() + 5 * 60 * 1000 // 5 分鐘後過期
+  const rawToken = crypto.randomBytes(32).toString('hex') // 產生 64 字元隨機亂碼
+  const resetToken = `${rawToken}.${expireAt}` // 組合成 token，用 . 分隔
+
+  // 把 reset_token 存進資料庫
+  await supabase
+    .from('users')
+    .update({ reset_token: resetToken }) // 更新 reset_token 欄位
+    .eq('email', email) // 條件：只更新這個 email 的玩家
+
+  // 組合重設密碼連結，前端收到後顯示輸入新密碼的表單
+  const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`
+
+  // 寄重設密碼信
+  // TODO: 替換 - 等第三組設計好 Email 模板後，替換這裡的 html 內容
+  await transporter.sendMail({
+    from: `知識王 <${process.env.GMAIL_USER}>`, // 寄件人
+    to: email,                                   // 收件人
+    subject: '知識王 - 重設密碼',                // 信件主旨
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#f9f9f9;padding:30px;border-radius:10px;">
+        <div style="background:#4CAF50;padding:20px;border-radius:8px;text-align:center;">
+          <h1 style="color:white;margin:0;font-size:28px;">👑 知識王</h1>
+          <p style="color:white;margin:5px 0 0;">重設您的密碼</p>
+        </div>
+        <div style="background:white;padding:30px;border-radius:8px;margin-top:20px;">
+          <h2 style="color:#333;">重設密碼</h2>
+          <p style="color:#666;">點擊下方按鈕重設您的密碼：</p>
+          <div style="text-align:center;margin:20px 0;">
+            <a href="${resetLink}" 
+               style="background:#4CAF50;color:white;padding:14px 40px;text-decoration:none;border-radius:25px;font-size:16px;font-weight:bold;">
+              🔑 點我重設密碼
+            </a>
+          </div>
+          <p style="color:#999;font-size:12px;text-align:center;">連結有效期間為 5 分鐘</p>
+        </div>
+        <div style="text-align:center;margin-top:20px;">
+          <p style="color:#999;font-size:12px;">
+            此信件為系統自動發送，請勿直接回覆。<br/>
+            如果你沒有申請重設密碼，請忽略此信件。
+          </p>
+        </div>
+      </div>
+    `
+  })
+
+  res.json({ message: '重設密碼信已寄出，請查收信箱' }) // 200 成功
+})
+
+// 重設密碼 API
+// 路徑：POST /auth/reset-password
+// 傳入：{ token, new_password }
+router.post('/reset-password', async (req, res) => {
+  const { token, new_password } = req.body // 解構取出前端傳來的 token 和新密碼
+
+  // 防呆：兩個欄位都必填
+  if (!token || !new_password) {
+    return res.status(400).json({ error: '請填寫所有欄位' }) // 400 客戶端錯誤：欄位未填寫
+  }
+
+  // 防呆：新密碼至少 6 位數
+  if (new_password.length < 6) {
+    return res.status(400).json({ error: '密碼至少需要6位數' }) // 400 客戶端錯誤：密碼太短
+  }
+
+  // 拆開 token，用 . 分隔成兩個部分
+  const [rawToken, expireAt] = token.split('.')
+
+  // 檢查 token 是否過期
+  if (Date.now() > parseInt(expireAt)) {
+    return res.status(400).json({ error: '重設密碼連結已過期，請重新申請' }) // 400 客戶端錯誤：token 過期
+  }
+
+  // 用 token 查詢資料庫，找到對應的玩家
+  const { data: userData, error } = await supabase
+    .from('users')
+    .select('id, email') // 只需要 id 和 email
+    .eq('reset_token', token) // 找 reset_token 等於這個 token 的玩家
+    .single() // 只取一筆
+
+  // 找不到代表 token 無效或已被清空
+  if (error || !userData) {
+    return res.status(400).json({ error: '重設密碼連結無效' }) // 400 客戶端錯誤：token 無效
+  }
+
+  // 用 Supabase Auth 更新密碼，密碼會自動加密
+  const { error: updateError } = await supabase.auth.admin.updateUserById(
+    userData.id,               // 玩家的 id
+    { password: new_password } // 新密碼，Supabase 會自動加密
+  )
+
+  if (updateError) return res.status(400).json({ error: updateError.message }) // 400 客戶端錯誤：更新失敗
+
+  // 清空 reset_token，避免同一個連結被重複使用
+  await supabase
+    .from('users')
+    .update({ reset_token: null }) // 清空 reset_token
+    .eq('id', userData.id) // 條件：只更新這個玩家的資料
+
+  res.json({ message: '密碼重設成功，請重新登入' }) // 200 成功
+})
+
+// 修改密碼 API
+// 路徑：POST /auth/change-password
+// 傳入：{ user_id, old_password, new_password }
+router.post('/change-password', async (req, res) => {
+  const { user_id, old_password, new_password } = req.body // 解構取出前端傳來的三個欄位
+
+  // 防呆：三個欄位都必填
+  if (!user_id || !old_password || !new_password) {
+    return res.status(400).json({ error: '請填寫所有欄位' }) // 400 客戶端錯誤：欄位未填寫
+  }
+
+  // 防呆：新密碼至少 6 位數
+  if (new_password.length < 6) {
+    return res.status(400).json({ error: '新密碼至少需要6位數' }) // 400 客戶端錯誤：密碼太短
+  }
+
+  // 防呆：新密碼不能和舊密碼一樣
+  if (old_password === new_password) {
+    return res.status(400).json({ error: '新密碼不能和舊密碼相同' }) // 400 客戶端錯誤：密碼相同
+  }
+
+  // 查詢玩家的 email，用來驗證舊密碼
+  const { data: userData, error: userError } = await supabase
+    .from('users')
+    .select('email') // 只需要 email 欄位
+    .eq('id', user_id) // 條件：找這個 id 的玩家
+    .single() // 只取一筆
+
+  if (userError || !userData) {
+    return res.status(400).json({ error: '找不到使用者' }) // 400 客戶端錯誤：找不到玩家
+  }
+
+  // 用舊密碼嘗試登入，驗證舊密碼是否正確
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: userData.email, // 玩家的 email
+    password: old_password // 玩家輸入的舊密碼
+  })
+
+  // 登入失敗代表舊密碼錯誤
+  if (signInError) {
+    return res.status(400).json({ error: '舊密碼錯誤' }) // 400 客戶端錯誤：舊密碼不正確
+  }
+
+  // 用 Supabase Auth 更新密碼，密碼會自動加密
+  const { error: updateError } = await supabase.auth.admin.updateUserById(
+    user_id,                   // 玩家的 id
+    { password: new_password } // 新密碼，Supabase 會自動加密
+  )
+
+  if (updateError) return res.status(400).json({ error: updateError.message }) // 400 客戶端錯誤：更新失敗
+
+  res.json({ message: '密碼修改成功' }) // 200 成功
 })
 
 // 匯出 router，讓 index.js 可以用 require('./auth') 載入

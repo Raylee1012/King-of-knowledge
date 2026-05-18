@@ -15,6 +15,10 @@ const supabase = createClient(
 const authRouter = require('./auth')
 app.use('/auth', authRouter)
 
+// 載入玩家路由，所有 /user 開頭的請求都交給 user.js 處理
+const userRouter = require('./user')
+app.use('/user', userRouter)
+
 // TODO: 刪除 - 測試用首頁，正式上線後刪除
 app.get('/', (req, res) => {
   res.send('知識王後端運作中')
