@@ -99,15 +99,15 @@ router.get('/profile/:user_id', async (req, res) => {
     : Math.max(0, FREE_NICKNAME_CHANGE_LIMIT - userData.nickname_change_count) // 3 - 已用次數
 
   res.json({
-    id: userData.id,                          // 玩家唯一 ID
-    custom_id: userData.custom_id,            // 玩家自訂 ID
-    email: userData.email,                    // 玩家 email
-    is_verified: userData.is_verified,        // 是否已驗證
-    coins: userData.coins,                    // 金幣數量
-    avatar_url: userData.avatar_url,          // 頭像網址
-    nickname: userData.nickname,              // 遊戲暱稱
-    nickname_remaining_free: remainingFree,   // 本月剩餘免費修改暱稱次數
-    created_at: userData.created_at           // 帳號建立時間
+    id: userData.id,                        // 玩家唯一 ID
+    custom_id: userData.custom_id,          // 玩家自訂 ID
+    email: userData.email,                  // 玩家 email
+    is_verified: userData.is_verified,      // 是否已驗證
+    coins: userData.coins,                  // 金幣數量
+    avatar_url: userData.avatar_url,        // 頭像網址
+    nickname: userData.nickname,            // 遊戲暱稱
+    nickname_remaining_free: remainingFree, // 本月剩餘免費修改暱稱次數
+    created_at: userData.created_at         // 帳號建立時間
   }) // 200 成功，回傳玩家資料
 })
 
@@ -258,6 +258,63 @@ router.post('/nickname', async (req, res) => {
     remaining_free: Math.max(0, FREE_NICKNAME_CHANGE_LIMIT - (currentCount + 1)),       // 剩餘免費次數
     remaining_coins: needCoins ? userData.coins - NICKNAME_CHANGE_COST : userData.coins // 剩餘金幣
   }) // 200 成功
+})
+
+// 刪除帳號 API
+// 路徑：DELETE /user/delete
+// 傳入：{ user_id, password }，需要輸入密碼確認才能刪除
+router.delete('/delete', async (req, res) => {
+  const { user_id, password } = req.body // 解構取出前端傳來的兩個欄位
+
+  // 防呆：兩個欄位都必填
+  if (!user_id || !password) {
+    return res.status(400).json({ error: '請填寫所有欄位' }) // 400 客戶端錯誤：欄位未填寫
+  }
+
+  // 查詢玩家的 email 和頭像，用來驗證密碼和刪除頭像
+  const { data: userData, error: userError } = await supabase
+    .from('users')
+    .select('email, avatar_url') // 只需要 email 和 avatar_url
+    .eq('id', user_id) // 條件：找這個 id 的玩家
+    .single() // 只取一筆
+
+  if (userError || !userData) {
+    return res.status(400).json({ error: '找不到使用者' }) // 400 客戶端錯誤：找不到玩家
+  }
+
+  // 用密碼嘗試登入，驗證密碼是否正確
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: userData.email, // 玩家的 email
+    password               // 玩家輸入的密碼
+  })
+
+  // 登入失敗代表密碼錯誤
+  if (signInError) {
+    return res.status(400).json({ error: '密碼錯誤' }) // 400 客戶端錯誤：密碼不正確
+  }
+
+  // 如果有頭像圖片存在 Supabase Storage，刪除它
+  if (userData.avatar_url && userData.avatar_url.includes('supabase.co/storage')) {
+    const fileName = userData.avatar_url.split('/').pop() // 從網址取得檔案名稱
+    await supabase.storage
+      .from('avatars') // 使用 avatars bucket
+      .remove([fileName]) // 刪除這個檔案
+  }
+
+  // 刪除 users 資料表的資料
+  const { error: deleteError } = await supabase
+    .from('users')
+    .delete() // 刪除這筆資料
+    .eq('id', user_id) // 條件：只刪除這個玩家的資料
+
+  if (deleteError) return res.status(400).json({ error: deleteError.message }) // 400 客戶端錯誤：刪除失敗
+
+  // 刪除 Supabase Auth 的帳號
+  const { error: authDeleteError } = await supabase.auth.admin.deleteUser(user_id)
+
+  if (authDeleteError) return res.status(400).json({ error: authDeleteError.message }) // 400 客戶端錯誤：刪除失敗
+
+  res.json({ message: '帳號已刪除' }) // 200 成功
 })
 
 // 匯出 router，讓 index.js 可以用 require('./user') 載入
