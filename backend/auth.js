@@ -77,7 +77,8 @@ router.post('/register', async (req, res) => {
     custom_id,          // 簡寫，等於 custom_id: custom_id
     email,              // 簡寫，等於 email: email
     is_verified: false, // 預設尚未驗證，等玩家點連結或輸入驗證碼後才改成 true
-    verify_token: token // 存入驗證 token，玩家點連結時用來查詢
+    verify_token: token, // 存入驗證 token，玩家點連結時用來查詢
+    coins: 500          // 新玩家初始金幣，讓玩家一開始就能體驗遊戲功能
   })
   // error 改名為 dbError，因為上面已經用過 error 這個變數名稱
   if (dbError) return res.status(400).json({ error: dbError.message }) // 400 客戶端錯誤：例如 ID 已存在
