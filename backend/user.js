@@ -65,6 +65,52 @@ const upload = multer({
 const FREE_NICKNAME_CHANGE_LIMIT = 3 // 每月免費 3 次
 const NICKNAME_CHANGE_COST = 500      // 超過免費次數每次花 500 金幣
 
+// 取得玩家資料 API
+// 路徑：GET /user/profile/:user_id
+// 傳入：URL 參數 user_id
+router.get('/profile/:user_id', async (req, res) => {
+  const { user_id } = req.params // req.params 是 URL 參數，例如 /profile/xxx 的 xxx
+
+  // 防呆：user_id 必填
+  if (!user_id) {
+    return res.status(400).json({ error: '請填寫 user_id' }) // 400 客戶端錯誤：欄位未填寫
+  }
+
+  // 查詢玩家資料
+  const { data: userData, error } = await supabase
+    .from('users')
+    .select('id, custom_id, email, is_verified, coins, avatar_url, nickname, nickname_change_count, nickname_last_reset, created_at') // 取得所有需要的欄位，不包含 token 等敏感資料
+    .eq('id', user_id) // 條件：找這個 id 的玩家
+    .single() // 只取一筆
+
+  if (error || !userData) {
+    return res.status(400).json({ error: '找不到使用者' }) // 400 客戶端錯誤：找不到玩家
+  }
+
+  // 計算本月剩餘免費修改暱稱次數
+  const lastReset = new Date(userData.nickname_last_reset) // 上次重置時間
+  const now = new Date() // 現在時間
+  const isNewMonth = now.getFullYear() > lastReset.getFullYear() ||
+    now.getMonth() > lastReset.getMonth() // 判斷是否過了一個自然月
+
+  // 如果過了一個月，剩餘次數重置為 3，否則用目前的次數計算
+  const remainingFree = isNewMonth
+    ? FREE_NICKNAME_CHANGE_LIMIT // 新的一個月，重置為 3 次
+    : Math.max(0, FREE_NICKNAME_CHANGE_LIMIT - userData.nickname_change_count) // 3 - 已用次數
+
+  res.json({
+    id: userData.id,                          // 玩家唯一 ID
+    custom_id: userData.custom_id,            // 玩家自訂 ID
+    email: userData.email,                    // 玩家 email
+    is_verified: userData.is_verified,        // 是否已驗證
+    coins: userData.coins,                    // 金幣數量
+    avatar_url: userData.avatar_url,          // 頭像網址
+    nickname: userData.nickname,              // 遊戲暱稱
+    nickname_remaining_free: remainingFree,   // 本月剩餘免費修改暱稱次數
+    created_at: userData.created_at           // 帳號建立時間
+  }) // 200 成功，回傳玩家資料
+})
+
 // 修改頭像 API
 // 路徑：POST /user/avatar
 // 傳入：multipart/form-data，包含 user_id 和 avatar（圖片檔案）或 avatar_url（網址）
@@ -85,7 +131,6 @@ router.post('/avatar', upload.single('avatar'), async (req, res) => {
   let avatar_url // 最終要存進資料庫的頭像網址
 
   if (file) { // 如果有上傳圖片檔案，上傳到 Supabase Storage
-    // 產生唯一的檔案名稱，避免重複
     const fileExt = file.originalname.split('.').pop() // 取得副檔名，例如 jpg、png、webp
     const fileName = `${user_id}_${Date.now()}.${fileExt}` // 格式：玩家ID_時間戳記.副檔名
 
@@ -107,7 +152,6 @@ router.post('/avatar', upload.single('avatar'), async (req, res) => {
     avatar_url = urlData.publicUrl // 把公開網址存起來
   } else {
     // 如果沒有上傳圖片，直接用前端傳來的網址
-    // 防呆：驗證 avatar_url 格式，必須是 http 或 https 開頭
     if (!urlFromBody.startsWith('http://') && !urlFromBody.startsWith('https://')) {
       return res.status(400).json({ error: '頭像網址格式不正確' }) // 400 客戶端錯誤：網址格式錯誤
     }
@@ -131,7 +175,7 @@ router.post('/avatar', upload.single('avatar'), async (req, res) => {
 router.post('/nickname', async (req, res) => {
   const { user_id, new_nickname } = req.body // 解構取出前端傳來的兩個欄位
 
-  // debug：確認 user_id 和查詢結果（保留備用，需要時取消註解）
+  // debug：確認 user_id 和查詢結果
   // console.log('user_id:', user_id) // 印出 user_id
   // const { data: debugData, error: debugError } = await supabase.from('users').select('*').eq('id', user_id).single()
   // console.log('data:', JSON.stringify(debugData)) // 印出查詢結果
@@ -163,7 +207,6 @@ router.post('/nickname', async (req, res) => {
   const now = new Date() // 現在時間
 
   // 判斷是否過了一個自然月：年份不同，或月份不同
-  // getMonth() 回傳 0-11（0是1月，11是12月）
   const isNewMonth = now.getFullYear() > lastReset.getFullYear() ||
     now.getMonth() > lastReset.getMonth() // 月份不同代表過了一個自然月
 

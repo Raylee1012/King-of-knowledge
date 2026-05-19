@@ -73,12 +73,12 @@ router.post('/register', async (req, res) => {
 
   // 把玩家資料存進 users 資料表
   const { error: dbError } = await supabase.from('users').insert({
-    id: data.user.id,   // 用 Supabase Auth 產生的同一個 id，讓兩邊資料可以對應
-    custom_id,          // 簡寫，等於 custom_id: custom_id
-    email,              // 簡寫，等於 email: email
-    is_verified: false, // 預設尚未驗證，等玩家點連結或輸入驗證碼後才改成 true
+    id: data.user.id,    // 用 Supabase Auth 產生的同一個 id，讓兩邊資料可以對應
+    custom_id,           // 簡寫，等於 custom_id: custom_id
+    email,               // 簡寫，等於 email: email
+    is_verified: false,  // 預設尚未驗證，等玩家點連結或輸入驗證碼後才改成 true
     verify_token: token, // 存入驗證 token，玩家點連結時用來查詢
-    coins: 500          // 新玩家初始金幣，讓玩家一開始就能體驗遊戲功能
+    coins: 500           // 新玩家初始金幣，讓玩家一開始就能體驗遊戲功能
   })
   // error 改名為 dbError，因為上面已經用過 error 這個變數名稱
   if (dbError) return res.status(400).json({ error: dbError.message }) // 400 客戶端錯誤：例如 ID 已存在
@@ -206,7 +206,6 @@ router.get('/verify-link', async (req, res) => {
   }
 
   // 拆開 token，用 . 分隔成兩個部分
-  // 例如：'a3f8c2d1....1776856823200' → ['a3f8c2d1...', '1776856823200']
   const [rawToken, expireAt] = token.split('.')
 
   // parseInt() 把字串轉成數字再比對，現在時間 > 過期時間代表已過期
