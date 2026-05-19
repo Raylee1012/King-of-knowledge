@@ -59,3 +59,7 @@ FOR UPDATE USING (auth.uid() = id);
 -- 允許 service role 更新所有資料（後端用 secret key 更新時需要）
 CREATE POLICY "allow service role update" ON public.users
 FOR UPDATE USING (true);
+
+-- 允許 service role 刪除所有資料（後端用 secret key 刪除時需要）
+CREATE POLICY "allow service role delete" ON public.users
+FOR DELETE USING (true);
