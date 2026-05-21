@@ -75,9 +75,9 @@ label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
 .opt-btn.correct { background: #EAF3DE; border-color: #639922; color: #27500A; }
 .opt-btn.wrong { background: #FCEBEB; border-color: #A32D2D; color: #791F1F; }
 .opt-btn.highlight { background: #E6F1FB; border-color: #185FA5; }
-#q-feedback { text-align: center; font-size: 13px; min-height: 18px; margin-top: 10px; }
-#opp-answered-badge { display: none; font-size: 12px; color: #185FA5; text-align: right; margin-top: 4px; }
-
+  .item-panel { margin-top: 12px; text-align: center; }
+  .item-panel .btn { padding: 10px 16px; }
+  .item-panel .msg { margin-top: 8px; font-size: 13px; color: #555; }
 /* ── 結算 ── */
 #result-screen .inner { max-width: 460px; margin: 0 auto; }
 #result-screen h2 { font-size: 18px; font-weight: 500; text-align: center; margin-bottom: 1.5rem; }
@@ -197,6 +197,10 @@ label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
         <button class="opt-btn" data-idx="2"></button>
         <button class="opt-btn" data-idx="3"></button>
       </div>
+      <div class="item-panel">
+        <button class="btn btn-block btn-primary" id="btn-item" disabled>刪除一個錯誤選項</button>
+        <div class="msg" id="item-count">剩餘道具: 2 次</div>
+      </div>
       <div id="opp-answered-badge">對手已作答</div>
       <div id="q-feedback"></div>
     </div>
@@ -245,7 +249,7 @@ label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
 
 // ── WebSocket 連線 ────────────────────────────────
 // 自動偵測協議：Railway 用 wss://，本機用 ws://
-const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
 let ws = null;
 
 // 遊戲狀態物件
@@ -260,6 +264,7 @@ const state = {
   answered: false,      // 本題是否已作答
   currentQ: 0,
   totalQ: 10,
+  itemUsesLeft: 2,
   questionResults: [],  // 每題結果，用於結算明細
 };
 
@@ -320,6 +325,7 @@ function dispatch(msg) {
       state.myName = msg.myName;
       state.oppName = msg.opponentName;
       state.scores = [0, 0];
+      state.itemUsesLeft = 2;
       state.questionResults = [];
       initGameUI();
       showScreen('game');
@@ -327,7 +333,16 @@ function dispatch(msg) {
 
     case 'question':
       // 收到新題目
+      state.itemUsesLeft = msg.itemUsesLeft ?? state.itemUsesLeft;
       loadQuestion(msg);
+      break;
+    case 'item_used':
+      updateItemUI(msg.remainingUses);
+      removeWrongOption(msg.removedOptionIdx);
+      setFeedback('已使用刪除錯誤選項道具', '#185FA5');
+      break;
+    case 'item_error':
+      setFeedback(msg.message, '#A32D2D');
       break;
 
     case 'opponent_answered':
@@ -400,7 +415,6 @@ function updateWaitingPlayers(names) {
 // ── 遊戲 UI 初始化 ────────────────────────────────
 
 function initGameUI() {
-  // 根據 playerIndex 決定哪側顯示自己
   const myIdx = state.playerIndex;
   const oppIdx = 1 - myIdx;
 
@@ -408,6 +422,7 @@ function initGameUI() {
   document.getElementById('p2-name').textContent = state.oppName;
   document.getElementById('p1-score').textContent = '0';
   document.getElementById('p2-score').textContent = '0';
+  updateItemUI(state.itemUsesLeft);
 }
 
 // ── 載入題目 ─────────────────────────────────────
@@ -427,6 +442,7 @@ function loadQuestion(msg) {
   document.getElementById('p2-status').textContent = '';
   document.getElementById('q-feedback').textContent = '';
   document.getElementById('opp-answered-badge').style.display = 'none';
+  updateItemUI(state.itemUsesLeft);
 
   // 顯示題目文字
   document.getElementById('q-text').textContent = msg.question;
@@ -437,6 +453,7 @@ function loadQuestion(msg) {
     btn.className = 'opt-btn';
     btn.disabled = false;
   });
+  document.getElementById('btn-item').disabled = state.itemUsesLeft <= 0;
 
   // 重置計時條（先停止過渡，移到100%，再啟動過渡到0%）
   const bar = document.getElementById('timer-bar');
@@ -478,17 +495,22 @@ document.querySelectorAll('.opt-btn').forEach(btn => {
   });
 });
 
+document.getElementById('btn-item').addEventListener('click', () => {
+  if (state.answered || state.itemUsesLeft <= 0) return;
+  wsSend({ type: 'use_item', item: 'delete_wrong' });
+});
+
 // 送出答案到伺服器
 function submitAnswer(idx) {
   state.answered = true;
   clearInterval(state.timerInterval);
   const usedSec = Math.min(10, (Date.now() / 1000) - state.startSec);
 
-  // 標示玩家選擇的選項（尚未知道對錯）
   if (idx >= 0) {
     document.querySelectorAll('.opt-btn')[idx].classList.add('highlight');
   }
 
+  document.getElementById('btn-item').disabled = true;
   wsSend({ type: 'submit_answer', answerIdx: idx, usedSec });
 }
 
@@ -499,10 +521,26 @@ function showOppAnswered() {
   document.getElementById('p2-status').style.color = '#185FA5';
 }
 
+function updateItemUI(remaining) {
+  state.itemUsesLeft = remaining;
+  document.getElementById('item-count').textContent = `剩餘道具: ${remaining} 次`;
+  document.getElementById('btn-item').disabled = remaining <= 0 || state.answered;
+}
+
+function removeWrongOption(idx) {
+  if (idx == null || idx < 0) return;
+  const btn = document.querySelector(`.opt-btn[data-idx="${idx}"]`);
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('wrong');
+  }
+}
+
 // ── 本題結算 ─────────────────────────────────────
 
 function showQuestionResult(msg) {
   clearInterval(state.timerInterval);
+  document.getElementById('btn-item').disabled = true;
 
   // 更新雙方分數
   state.scores = msg.scores;

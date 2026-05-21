@@ -4,8 +4,7 @@
   "description": "知識王線上對戰伺服器",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "nodemon server/server.js"
+    "start": "python server/app.py"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.3",
