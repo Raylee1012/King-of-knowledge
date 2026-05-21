@@ -2,5 +2,5 @@ node_modules/
 npm-debug.log*
 .env
 old_file/
-__pycache__/
+server/__pycache__/
 .vscode/
