@@ -12,6 +12,11 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Node.js 舊版本（保留本機參考用）
+backend/index.js
+backend/auth.js
+backend/user.js
+
 # Windows 系統檔案
 Thumbs.db
 desktop.ini
