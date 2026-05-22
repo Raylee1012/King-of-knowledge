@@ -1,6 +1,0 @@
-node_modules/
-npm-debug.log*
-.env
-old_file/
-server/__pycache__/
-.vscode/
