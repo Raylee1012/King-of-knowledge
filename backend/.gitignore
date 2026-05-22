@@ -1,2 +1,20 @@
+# 環境變數，包含機密資訊不推上 GitHub
 .env
-node_modules
+
+# Node.js 套件
+node_modules/
+
+# 虛擬環境，不推上 GitHub
+.venv/
+
+# Python 編譯檔案
+__pycache__/
+*.pyc
+*.pyo
+
+# Windows 系統檔案
+Thumbs.db
+desktop.ini
+
+# Mac 系統檔案
+.DS_Store
