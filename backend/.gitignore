@@ -4,6 +4,10 @@
 # Node.js 套件
 node_modules/
 
+# Node.js 套件設定（已不使用）
+backend/package.json
+backend/package-lock.json
+
 # 虛擬環境，不推上 GitHub
 .venv/
 
