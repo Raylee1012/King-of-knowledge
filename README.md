@@ -50,7 +50,7 @@ const res = await fetch('http://localhost:3000/auth/register', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    custom_id: 'Ray1012',   // 英數 4-20 字
+    custom_id: 'abc123',   // 英數 4-20 字
     email: 'xxx@gmail.com',
     password: '123456'      // 至少 6 位
   })
@@ -80,7 +80,7 @@ const res = await fetch('http://localhost:3000/auth/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    identifier: 'Ray1012',  // 可以是 custom_id 或 email
+    identifier: 'abc123',  // 可以是 custom_id 或 email
     password: '123456'
   })
 })
