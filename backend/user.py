@@ -36,7 +36,7 @@ def admin_delete_user(user_id):
 def get_profile(user_id):
     # 查詢玩家資料
     user_response = supabase.table('users').select(
-        'id, custom_id, email, is_verified, coins, avatar_url, nickname, nickname_change_count, nickname_last_reset, created_at'
+        'id, custom_id, email, is_verified, coins, avatar_url, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at'  # 加上 is_admin 欄位
     ).eq('id', user_id).execute()  # 條件：找這個 id 的玩家
 
     # 找不到玩家
@@ -65,6 +65,7 @@ def get_profile(user_id):
         'avatar_url': user_data['avatar_url'],        # 頭像網址
         'nickname': user_data['nickname'],            # 遊戲暱稱
         'nickname_remaining_free': remaining_free,    # 本月剩餘免費修改暱稱次數
+        'is_admin': user_data['is_admin'],            # 是否為管理員
         'created_at': user_data['created_at']         # 帳號建立時間
     }), 200  # 200 成功
 
@@ -73,9 +74,9 @@ def get_profile(user_id):
 # 傳入：multipart/form-data，包含 user_id 和 avatar（圖片檔案）或 avatar_url（網址）
 @user_bp.route('/avatar', methods=['POST'])  # 定義 POST /avatar 路由
 def update_avatar():
-    user_id = request.form.get('user_id')        # 從 form data 取出 user_id
+    user_id = request.form.get('user_id')           # 從 form data 取出 user_id
     url_from_body = request.form.get('avatar_url')  # 從 form data 取出 avatar_url
-    file = request.files.get('avatar')           # 取得上傳的圖片檔案
+    file = request.files.get('avatar')              # 取得上傳的圖片檔案
 
     # 防呆：user_id 必填
     if not user_id:
@@ -131,7 +132,7 @@ def update_avatar():
 @user_bp.route('/nickname', methods=['POST'])  # 定義 POST /nickname 路由
 def update_nickname():
     data = request.get_json()  # 取得前端傳來的 JSON 資料
-    user_id = data.get('user_id')        # 取出 user_id 欄位
+    user_id = data.get('user_id')            # 取出 user_id 欄位
     new_nickname = data.get('new_nickname')  # 取出 new_nickname 欄位
 
     # 防呆：兩個欄位都必填
@@ -144,7 +145,7 @@ def update_nickname():
 
     # 查詢玩家資料，取得目前的金幣、修改次數、上次重置時間
     user_response = supabase.table('users').select(
-        'coins, nickname_change_count, nickname_last_reset'
+        'coins, nickname_change_count, nickname_last_reset'  # 只需要這三個欄位
     ).eq('id', user_id).execute()  # 條件：找這個玩家
 
     if not user_response.data:  # 找不到玩家
@@ -165,7 +166,7 @@ def update_nickname():
 
     # 如果過了一個自然月，重置修改次數
     if is_new_month:
-        current_count = 0           # 重置次數為 0
+        current_count = 0             # 重置次數為 0
         reset_time = now.isoformat()  # 更新重置時間為現在
 
     # 判斷是否需要花金幣，超過免費次數就需要花金幣
@@ -175,14 +176,14 @@ def update_nickname():
     if need_coins:
         if user_data['coins'] < NICKNAME_CHANGE_COST:
             return jsonify({
-                'error': f'金幣不足，修改暱稱需要 {NICKNAME_CHANGE_COST} 金幣，目前只有 {user_data["coins"]} 金幣'
-            }), 400  # 400 客戶端錯誤：金幣不足
+                'error': f'金幣不足，修改暱稱需要 {NICKNAME_CHANGE_COST} 金幣，目前只有 {user_data["coins"]} 金幣'  # 400 客戶端錯誤：金幣不足
+            }), 400
 
     # 準備要更新的資料
     update_data = {
-        'nickname': new_nickname,                      # 新暱稱
-        'nickname_change_count': current_count + 1,    # 修改次數加 1
-        'nickname_last_reset': reset_time              # 重置時間
+        'nickname': new_nickname,                    # 新暱稱
+        'nickname_change_count': current_count + 1,  # 修改次數加 1
+        'nickname_last_reset': reset_time            # 重置時間
     }
 
     # 如果需要花金幣，扣除金幣
@@ -194,9 +195,9 @@ def update_nickname():
 
     return jsonify({
         'message': '暱稱更新成功',
-        'cost_coins': NICKNAME_CHANGE_COST if need_coins else 0,                                          # 花了多少金幣
-        'remaining_free': max(0, FREE_NICKNAME_CHANGE_LIMIT - (current_count + 1)),                       # 剩餘免費次數
-        'remaining_coins': user_data['coins'] - NICKNAME_CHANGE_COST if need_coins else user_data['coins'] # 剩餘金幣
+        'cost_coins': NICKNAME_CHANGE_COST if need_coins else 0,                                           # 花了多少金幣
+        'remaining_free': max(0, FREE_NICKNAME_CHANGE_LIMIT - (current_count + 1)),                        # 剩餘免費次數
+        'remaining_coins': user_data['coins'] - NICKNAME_CHANGE_COST if need_coins else user_data['coins']  # 剩餘金幣
     }), 200  # 200 成功
 
 # 刪除帳號 API

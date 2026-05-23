@@ -33,6 +33,9 @@ CREATE TABLE users (
   -- 上次重置暱稱修改次數的時間，用來判斷是否過了一個月
   nickname_last_reset timestamptz DEFAULT now(),
   
+  -- 是否為管理員，預設為否，管理員可以使用題庫生成工具
+  is_admin bool DEFAULT false,
+  
   -- 帳號建立時間，系統自動填入
   created_at timestamptz DEFAULT now()
 );
