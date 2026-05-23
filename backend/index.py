@@ -1,4 +1,4 @@
-from flask import Flask  # Flask 框架，用來建立伺服器和定義路由
+from flask import Flask, jsonify  # Flask 框架，jsonify 把 dict 轉成 JSON 回傳
 from flask_cors import CORS  # 允許跨域請求，讓前端可以呼叫後端 API
 from dotenv import load_dotenv  # 讀取 .env 檔案裡的環境變數
 import os  # Python 內建模組，用來讀取環境變數
@@ -20,6 +20,17 @@ app.register_blueprint(user_bp, url_prefix='/user')  # 把 user_bp 掛載到 /us
 @app.route('/')  # 定義 GET / 路由
 def index():  # 函式名稱，對應到這個路由的處理邏輯
     return '知識王後端運作中'  # 回傳純文字
+
+# 提供前端需要的設定（Gemini 金鑰、Supabase 網址和金鑰）
+# 路徑：GET /config
+# 只有管理員頁面才會呼叫這個 API
+@app.route('/config')  # 定義 GET /config 路由
+def config():  # 函式名稱，對應到這個路由的處理邏輯
+    return jsonify({
+        'gemini_key': os.environ.get('GEMINI_API_KEY'),  # Gemini API 金鑰，用來生成題目
+        'supabase_url': os.environ.get('SUPABASE_URL'),  # Supabase 資料庫網址
+        'supabase_key': os.environ.get('SUPABASE_KEY')   # Supabase 金鑰，用來存入題目
+    })
 
 # TODO: 替換 - 等第三組前端做好後，這個頁面由前端負責
 # 玩家驗證成功後會跳轉到這裡，5 秒後自動跳轉到登入頁面
