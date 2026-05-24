@@ -21,8 +21,8 @@ html, body { height: 100%; font-family: system-ui, sans-serif; font-size: 15px; 
 .btn-primary { background: #185FA5; color: #E6F1FB; border-color: #185FA5; }
 .btn-primary:hover { background: #0C447C; }
 .btn-block { width: 100%; }
-input[type=text] { width: 100%; padding: 9px 12px; border: 0.5px solid #ccc; border-radius: 8px; font-size: 14px; }
-input[type=text]:focus { outline: none; border-color: #185FA5; }
+input[type=text], input[type=password] { width: 100%; padding: 9px 12px; border: 0.5px solid #ccc; border-radius: 8px; font-size: 14px; }
+input[type=text]:focus, input[type=password]:focus { outline: none; border-color: #185FA5; }
 label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
 .msg { font-size: 13px; color: #666; text-align: center; min-height: 18px; }
 .msg.error { color: #a32d2d; }
@@ -93,21 +93,44 @@ label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
 .c-ok { color: #3B6D11; }
 .c-err { color: #A32D2D; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 
 <!-- ═══════════════════════════════════════════════════
-     大廳畫面
-     讓玩家輸入名稱，並選擇匹配方式
+     登入畫面
+     讓玩家使用帳號登入，配對前不再手動輸入名稱
 ════════════════════════════════════════════════════ -->
-<div id="lobby-screen" class="screen active">
+<div id="login-screen" class="screen active">
+  <div class="inner">
+    <h1>請先登入</h1>
+    <div class="card field">
+      <label>電子郵件</label>
+      <input type="text" id="input-email" placeholder="email@example.com">
+    </div>
+    <div class="card field">
+      <label>密碼</label>
+      <input type="password" id="input-password" placeholder="密碼">
+    </div>
+    <button class="btn btn-primary btn-block" id="btn-login">登入</button>
+    <div class="msg error" id="login-error" style="margin-top:12px;"></div>
+    <div class="msg" id="login-hint" style="margin-top:8px; color:#555;">
+      登入後將使用帳號名稱進行配對，無需再次輸入顯示名稱。
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     大廳畫面
+     讓玩家選擇匹配方式
+════════════════════════════════════════════════════ -->
+<div id="lobby-screen" class="screen">
   <div class="inner">
     <h1>知識王對戰</h1>
 
-    <!-- 玩家名稱欄位 -->
     <div class="card field">
-      <label>玩家名稱</label>
-      <input type="text" id="input-name" placeholder="輸入你的名稱（最多12字）" maxlength="12">
+      <label>目前登入帳號</label>
+      <div id="current-user" style="padding:12px 14px; border:0.5px solid #ccc; border-radius:8px; background:#fafafa;">未登入</div>
     </div>
 
     <!-- 隨機匹配 -->
@@ -247,6 +270,14 @@ label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
 // 負責 WebSocket 連線、畫面切換、計時器、答題互動
 // ═══════════════════════════════════════════════════
 
+// ── Supabase 登入設定 ───────────────────────────────
+// 請依照 README_group1.md 在環境中配置 Supabase URL 與 anon key
+const SUPABASE_URL = '';
+const SUPABASE_ANON_KEY = '';
+const supabase = SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase && typeof window.supabase.createClient === 'function'
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
 // ── WebSocket 連線 ────────────────────────────────
 // 自動偵測協議：Railway 用 wss://，本機用 ws://
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
@@ -254,6 +285,8 @@ let ws = null;
 
 // 遊戲狀態物件
 const state = {
+  userId: null,
+  userName: '',
   playerIndex: 0,       // 0或1，本地玩家在房間的索引
   myName: '',
   oppName: '',
@@ -267,6 +300,41 @@ const state = {
   itemUsesLeft: 2,
   questionResults: [],  // 每題結果，用於結算明細
 };
+
+function showLoginError(msg) {
+  document.getElementById('login-error').textContent = msg;
+}
+
+function showCurrentUser(name) {
+  document.getElementById('current-user').textContent = name || '未登入';
+}
+
+async function doLogin() {
+  if (!supabase) {
+    showLoginError('Supabase 未設定。請在 index.html 內填入 SUPABASE_URL / SUPABASE_ANON_KEY。');
+    return;
+  }
+
+  const email = document.getElementById('input-email').value.trim();
+  const password = document.getElementById('input-password').value.trim();
+  if (!email || !password) {
+    showLoginError('請輸入電子郵件與密碼');
+    return;
+  }
+
+  showLoginError('');
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error || !data.user) {
+    showLoginError(error?.message || '登入失敗，請確認帳號密碼');
+    return;
+  }
+
+  state.userId = data.user.id;
+  state.userName = data.user.user_metadata?.nickname || data.user.email?.split('@')[0] || '玩家';
+  state.myName = state.userName;
+  showCurrentUser(state.userName);
+  showScreen('lobby');
+}
 
 // ── 連線建立 ─────────────────────────────────────
 function connect() {
@@ -370,33 +438,34 @@ function dispatch(msg) {
   }
 }
 
+// ── 登入邏輯 ─────────────────────────────────────
+
+document.getElementById('btn-login').addEventListener('click', doLogin);
+
 // ── 大廳邏輯 ─────────────────────────────────────
 
 document.getElementById('btn-random').addEventListener('click', () => {
-  const name = getInputName();
-  if (!name) return;
-  state.myName = name;
+  if (!state.userName) { lobbyError('請先登入帳號'); return; }
+  state.myName = state.userName;
   lobbyError('');
-  wsSend({ type: 'join_queue', name });
+  wsSend({ type: 'join_queue', userName: state.userName, userId: state.userId });
 });
 
 document.getElementById('btn-create').addEventListener('click', () => {
-  const name = getInputName();
-  if (!name) return;
-  state.myName = name;
+  if (!state.userName) { lobbyError('請先登入帳號'); return; }
+  state.myName = state.userName;
   lobbyError('');
   // 伺服器會自動產生房號並回傳
-  wsSend({ type: 'create_room', name });
+  wsSend({ type: 'create_room', userName: state.userName, userId: state.userId });
 });
 
 document.getElementById('btn-join').addEventListener('click', () => {
-  const name = getInputName();
+  if (!state.userName) { lobbyError('請先登入帳號'); return; }
   const roomId = document.getElementById('input-room').value.trim();
-  if (!name) return;
   if (!roomId || roomId.length !== 6) { lobbyError('請輸入6位房號'); return; }
-  state.myName = name;
+  state.myName = state.userName;
   lobbyError('');
-  wsSend({ type: 'join_room', name, roomId });
+  wsSend({ type: 'join_room', userName: state.userName, userId: state.userId, roomId });
 });
 
 // ── 等待室邏輯 ────────────────────────────────────
@@ -651,13 +720,6 @@ document.getElementById('btn-again').addEventListener('click', () => {
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(`${name}-screen`).classList.add('active');
-}
-
-// 取得並驗證玩家名稱輸入
-function getInputName() {
-  const v = document.getElementById('input-name').value.trim();
-  if (!v) { lobbyError('請輸入名稱'); return ''; }
-  return v;
 }
 
 // 顯示大廳錯誤訊息

@@ -41,6 +41,7 @@ def health():
 def websocket(ws):
     ws.id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=7))
     ws.player_name = None
+    ws.user_id = None
     ws.room_id = None
     print(f"[Server] 新連線: {ws.id}")
 
@@ -67,24 +68,31 @@ def websocket(ws):
             rooms.pop(ws.room_id, None)
 
 
+def get_player_name(msg):
+    return str(msg.get('userName') or msg.get('name') or '玩家')[:12]
+
+
 def handle_message(ws, msg):
     msg_type = msg.get('type')
 
     if msg_type == 'join_queue':
-        ws.player_name = str(msg.get('name', '玩家'))[:12]
+        ws.player_name = get_player_name(msg)
+        ws.user_id = msg.get('userId')
         send(ws, {'type': 'queued'})
         match_manager.enqueue_random(ws, lambda p1, p2, room_id: start_room(p1, p2, room_id))
         return
 
     if msg_type == 'create_room':
-        ws.player_name = str(msg.get('name', '玩家'))[:12]
+        ws.player_name = get_player_name(msg)
+        ws.user_id = msg.get('userId')
         room_id = gen_room_id()
         send(ws, {'type': 'room_created', 'roomId': room_id})
         match_manager.create_room(ws, room_id, lambda p1, p2, rid: start_room(p1, p2, rid))
         return
 
     if msg_type == 'join_room':
-        ws.player_name = str(msg.get('name', '玩家'))[:12]
+        ws.player_name = get_player_name(msg)
+        ws.user_id = msg.get('userId')
         room_id = str(msg.get('roomId', '')).strip()
         if not room_id:
             send(ws, {'type': 'error', 'message': '請輸入房號'})
