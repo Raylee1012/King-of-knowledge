@@ -75,6 +75,26 @@ def get_player_name(msg):
 def handle_message(ws, msg):
     msg_type = msg.get('type')
 
+    if msg_type == 'join_bot':
+        ws.player_name = get_player_name(msg)
+        ws.user_id = msg.get('userId')
+        
+        # 建立假的機器人物件
+        class Bot:
+            def __init__(self):
+                self.id = 'bot-' + ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
+                self.player_name = 'AI 練習生'
+                self.is_bot = True
+                self.room_id = None
+            def send(self, data):
+                pass
+                
+        bot = Bot()
+        room_id = gen_room_id()
+        send(ws, {'type': 'queued'})
+        start_room(ws, bot, room_id)
+        return
+    
     if msg_type == 'join_queue':
         ws.player_name = get_player_name(msg)
         ws.user_id = msg.get('userId')

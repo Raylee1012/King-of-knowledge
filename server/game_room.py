@@ -60,6 +60,11 @@ class GameRoom:
 
         self.question_timer = threading.Timer(QUESTION_TIMEOUT, self._resolve_question)
         self.question_timer.start()
+        # === 機器人作答邏輯 ===
+        for i, p in enumerate(self.players):
+            if getattr(p, 'is_bot', False):
+                think_time = random.uniform(2.0, 8.0)
+                threading.Timer(think_time, self._bot_answer, args=(p.id, think_time)).start()
 
     def submit_answer(self, player_id, answer_idx, used_sec):
         player_idx = self._find_player_index(player_id)
@@ -126,7 +131,18 @@ class GameRoom:
             'removedOptionIdx': removed_idx,
             'remainingUses': self.item_uses_left[player_idx],
         })
+    def _bot_answer(self, bot_id, used_sec):
+     if self.ended:
+         return
+     player_idx = self._find_player_index(bot_id)
+     if player_idx != -1 and not self.answered[player_idx]:
+         # 避開已經被道具刪除的選項（雖然機器人不會用道具，但防呆一下）
+         valid_opts = [i for i in range(4) if i not in self.removed_options[player_idx]]
+         random_choice = random.choice(valid_opts) if valid_opts else random.randint(0, 3)
 
+         self.submit_answer(bot_id, random_choice, used_sec)
+         print(f"[Bot] 機器人選擇了選項 {random_choice}，耗時 {used_sec:.1f} 秒")
+         
     def _resolve_question(self):
         q = self.questions[self.current_q]
         results = []

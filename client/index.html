@@ -146,6 +146,7 @@ label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
       <div class="field">
         <label>建立私人房間</label>
         <button class="btn btn-block" id="btn-create">建立房間</button>
+        <button class="btn btn-block" id="btn-bot" style="margin-top:10px; border-color: #3B6D11; color: #3B6D11;">🤖 機器人練習模式</button>
       </div>
       <div class="field" style="margin-top:10px;">
         <label>輸入房號加入</label>
@@ -457,6 +458,13 @@ document.getElementById('btn-create').addEventListener('click', () => {
   lobbyError('');
   // 伺服器會自動產生房號並回傳
   wsSend({ type: 'create_room', userName: state.userName, userId: state.userId });
+});
+
+document.getElementById('btn-bot').addEventListener('click', () => {
+  if (!state.userName) { lobbyError('請先登入帳號'); return; }
+  state.myName = state.userName;
+  lobbyError('');
+  wsSend({ type: 'join_bot', userName: state.userName, userId: state.userId });
 });
 
 document.getElementById('btn-join').addEventListener('click', () => {
