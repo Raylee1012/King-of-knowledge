@@ -1,6 +1,6 @@
-node_modules/
-npm-debug.log*
 .env
-old_file/
 server/__pycache__/
+group1_backend/
+old_file/
 .vscode/
+node_modules/
