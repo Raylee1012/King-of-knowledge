@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+
 </head>
 <body>
 
@@ -22,7 +23,7 @@
       <div class="avatar-frame" id="playerFrame"></div>
     </div>
     <div>
-      <div class="player-name" id="playerNameDisplay">知識戰士<span class="player-tag tag-master" id="playerTagDisplay">大師</span></div>
+      <div class="player-name" id="playerNameDisplay">知識戰士<span class="title-badge tag-master"><span class="title-medal">⭐</span><span class="title-plate">大師</span></span></div>
       <div style="font-size:12px;color:var(--text2)">Lv.<span id="playerLevel">7</span> · XP <span id="playerXP">2840</span>/3000</div>
       <div class="xp-bar-wrap"><div class="xp-bar" id="xpBar" style="width:95%"></div></div>
     </div>
@@ -52,6 +53,11 @@
       <span class="hero-icon">🏆</span>
       <div class="hero-title">排行榜</div>
       <div class="hero-desc">全球知識戰士排名<br>本週榜首</div>
+    </div>
+    <div class="hero-card" onclick="showScreen('profileScreen')">
+      <span class="hero-icon">⚙️</span>
+      <div class="hero-title">個人設定</div>
+      <div class="hero-desc">修改資料・查看統計<br>帳號安全設定</div>
     </div>
   </div>
 
@@ -140,7 +146,7 @@
     <div class="stat-box"><div class="stat-val" id="statScore">0</div><div class="stat-label">最終得分</div></div>
     <div class="stat-box"><div class="stat-val" id="statCorrect">0</div><div class="stat-label">答對題數</div></div>
     <div class="stat-box"><div class="stat-val" id="statAccuracy">0%</div><div class="stat-label">答題準確率</div></div>
-    <div class="stat-box"><div class="stat-val" id="statCoins">+0</div><div class="stat-label">獲得金幣</div></div>
+    <div class="stat-box"><div class="stat-val" id="statCoinsEarned">+0</div><div class="stat-label">獲得金幣</div></div>
   </div>
   <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
     <button class="btn btn-gold" onclick="startBattle()">⚔️ 再次挑戰</button>
@@ -167,12 +173,12 @@
   <div class="tab-content active" id="tab-distribution">
     <div class="chart-container">
       <div class="chart-title">🗺️ 21 種主題題目分佈（總答題數）</div>
-      <div class="chart-wrap" style="height:420px"><canvas id="distributionChart" role="img" aria-label="21種知識主題答題分佈長條圖">主題分佈圖表</canvas></div>
+      <div class="chart-wrap" style="height:420px"><canvas id="distributionChart"></canvas></div>
     </div>
     <div class="chart-container">
       <div class="chart-title">🥧 主題類別比例</div>
       <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
-        <div class="chart-wrap" style="height:260px;flex:1;min-width:200px"><canvas id="pieChart" role="img" aria-label="主題類別比例圓餅圖">類別比例</canvas></div>
+        <div class="chart-wrap" style="height:260px;flex:1;min-width:200px"><canvas id="pieChart"></canvas></div>
         <div id="pieLegend" style="flex:1;min-width:160px;font-size:12px"></div>
       </div>
     </div>
@@ -181,7 +187,7 @@
   <div class="tab-content" id="tab-radar">
     <div class="chart-container">
       <div class="chart-title">🕸️ 個人能力雷達分析</div>
-      <div class="chart-wrap" style="height:380px"><canvas id="radarChart" role="img" aria-label="個人能力雷達圖">能力雷達圖</canvas></div>
+      <div class="chart-wrap" style="height:380px"><canvas id="radarChart"></canvas></div>
     </div>
     <div class="result-stats">
       <div class="stat-box"><div class="stat-val" style="font-size:20px">🔬</div><div class="stat-val" id="bestTopic">科學</div><div class="stat-label">最強主題</div></div>
@@ -194,11 +200,11 @@
   <div class="tab-content" id="tab-trend">
     <div class="chart-container">
       <div class="chart-title">📈 近 10 場戰績得分趨勢</div>
-      <div class="chart-wrap" style="height:280px"><canvas id="trendChart" role="img" aria-label="近期戰績趨勢折線圖">趨勢圖</canvas></div>
+      <div class="chart-wrap" style="height:280px"><canvas id="trendChart"></canvas></div>
     </div>
     <div class="chart-container">
-      <div class="chart-title">🎯 每日正確率</div>
-      <div class="chart-wrap" style="height:220px"><canvas id="accuracyChart" role="img" aria-label="每日答題正確率圖">正確率圖</canvas></div>
+      <div class="chart-title">🎯 每場正確率</div>
+      <div class="chart-wrap" style="height:220px"><canvas id="accuracyChart"></canvas></div>
     </div>
   </div>
 </div>
@@ -236,6 +242,231 @@
 </div>
 </div>
 
+<!-- PROFILE -->
+<div class="screen" id="profileScreen">
+<div class="content">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+    <button class="btn btn-sm btn-outline" onclick="showScreen('homeScreen')">← 返回</button>
+    <div class="section-title" style="margin:0">⚙️ 個人設定</div>
+  </div>
+
+  <div class="nav" id="profileNav">
+    <button class="nav-btn active" onclick="switchProfileTab('edit')">編輯資料</button>
+    <button class="nav-btn" onclick="switchProfileTab('stats')">統計資料</button>
+    <button class="nav-btn" onclick="switchProfileTab('account')">帳號安全</button>
+  </div>
+
+  <!-- TAB 1: 編輯資料 -->
+  <div class="tab-content active" id="tab-edit">
+    <div class="card">
+      <div class="profile-avatar-section">
+        <div style="text-align:center;margin-bottom:24px">
+          <div class="profile-avatar-wrap">
+            <div class="profile-avatar" id="editAvatar">🧠</div>
+            <div class="profile-frame" id="editFrame"></div>
+          </div>
+          <div style="margin-top:12px;color:var(--text2);font-size:12px">點擊下方選擇頭像</div>
+        </div>
+
+        <div style="margin-bottom:24px">
+          <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:12px">🎭 頭像</div>
+          <div class="emoji-grid">
+            <button class="emoji-btn active" onclick="selectAvatar('🧠')">🧠</button>
+            <button class="emoji-btn" onclick="selectAvatar('👨')">👨</button>
+            <button class="emoji-btn" onclick="selectAvatar('👩')">👩</button>
+            <button class="emoji-btn" onclick="selectAvatar('🧙')">🧙</button>
+            <button class="emoji-btn" onclick="selectAvatar('🤓')">🤓</button>
+            <button class="emoji-btn" onclick="selectAvatar('🎓')">🎓</button>
+            <button class="emoji-btn" onclick="selectAvatar('🤖')">🤖</button>
+            <button class="emoji-btn" onclick="selectAvatar('⚡')">⚡</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:24px">
+          <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:12px">🎨 外框</div>
+          <div class="frame-select-grid">
+            <button class="frame-select" data-frame="frame-none" onclick="selectFrame('frame-none')">
+              <div class="frame-preview" style="border:2px solid #666">⬜</div>
+              <div>無邊框</div>
+            </button>
+            <button class="frame-select" data-frame="frame-gold" onclick="selectFrame('frame-gold')">
+              <div class="frame-preview frame-gold">🟡</div>
+              <div>黃金戰士</div>
+            </button>
+            <button class="frame-select" data-frame="frame-diamond" onclick="selectFrame('frame-diamond')">
+              <div class="frame-preview frame-diamond">💎</div>
+              <div>鑽石冠軍</div>
+            </button>
+            <button class="frame-select" data-frame="frame-fire" onclick="selectFrame('frame-fire')">
+              <div class="frame-preview frame-fire">🔥</div>
+              <div>火焰王者</div>
+            </button>
+            <button class="frame-select" data-frame="frame-rainbow" onclick="selectFrame('frame-rainbow')">
+              <div class="frame-preview frame-rainbow">🌈</div>
+              <div>彩虹傳說</div>
+            </button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:24px">
+          <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:12px">⭐ 稱號</div>
+          <div class="tag-select-grid">
+            <button class="tag-select" data-tag="tag-rookie" onclick="selectTag('tag-rookie')">
+              <span class="title-badge tag-rookie"><span class="title-medal">🌱</span><span class="title-plate">新手</span></span>
+              <div style="font-size:11px;color:var(--text2)">Rookie</div>
+            </button>
+            <button class="tag-select" data-tag="tag-apprentice" onclick="selectTag('tag-apprentice')">
+              <span class="title-badge tag-apprentice"><span class="title-medal">📘</span><span class="title-plate">學徒</span></span>
+              <div style="font-size:11px;color:var(--text2)">Apprentice</div>
+            </button>
+            <button class="tag-select" data-tag="tag-expert" onclick="selectTag('tag-expert')">
+              <span class="title-badge tag-expert"><span class="title-medal">🎯</span><span class="title-plate">專家</span></span>
+              <div style="font-size:11px;color:var(--text2)">Expert</div>
+            </button>
+            <button class="tag-select" data-tag="tag-master" onclick="selectTag('tag-master')">
+              <span class="title-badge tag-master"><span class="title-medal">⭐</span><span class="title-plate">大師</span></span>
+              <div style="font-size:11px;color:var(--text2)">Master</div>
+            </button>
+            <button class="tag-select" data-tag="tag-legend" onclick="selectTag('tag-legend')">
+              <span class="title-badge tag-legend"><span class="title-medal">🏆</span><span class="title-plate">傳說</span></span>
+              <div style="font-size:11px;color:var(--text2)">Legend</div>
+            </button>
+            <button class="tag-select" data-tag="tag-king" onclick="selectTag('tag-king')">
+              <span class="title-badge tag-king"><span class="title-medal">👑</span><span class="title-plate">知識王</span></span>
+              <div style="font-size:11px;color:var(--text2)">King</div>
+            </button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:24px">
+          <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:12px">✨ 特效</div>
+          <div class="effect-select-grid">
+            <button class="effect-select" data-effect="eff-confetti" onclick="toggleEffect('eff-confetti')">
+              <div class="effect-card confetti">
+                <span class="effect-mini m1"></span><span class="effect-mini m2"></span><span class="effect-mini m3"></span>
+                <div class="effect-icon">🎊</div>
+                <div class="effect-name">彩紙爆炸</div>
+              </div>
+              <div style="font-size:12px;color:var(--text2)">答對時彩色粒子爆開</div>
+            </button>
+            <button class="effect-select" data-effect="eff-lightning" onclick="toggleEffect('eff-lightning')">
+              <div class="effect-card lightning">
+                <span class="effect-mini m1"></span><span class="effect-mini m2"></span><span class="effect-mini m3"></span>
+                <div class="effect-icon">⚡</div>
+                <div class="effect-name">閃電特效</div>
+              </div>
+              <div style="font-size:12px;color:var(--text2)">藍色電光衝擊感</div>
+            </button>
+            <button class="effect-select" data-effect="eff-star" onclick="toggleEffect('eff-star')">
+              <div class="effect-card star">
+                <span class="effect-mini m1"></span><span class="effect-mini m2"></span><span class="effect-mini m3"></span>
+                <div class="effect-icon">✨</div>
+                <div class="effect-name">星光迸發</div>
+              </div>
+              <div style="font-size:12px;color:var(--text2)">金色星芒散射</div>
+            </button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:24px">
+          <label style="font-size:13px;font-weight:700;color:var(--text2);display:block;margin-bottom:8px">🏷️ 玩家名稱</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="playerNameInput" class="profile-input" placeholder="輸入你的名稱" value="知識戰士" maxlength="20" disabled>
+            <button class="btn btn-outline" id="editNameBtn" onclick="toggleNameEdit()" style="flex-shrink:0">✏️ 修改</button>
+          </div>
+        </div>
+
+
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: 統計資料 -->
+  <div class="tab-content" id="tab-stats">
+    <div class="stats-container">
+      <div class="stats-header">
+        <div class="stat-box-large">
+          <div class="stat-val">Lv.<span id="statLevel">7</span></div>
+          <div class="stat-label">等級</div>
+        </div>
+        <div class="stat-box-large">
+          <div class="stat-val"><span id="statWins">18</span></div>
+          <div class="stat-label">勝場</div>
+        </div>
+        <div class="stat-box-large">
+          <div class="stat-val"><span id="statLosses">11</span></div>
+          <div class="stat-label">敗場</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:12px">📊 詳細統計</div>
+        <div class="stats-detail-row">
+          <span>勝率</span>
+          <span id="statWinRate" class="stat-highlight">62%</span>
+        </div>
+        <div class="stats-detail-row">
+          <span>累計答題</span>
+          <span id="statTotalAnswered" class="stat-highlight">142</span>
+        </div>
+        <div class="stats-detail-row">
+          <span>平均準確率</span>
+          <span id="statAvgAcc" class="stat-highlight">78%</span>
+        </div>
+        <div class="stats-detail-row">
+          <span>累計積分</span>
+          <span id="statTotalScore" class="stat-highlight">62,800</span>
+        </div>
+        <div class="stats-detail-row">
+          <span>金幣餘額</span>
+          <span id="statCoinsDisplay" class="stat-highlight">9,999 🪙</span>
+        </div>
+        <div class="stats-detail-row">
+          <span>當前 XP</span>
+          <span id="statXp" class="stat-highlight">2,840/3,000</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:12px">🏆 最強主題</div>
+        <div id="topTopics" style="display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(100px,1fr))"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: 帳號安全 -->
+  <div class="tab-content" id="tab-account">
+    <div class="card">
+      <div style="margin-bottom:24px">
+        <label style="font-size:13px;font-weight:700;color:var(--text2);display:block;margin-bottom:8px">📧 帳號</label>
+        <div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:12px;
+          color:var(--text);font-size:14px;font-weight:700;word-break:break-all">
+          player@knowledge-king.com
+        </div>
+      </div>
+
+      <div style="margin-bottom:24px">
+        <label style="font-size:13px;font-weight:700;color:var(--text2);display:block;margin-bottom:8px">🔐 密碼</label>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:12px;
+            color:var(--accent);font-size:16px;letter-spacing:2px;font-weight:900" id="passwordDisplay">
+            ••••••••
+          </div>
+          <button class="btn btn-outline" onclick="togglePasswordVisibility()" id="togglePwdBtn">👁️ 顯示</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:24px">
+        <button class="btn btn-outline" onclick="changePassword()" style="width:100%;margin-bottom:12px">🔄 更換密碼</button>
+        <button class="btn btn-outline" onclick="enableTwoFA()" style="width:100%;margin-bottom:12px">🛡️ 啟用雙重認證</button>
+        <button class="btn btn-danger" onclick="logout()" style="width:100%">🚪 登出</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
 <script src="main.js"></script>
+
 </body>
 </html>
