@@ -1,8 +1,8 @@
 // ─── STATE ──────────────────────────────────────────────
 const state = {
-  coins: 9999, level: 7, xp: 2840, xpMax: 3000,
-  playerName: '知識戰士', playerTag: '大師', playerTagClass: 'tag-master', playerTagIcon: '⭐',
-  equippedFrame: 'frame-gold', equippedEmoji: '🧠', activeEffect: null,
+  coins: 1200, level: 7, xp: 2840, xpMax: 3000,
+  playerName: '知識戰士', playerTag: '大師', playerTagClass: 'tag-master',
+  equippedFrame: 'frame-gold', equippedEmoji: '🧠',
   owned: { frames: ['frame-none','frame-gold'], tags: ['tag-rookie','tag-master'], effects: [] },
   wins: 18, losses: 11,
   topicStats: {
@@ -49,15 +49,13 @@ const shopData = {
     {id:'frame-gold',name:'黃金戰士',desc:'閃耀黃金光芒',price:200,preview:'🟡',class:'frame-gold'},
     {id:'frame-diamond',name:'鑽石冠軍',desc:'藍色旋轉鑽石框',price:500,preview:'💎',class:'frame-diamond'},
     {id:'frame-fire',name:'火焰王者',desc:'橘紅火焰特效',price:800,preview:'🔥',class:'frame-fire'},
-    {id:'frame-rainbow',name:'彩虹傳說',desc:'七彩漸變框（稀有）',price:1500,preview:'🌈',class:'frame-rainbow'},
+    {id:'frame-rainbow',name:'彩虹傳說',desc:'七彩漸變框（稀有）',price:1500,preview:'🌈',class:'frame-diamond'},
   ],
   tags: [
-    {id:'tag-rookie',name:'新手',desc:'剛入門的稱號',price:0,preview:'🌱',class:'tag-rookie'},
-    {id:'tag-apprentice',name:'學徒',desc:'開始累積知識的挑戰者',price:150,preview:'📘',class:'tag-apprentice'},
-    {id:'tag-expert',name:'專家',desc:'熟練掌握多種主題',price:450,preview:'🎯',class:'tag-expert'},
-    {id:'tag-master',name:'大師',desc:'知識的探索者',price:800,preview:'⭐',class:'tag-master'},
-    {id:'tag-legend',name:'傳說',desc:'頂尖知識戰士',price:1500,preview:'🏆',class:'tag-legend'},
-    {id:'tag-king',name:'知識王',desc:'最高榮耀稱號',price:3000,preview:'👑',class:'tag-king'},
+    {id:'tag-rookie',name:'新手村民',desc:'剛入門的稱號',price:0,preview:'🌱'},
+    {id:'tag-master',name:'大師',desc:'知識的探索者',price:300,preview:'⭐',class:'tag-master'},
+    {id:'tag-legend',name:'傳說',desc:'頂尖知識戰士',price:800,preview:'🏆',class:'tag-legend'},
+    {id:'tag-king',name:'知識王',desc:'最高榮耀稱號',price:2000,preview:'👑',class:'tag-legend'},
   ],
   effects: [
     {id:'eff-confetti',name:'彩紙爆炸',desc:'答對時彩紙飛舞',price:400,preview:'🎊'},
@@ -74,7 +72,7 @@ const rankData = [
   {rank:5,name:'問題終結者',tag:'大師',score:70200,wins:175,frame:'🟡',emoji:'🎯'},
   {rank:6,name:'知識戰士',tag:'大師',score:62800,wins:159,frame:'🟡',emoji:'🧠',isYou:true},
   {rank:7,name:'無所不知',tag:'大師',score:58300,wins:142,frame:'',emoji:'🦉'},
-  {rank:8,name:'答題機器',tag:'學徒',score:45100,wins:98,frame:'',emoji:'🤖'},
+  {rank:8,name:'答題機器',tag:'新手',score:45100,wins:98,frame:'',emoji:'🤖'},
 ];
 
 // ─── STARS ───────────────────────────────────────────────
@@ -97,33 +95,14 @@ function showScreen(id) {
   if(id==='analyticsScreen') setTimeout(initCharts,100);
   if(id==='shopScreen') renderShop('frames');
   if(id==='rankScreen') renderRank();
-  if(id==='profileScreen') { updateProfileEditUI(); updateStatsDisplay(); }
 }
 
 // ─── PLAYER BAR ──────────────────────────────────────────
-function escapeHTML(str) {
-  return String(str).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[ch]));
-}
-
-function getTagIcon(tagClass) {
-  const icons = {'tag-rookie':'🌱','tag-apprentice':'📘','tag-expert':'🎯','tag-master':'⭐','tag-legend':'🏆','tag-king':'👑'};
-  return icons[tagClass] || state.playerTagIcon || '';
-}
-
-function renderTitleBadge(tagClass = state.playerTagClass, tagName = state.playerTag, compact = false) {
-  const icon = getTagIcon(tagClass);
-  return `<span class="title-badge ${tagClass} ${compact ? 'compact' : ''}"><span class="title-medal">${icon}</span><span class="title-plate">${escapeHTML(tagName)}</span></span>`;
-}
-
-function renderPlayerTag() {
-  return renderTitleBadge(state.playerTagClass, state.playerTag, false);
-}
-
 function updatePlayerBar() {
-  document.getElementById('coinDisplay').textContent = state.coins.toLocaleString();
-  const shopCoinsEl = document.getElementById('shopCoins');
-  if(shopCoinsEl) shopCoinsEl.textContent = state.coins.toLocaleString();
-  document.getElementById('playerNameDisplay').innerHTML = escapeHTML(state.playerName) + renderPlayerTag();
+  document.getElementById('coinDisplay').textContent = state.coins;
+  document.getElementById('shopCoins').textContent = state.coins;
+  document.getElementById('playerNameDisplay').innerHTML = state.playerName +
+    `<span class="player-tag ${state.playerTagClass}" id="playerTagDisplay">${state.playerTag}</span>`;
   document.getElementById('playerLevel').textContent = state.level;
   document.getElementById('playerXP').textContent = state.xp;
   const pct = (state.xp/state.xpMax*100).toFixed(0);
@@ -140,7 +119,6 @@ function startBattle() {
   showScreen('battleScreen');
   const bd = state.battleData;
   bd.round=0; bd.playerScore=0; bd.oppScore=0; bd.correct=0; bd.total=0; bd.combo=1; bd.answering=false;
-  if(bd.timer) clearInterval(bd.timer);
   state.skills = { used50:false, usedTime:false, usedHint:false };
   resetSkillBtns();
   questionOrder = [...Array(questions.length).keys()].sort(()=>Math.random()-.5);
@@ -208,17 +186,12 @@ function timeOut() {
   state.battleData.answering = true;
   state.battleData.combo = 1;
   document.getElementById('comboMult').textContent = 1;
-  // 顯示正確答案
-  const qi = questionOrder[(state.battleData.round-1)%questions.length];
-  const q = questions[qi];
-  const btns = document.getElementById('optionsGrid').querySelectorAll('.option-btn');
-  btns.forEach(b=>b.disabled=true);
-  if(btns[q.ans]) btns[q.ans].classList.add('correct');
   addWrongFlash();
+  // opponent might "answer"
   const oppPoints = Math.floor(Math.random()*100)+50;
   state.battleData.oppScore += oppPoints;
   updateScoreDisplay();
-  setTimeout(loadQuestion, 1800);
+  setTimeout(loadQuestion, 1500);
 }
 
 function answerQuestion(chosen, correct, btn) {
@@ -227,7 +200,7 @@ function answerQuestion(chosen, correct, btn) {
   bd.answering = true;
   clearInterval(bd.timer);
   bd.total++;
-  state.topicStats[questions[questionOrder[(bd.round-1)%questions.length]].topic] =
+  state.topicStats[questions[questionOrder[(bd.round-1)%questions.length]].topic] = 
     (state.topicStats[questions[questionOrder[(bd.round-1)%questions.length]].topic]||0)+1;
 
   const grid = document.getElementById('optionsGrid');
@@ -247,6 +220,7 @@ function answerQuestion(chosen, correct, btn) {
     showXpPopup();
   } else {
     btn.classList.add('wrong');
+    btns[correct].classList.add('correct');
     bd.combo = 1;
     addWrongFlash();
     const oppPoints = Math.floor(Math.random()*120)+80;
@@ -268,12 +242,11 @@ function updateScoreDisplay() {
 
 function endBattle() {
   const bd = state.battleData;
-  if(bd.timer) clearInterval(bd.timer);
   const won = bd.playerScore > bd.oppScore;
   const coins = won ? Math.floor(bd.playerScore/50)+100 : Math.floor(bd.playerScore/100)+30;
   state.coins += coins;
   state.xp += won ? 200 : 80;
-  if (state.xp >= state.xpMax) { state.level++; state.xp -= state.xpMax; state.xpMax = Math.floor(state.xpMax*1.3); showToast('🎉 升級了！Lv.' + state.level); }
+  if (state.xp >= state.xpMax) { state.level++; state.xp -= state.xpMax; state.xpMax = Math.floor(state.xpMax*1.3); }
   if (won) state.wins++; else state.losses++;
   state.recentScores.push(bd.playerScore);
   state.recentScores = state.recentScores.slice(-10);
@@ -289,7 +262,7 @@ function endBattle() {
   document.getElementById('statScore').textContent = bd.playerScore;
   document.getElementById('statCorrect').textContent = `${bd.correct}/${bd.total}`;
   document.getElementById('statAccuracy').textContent = acc+'%';
-  document.getElementById('statCoinsEarned').textContent = '+'+coins;
+  document.getElementById('statCoins').textContent = '+'+coins;
   showScreen('resultScreen');
 }
 
@@ -317,17 +290,6 @@ function useSkillTime() {
   document.getElementById('skillTime').classList.add('used');
   state.battleData.timerVal = Math.min(state.battleData.timerVal+10, 25);
   updateTimer(state.battleData.timerVal);
-  // 重新設定計時器（保持剩餘時間繼續倒數）
-  const bd = state.battleData;
-  clearInterval(bd.timer);
-  bd.timer = setInterval(() => {
-    bd.timerVal--;
-    updateTimer(bd.timerVal);
-    if (bd.timerVal <= 0) {
-      clearInterval(bd.timer);
-      if (!bd.answering) timeOut();
-    }
-  }, 1000);
 }
 function useSkillHint() {
   if (state.skills.usedHint) return;
@@ -340,211 +302,23 @@ function useSkillHint() {
 }
 
 // ─── EFFECTS ─────────────────────────────────────────────
-function getEffectOrigin() {
-  const card = document.querySelector('#battleScreen .question-card');
-  if (card) {
-    const rect = card.getBoundingClientRect();
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-  }
-  return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-}
-
-function createEffectNode(className, styles = {}) {
-  const el = document.createElement('div');
-  el.className = className;
-
-  // Object.assign 無法穩定寫入 CSS 自訂變數（例如 --tx / --ty），
-  // 所以這裡改用 setProperty，避免特效粒子全部卡在中心點。
-  Object.entries(styles).forEach(([key, value]) => {
-    if (key.startsWith('--')) {
-      el.style.setProperty(key, value);
-    } else {
-      el.style[key] = value;
-    }
-  });
-
-  return el;
-}
-
-function burstVector(angle, distance) {
-  return {
-    x: Math.cos(angle) * distance,
-    y: Math.sin(angle) * distance
-  };
-}
-
 function addCorrectEffect(points) {
   const overlay = document.getElementById('effectOverlay');
   const flash = document.createElement('div');
   flash.className = 'correct-flash';
   overlay.appendChild(flash);
-  setTimeout(()=>flash.remove(),450);
-
-  const activeEffect = state.activeEffect || state.owned.activeEffect || 'eff-confetti';
-  const origin = getEffectOrigin();
-  if (activeEffect === 'eff-lightning') {
-    addLightningEffect(overlay, origin);
-  } else if (activeEffect === 'eff-star') {
-    addStarEffect(overlay, origin);
-  } else {
-    addConfettiEffect(overlay, origin);
+  setTimeout(()=>flash.remove(),400);
+  const colors = ['#ffd700','#ff6b35','#00e676','#00d4ff','#e040fb'];
+  for (let i=0;i<20;i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const x = (Math.random()*200-100)+'px', y = (Math.random()*200-100)+'px';
+    p.style.cssText=`width:8px;height:8px;background:${colors[Math.floor(Math.random()*colors.length)]};
+      left:50%;top:50%;--tx:${x};--ty:${y};animation-duration:${.6+Math.random()*.6}s`;
+    overlay.appendChild(p);
+    setTimeout(()=>p.remove(),1200);
   }
 }
-
-function addConfettiEffect(overlay, origin) {
-  const colors = ['#ff5aa5','#ffd34f','#67e8f9','#8b5cf6','#4ade80','#ff7b54'];
-
-  const glow = createEffectNode('effect-glow', {
-    left: origin.x + 'px', top: origin.y + 'px', width: '180px', height: '180px',
-    background: 'radial-gradient(circle, rgba(255,255,255,.36) 0%, rgba(255,214,99,.24) 28%, rgba(108,225,255,.16) 54%, rgba(255,255,255,0) 75%)'
-  });
-  overlay.appendChild(glow);
-  setTimeout(()=>glow.remove(),800);
-
-  const ring = createEffectNode('effect-ring', {
-    left: origin.x + 'px', top: origin.y + 'px', width: '130px', height: '130px',
-    border: '3px solid rgba(255,255,255,.55)', boxShadow: '0 0 22px rgba(255,215,110,.42)'
-  });
-  overlay.appendChild(ring);
-  setTimeout(()=>ring.remove(),750);
-
-  for (let i = 0; i < 34; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const distance = 90 + Math.random() * 180;
-    const vec = burstVector(angle, distance);
-    const isDot = Math.random() > 0.65;
-    const piece = createEffectNode(`effect-burst-piece ${isDot ? 'confetti-dot' : 'confetti-piece'}`, {
-      left: origin.x + 'px', top: origin.y + 'px',
-      background: colors[Math.floor(Math.random() * colors.length)],
-      '--tx': vec.x + 'px', '--ty': vec.y + 'px',
-      '--rot': (Math.random() * 360) + 'deg', '--spin': ((Math.random() * 480) - 240) + 'deg',
-      '--scale': (0.85 + Math.random() * 0.7).toFixed(2), '--dur': (0.72 + Math.random() * 0.38) + 's'
-    });
-    if (!isDot) {
-      piece.style.width = (8 + Math.random() * 6) + 'px';
-      piece.style.height = (12 + Math.random() * 10) + 'px';
-      piece.style.borderRadius = (2 + Math.random() * 5) + 'px';
-    }
-    overlay.appendChild(piece);
-    setTimeout(()=>piece.remove(),1250);
-  }
-
-  for (let i = 0; i < 9; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const distance = 120 + Math.random() * 110;
-    const vec = burstVector(angle, distance);
-    const streamer = createEffectNode('effect-streamer confetti-streamer', {
-      left: origin.x + 'px', top: origin.y + 'px',
-      background: `linear-gradient(180deg, ${colors[i % colors.length]}, rgba(255,255,255,.18))`,
-      '--tx': vec.x + 'px', '--ty': vec.y + 'px',
-      '--angle': (angle * 180 / Math.PI) + 'deg', '--spin': ((Math.random() * 100) - 50) + 'deg',
-      '--dur': (0.88 + Math.random() * 0.28) + 's'
-    });
-    overlay.appendChild(streamer);
-    setTimeout(()=>streamer.remove(),1350);
-  }
-}
-
-function addLightningEffect(overlay, origin) {
-  const glow = createEffectNode('effect-glow', {
-    left: origin.x + 'px', top: origin.y + 'px', width: '220px', height: '220px',
-    background: 'radial-gradient(circle, rgba(227,252,255,.42) 0%, rgba(88,220,255,.28) 24%, rgba(0,150,255,.2) 50%, rgba(0,150,255,0) 76%)'
-  });
-  overlay.appendChild(glow);
-  setTimeout(()=>glow.remove(),850);
-
-  const ring = createEffectNode('effect-ring', {
-    left: origin.x + 'px', top: origin.y + 'px', width: '150px', height: '150px',
-    border: '4px solid rgba(126,239,255,.85)', boxShadow: '0 0 26px rgba(29,194,255,.58)'
-  });
-  overlay.appendChild(ring);
-  setTimeout(()=>ring.remove(),760);
-
-  const core = createEffectNode('effect-core', {
-    left: origin.x + 'px', top: origin.y + 'px', width: '86px', height: '86px',
-    background: 'radial-gradient(circle, rgba(255,255,255,.96) 0%, rgba(175,242,255,.88) 22%, rgba(47,195,255,.6) 54%, rgba(47,195,255,0) 78%)'
-  });
-  overlay.appendChild(core);
-  setTimeout(()=>core.remove(),560);
-
-  for (let i = 0; i < 8; i++) {
-    const angle = (-60 + i * 18) * Math.PI / 180;
-    const distance = 80 + Math.random() * 60;
-    const vec = burstVector(angle, distance);
-    const bolt = createEffectNode('effect-burst-piece lightning-bolt', {
-      left: origin.x + 'px', top: origin.y + 'px',
-      '--tx': vec.x + 'px', '--ty': vec.y + 'px',
-      '--rot': ((angle * 180 / Math.PI) + (Math.random() * 24 - 12)) + 'deg', '--spin': ((Math.random() * 40) - 20) + 'deg',
-      '--scale': (0.88 + Math.random() * 0.34).toFixed(2), '--dur': (0.5 + Math.random() * 0.16) + 's'
-    });
-    overlay.appendChild(bolt);
-    setTimeout(()=>bolt.remove(),900);
-  }
-
-  for (let i = 0; i < 12; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const distance = 90 + Math.random() * 170;
-    const vec = burstVector(angle, distance);
-    const spark = createEffectNode('effect-ray lightning-spark', {
-      left: origin.x + 'px', top: origin.y + 'px',
-      '--tx': vec.x + 'px', '--ty': vec.y + 'px',
-      '--angle': (angle * 180 / Math.PI) + 'deg', animationDuration: (0.45 + Math.random() * 0.25) + 's'
-    });
-    overlay.appendChild(spark);
-    setTimeout(()=>spark.remove(),900);
-  }
-}
-
-function addStarEffect(overlay, origin) {
-  const glow = createEffectNode('effect-glow', {
-    left: origin.x + 'px', top: origin.y + 'px', width: '220px', height: '220px',
-    background: 'radial-gradient(circle, rgba(255,248,206,.42) 0%, rgba(255,224,113,.32) 20%, rgba(255,189,72,.2) 44%, rgba(255,189,72,0) 78%)'
-  });
-  overlay.appendChild(glow);
-  setTimeout(()=>glow.remove(),900);
-
-  const core = createEffectNode('effect-core star-particle', {
-    left: origin.x + 'px', top: origin.y + 'px', width: '62px', height: '62px'
-  });
-  overlay.appendChild(core);
-  setTimeout(()=>core.remove(),700);
-
-  for (let i = 0; i < 12; i++) {
-    const angle = (Math.PI * 2 / 12) * i;
-    const distance = 80 + (i % 2 === 0 ? 110 : 65);
-    const vec = burstVector(angle, distance);
-    const ray = createEffectNode('effect-ray star-ray-line', {
-      left: origin.x + 'px', top: origin.y + 'px',
-      '--tx': vec.x + 'px', '--ty': vec.y + 'px',
-      '--angle': (angle * 180 / Math.PI) + 'deg', animationDuration: (0.6 + Math.random() * 0.2) + 's'
-    });
-    overlay.appendChild(ray);
-    setTimeout(()=>ray.remove(),980);
-  }
-
-  for (let i = 0; i < 16; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const distance = 75 + Math.random() * 180;
-    const vec = burstVector(angle, distance);
-    const star = createEffectNode('effect-burst-piece star-particle', {
-      left: origin.x + 'px', top: origin.y + 'px',
-      width: (14 + Math.random() * 14) + 'px', height: (14 + Math.random() * 14) + 'px',
-      '--tx': vec.x + 'px', '--ty': vec.y + 'px',
-      '--rot': (Math.random() * 360) + 'deg', '--spin': ((Math.random() * 240) - 120) + 'deg',
-      '--scale': (0.85 + Math.random() * 0.6).toFixed(2), '--dur': (0.76 + Math.random() * 0.34) + 's'
-    });
-    overlay.appendChild(star);
-    setTimeout(()=>star.remove(),1260);
-  }
-
-  const ring = createEffectNode('effect-ring', {
-    left: origin.x + 'px', top: origin.y + 'px', width: '145px', height: '145px',
-    border: '3px solid rgba(255,228,129,.7)', boxShadow: '0 0 24px rgba(255,202,76,.48)'
-  });
-  overlay.appendChild(ring);
-  setTimeout(()=>ring.remove(),780);
-}
-
 function addWrongFlash() {
   const overlay = document.getElementById('effectOverlay');
   const flash = document.createElement('div');
@@ -667,13 +441,6 @@ function initCharts() {
         }}
       }
     });
-    // 更新雷達頁統計數值
-    const total = state.wins + state.losses;
-    const topEntry = Object.entries(state.topicStats).sort((a,b)=>b[1]-a[1])[0];
-    document.getElementById('bestTopic').textContent = topEntry ? topEntry[0] : '-';
-    document.getElementById('avgAccuracy').textContent = Math.round(state.recentAccuracy.reduce((a,b)=>a+b,0)/state.recentAccuracy.length)+'%';
-    document.getElementById('totalAnswered').textContent = Object.values(state.topicStats).reduce((a,b)=>a+b,0);
-    document.getElementById('winRate').textContent = total>0?Math.round(state.wins/total*100)+'%':'0%';
   }
 
   // Trend
@@ -727,58 +494,20 @@ function switchShop(tab) {
   renderShop(tab);
 }
 
-function renderEffectCard(effectId, name) {
-  const effectMap = {
-    'eff-confetti': {
-      cls: 'confetti',
-      icon: '🎊',
-      label: 'COLOR BURST',
-      pieces: '<i></i><i></i><i></i><i></i><i></i>'
-    },
-    'eff-lightning': {
-      cls: 'lightning',
-      icon: '⚡',
-      label: 'BLUE SHOCK',
-      pieces: '<i></i><i></i><i></i>'
-    },
-    'eff-star': {
-      cls: 'star',
-      icon: '✦',
-      label: 'GOLDEN STAR',
-      pieces: '<i></i><i></i><i></i><i></i>'
-    }
-  };
-  const data = effectMap[effectId] || effectMap['eff-confetti'];
-  return `<div class="effect-card ${data.cls}">
-    <div class="effect-deco">${data.pieces}</div>
-    <div class="effect-icon">${data.icon}</div>
-    <div class="effect-name">${name}</div>
-    <div class="effect-sub">${data.label}</div>
-  </div>`;
-}
-
 function renderShop(tab) {
   const container = document.getElementById('shopContent');
   const items = shopData[tab];
-  const note = '<div class="effect-shop-note">商店只負責購買；裝備請到「個人設定」裡選擇。</div>';
-  container.innerHTML = note + `<div class="shop-grid">${items.map(item => {
+  container.innerHTML = `<div class="shop-grid">${items.map(item => {
     const isOwned = state.owned[tab] && state.owned[tab].includes(item.id);
-    const isEquipped = (tab === 'frames' && state.equippedFrame === item.id) ||
-      (tab === 'tags' && state.playerTagClass === item.id) ||
-      (tab === 'effects' && (state.activeEffect || state.owned.activeEffect) === item.id);
-    const previewClass = item.class || '';
-    const previewHTML = tab === 'tags'
-      ? `<div style="display:flex;justify-content:center;margin-bottom:12px">${renderTitleBadge(item.id, item.name, true)}</div>`
-      : tab === 'effects'
-        ? renderEffectCard(item.id, item.name)
-        : `<div class="item-preview ${previewClass}">${item.preview}</div>`;
+    const isEquipped = (tab==='frames' && state.equippedFrame===item.id) ||
+      (tab==='tags' && state.playerTag===item.name);
     return `<div class="shop-item ${isOwned?'owned':''} ${isEquipped?'equipped':''}" onclick="buyItem('${tab}','${item.id}')">
-      ${previewHTML}
+      <div class="item-preview" style="${item.class&&tab==='frames'?`border-color:${item.class.includes('diamond')?'#00d4ff':item.class.includes('fire')?'#ff6b35':'#ffd700'};box-shadow:0 0 12px ${item.class.includes('diamond')?'#00d4ff':item.class.includes('fire')?'#ff6b35':'#ffd700'}`:''}">${item.preview}</div>
       <div class="item-name">${item.name}</div>
       <div class="item-desc">${item.desc}</div>
-      ${isEquipped ? '<span class="badge-equipped">使用中</span>' :
+      ${isEquipped ? '<span class="badge-equipped">已裝備</span>' :
         isOwned ? '<span class="badge-owned">已擁有</span>' :
-        `<div class="item-price">🪙 ${item.price > 0 ? item.price : '免費'}</div>`}
+        `<div class="item-price">🪙 ${item.price || '免費'}</div>`}
     </div>`;
   }).join('')}</div>`;
 }
@@ -790,30 +519,38 @@ function buyItem(tab, id) {
   const isOwned = state.owned[tab] && state.owned[tab].includes(id);
 
   if (isOwned) {
-    showToast('已擁有此道具，請到「個人設定」裝備');
+    // Equip
+    if (tab==='frames') { state.equippedFrame = id; }
+    else if (tab==='tags') {
+      state.playerTag = item.name;
+      state.playerTagClass = item.class || 'tag-rookie';
+    }
+    updatePlayerBar();
     renderShop(tab);
     return;
   }
 
   if (item.price > state.coins) {
-    showToast(`金幣不足！還差 ${item.price - state.coins} 🪙，繼續對戰賺取金幣`);
+    showToast('金幣不足！繼續對戰賺取金幣 🪙');
     return;
   }
 
   state.coins -= item.price;
   if (!state.owned[tab]) state.owned[tab] = [];
   state.owned[tab].push(id);
+  // auto equip
+  if (tab==='frames') state.equippedFrame = id;
+  else if (tab==='tags') { state.playerTag = item.name; state.playerTagClass = item.class||'tag-rookie'; }
   updatePlayerBar();
   renderShop(tab);
-  updateProfileEditUI();
-  showToast(`🎉 購買成功！請到「個人設定」裝備`);
+  showToast(`🎉 購買成功！${item.name} 已裝備`);
 }
 
 function showToast(msg) {
-  // 移除現有 toast
-  document.querySelectorAll('.toast').forEach(t=>t.remove());
   const t = document.createElement('div');
-  t.className = 'toast';
+  t.style.cssText=`position:fixed;bottom:30px;left:50%;transform:translateX(-50%);
+    background:#1a1a3e;border:1px solid #ffd700;color:#fff;padding:12px 24px;border-radius:12px;
+    font-size:14px;font-weight:700;z-index:200;animation:popUp .3s ease`;
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(()=>t.remove(), 2500);
@@ -843,243 +580,95 @@ function renderRank() {
       </div>
     </div>`).join('');
 }
+// ─── 登入邏輯 ──────────────────────────────────────────
+function handleLogin() {
+  const name = document.getElementById('usernameInput').value.trim();
+  if (name) {
+    state.playerName = name;
+    updatePlayerBar();
+    showScreen('homeScreen');
+  } else {
+    showToast('請輸入一個響亮的稱號！');
+  }
+}
 
+// ─── PLOTLY 圖表初始化 ──────────────────────────────────────
+function initCharts() {
+  const topics = Object.keys(state.topicStats);
+  const vals = Object.values(state.topicStats);
+
+  const commonLayout = {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: '#b0b0d0', family: 'Noto Sans TC' },
+    margin: { t: 30, r: 20, l: 40, b: 60 },
+    showlegend: false
+  };
+
+  // 1. 主題分佈 (Bar Chart)
+  if (document.getElementById('tab-distribution').classList.contains('active')) {
+    const data = [{
+      x: topics,
+      y: vals,
+      type: 'bar',
+      marker: {
+        color: '#ffd700',
+        line: { color: '#ff6b35', width: 1 }
+      },
+      hovertemplate: '<b>%{x}</b><br>答題數: %{y}<extra></extra>'
+    }];
+
+    Plotly.newPlot('distributionChart', data, {
+      ...commonLayout,
+      xaxis: { tickangle: -45, gridcolor: '#1f1f4a' },
+      yaxis: { gridcolor: '#1f1f4a' }
+    }, {displayModeBar: false});
+  }
+
+  // 2. 個人能力 (Radar Chart)
+  if (document.getElementById('tab-radar').classList.contains('active')) {
+    const data = [{
+      type: 'scatterpolar',
+      r: [85, 72, 90, 60, 88, 65, 78, 85], // 閉合點
+      theta: ['科學','地理','娛樂','體育','科技','藝術','生活','科學'],
+      fill: 'toself',
+      fillcolor: 'rgba(255, 215, 0, 0.3)',
+      line: { color: '#ffd700' },
+      name: '你的能力'
+    }];
+
+    const layout = {
+      ...commonLayout,
+      polar: {
+        bgcolor: 'rgba(0,0,0,0)',
+        radialaxis: { visible: true, range: [0, 100], gridcolor: '#1f1f4a' },
+        angularaxis: { gridcolor: '#1f1f4a' }
+      }
+    };
+
+    Plotly.newPlot('radarChart', data, layout, {displayModeBar: false});
+  }
+
+  // 3. 戰績趨勢 (Line Chart)
+  if (document.getElementById('tab-trend').classList.contains('active')) {
+    const data = [{
+      x: state.recentScores.map((_, i) => i + 1),
+      y: state.recentScores,
+      type: 'scatter',
+      mode: 'lines+markers',
+      line: { shape: 'spline', color: '#00d4ff' },
+      marker: { size: 8, color: '#ffd700' },
+      fill: 'tozeroy',
+      fillcolor: 'rgba(0, 212, 255, 0.1)'
+    }];
+
+    Plotly.newPlot('trendChart', data, {
+      ...commonLayout,
+      xaxis: { title: '場次', gridcolor: '#1f1f4a' },
+      yaxis: { title: '得分', gridcolor: '#1f1f4a' }
+    }, {displayModeBar: false});
+  }
+}
 // ─── INIT ────────────────────────────────────────────────
 createStars();
 updatePlayerBar();
-
-// ─── PROFILE ─────────────────────────────────────────────
-let profileEditState = {
-  avatar: state.equippedEmoji,
-  frame: state.equippedFrame,
-  tag: state.playerTag,
-  tagClass: state.playerTagClass,
-  tagIcon: state.playerTagIcon,
-  activeEffect: state.activeEffect || state.owned.activeEffect || null
-};
-
-function switchProfileTab(tab) {
-  document.querySelectorAll('#profileScreen .tab-content').forEach(t=>t.classList.remove('active'));
-  document.getElementById('tab-'+tab).classList.add('active');
-  document.querySelectorAll('#profileNav .nav-btn').forEach((b,i)=>{
-    b.classList.remove('active');
-    if(['edit','stats','account'][i]===tab) b.classList.add('active');
-  });
-  if(tab==='stats') updateStatsDisplay();
-  if(tab==='edit') updateProfileEditUI();
-}
-
-function updateProfileEditUI() {
-  profileEditState.avatar = state.equippedEmoji;
-  profileEditState.frame = state.equippedFrame;
-  profileEditState.tagClass = state.playerTagClass;
-  profileEditState.tagIcon = state.playerTagIcon;
-  // 只記錄當前啟用的單一特效
-  profileEditState.activeEffect = state.activeEffect || state.owned.activeEffect || null;
-
-  document.getElementById('editAvatar').textContent = profileEditState.avatar;
-  document.getElementById('editFrame').className = `profile-frame ${profileEditState.frame !== 'frame-none' ? profileEditState.frame : ''}`;
-  document.getElementById('playerNameInput').value = state.playerName;
-
-  document.querySelectorAll('.emoji-btn').forEach(b=>{
-    b.classList.remove('active');
-    if(b.textContent === profileEditState.avatar) b.classList.add('active');
-  });
-
-  document.querySelectorAll('.frame-select').forEach(b=>{
-    b.classList.remove('active', 'disabled');
-    const frame = b.dataset.frame;
-    if (state.owned.frames && state.owned.frames.includes(frame)) {
-      if(frame === profileEditState.frame) b.classList.add('active');
-    } else {
-      b.classList.add('disabled');
-    }
-  });
-
-  document.querySelectorAll('.tag-select').forEach(b=>{
-    b.classList.remove('active', 'disabled');
-    const tag = b.dataset.tag;
-    if (state.owned.tags && state.owned.tags.includes(tag)) {
-      if(tag === profileEditState.tagClass) b.classList.add('active');
-    } else {
-      b.classList.add('disabled');
-    }
-  });
-
-  document.querySelectorAll('.effect-select').forEach(b=>{
-    b.classList.remove('active', 'disabled');
-    const effectId = b.dataset.effect;
-    if (state.owned.effects && state.owned.effects.includes(effectId)) {
-      if(effectId === profileEditState.activeEffect) b.classList.add('active');
-    } else {
-      b.classList.add('disabled');
-    }
-  });
-}
-
-function selectAvatar(emoji) {
-  profileEditState.avatar = emoji;
-  state.equippedEmoji = emoji;
-  document.getElementById('editAvatar').textContent = emoji;
-  document.querySelectorAll('.emoji-btn').forEach(b=>{
-    b.classList.remove('active');
-    if(b.textContent === emoji) b.classList.add('active');
-  });
-  updatePlayerBar();
-}
-
-function selectFrame(frame) {
-  if (!state.owned.frames || !state.owned.frames.includes(frame)) {
-    showToast('❌ 你還未擁有此外框！請先在商店購買');
-    return;
-  }
-  profileEditState.frame = frame;
-  state.equippedFrame = frame;
-  document.getElementById('editFrame').className = `profile-frame ${frame !== 'frame-none' ? frame : ''}`;
-  document.querySelectorAll('.frame-select').forEach(b=>{
-    b.classList.remove('active');
-    if(b.dataset.frame === frame) b.classList.add('active');
-  });
-  updatePlayerBar();
-}
-
-function selectTag(tag) {
-  const tagNames = {
-    'tag-rookie': '新手',
-    'tag-apprentice': '學徒',
-    'tag-expert': '專家',
-    'tag-master': '大師',
-    'tag-legend': '傳說',
-    'tag-king': '知識王'
-  };
-  const tagIcons = {
-    'tag-rookie': '🌱',
-    'tag-apprentice': '📘',
-    'tag-expert': '🎯',
-    'tag-master': '⭐',
-    'tag-legend': '🏆',
-    'tag-king': '👑'
-  };
-  if (!state.owned.tags || !state.owned.tags.includes(tag)) {
-    showToast('❌ 你還未擁有此稱號！請先在商店購買');
-    return;
-  }
-  profileEditState.tagClass = tag;
-  state.playerTagClass = tag;
-  state.playerTag = tagNames[tag] || '大師';
-  state.playerTagIcon = tagIcons[tag] || '';
-  document.querySelectorAll('.tag-select').forEach(b=>{
-    b.classList.remove('active');
-    if(b.dataset.tag === tag) b.classList.add('active');
-  });
-  updatePlayerBar();
-}
-
-function toggleEffect(effectId, forceEquip = false) {
-  if (!state.owned.effects || !state.owned.effects.includes(effectId)) {
-    showToast('❌ 你還未擁有此特效！請先在商店購買');
-    return;
-  }
-  // 已選則取消，否則切換到這個；商店購買時 forceEquip 會直接裝備
-  if(!forceEquip && (state.activeEffect || state.owned.activeEffect) === effectId) {
-    state.activeEffect = null;
-    state.owned.activeEffect = null;
-  } else {
-    state.activeEffect = effectId;
-    state.owned.activeEffect = effectId;
-  }
-  profileEditState.activeEffect = state.activeEffect;
-  updateProfileEditUI();
-  showToast(state.activeEffect ? '✅ 特效已套用！' : '✅ 已取消特效');
-}
-
-function toggleNameEdit() {
-  const input = document.getElementById('playerNameInput');
-  const btn = document.getElementById('editNameBtn');
-  if (input.disabled) {
-    input.disabled = false;
-    input.focus();
-    btn.textContent = '✓ 完成';
-    btn.style.borderColor = 'var(--green)';
-    btn.style.color = 'var(--green)';
-  } else {
-    const newName = input.value.trim();
-    if(!newName) { showToast('玩家名稱不能為空！'); return; }
-    state.playerName = newName;
-    updatePlayerBar();
-    input.disabled = true;
-    btn.textContent = '✏️ 修改';
-    btn.style.borderColor = '';
-    btn.style.color = '';
-    showToast('✅ 玩家名稱已保存！');
-  }
-}
-
-function saveProfileChanges() {
-  updatePlayerBar();
-  showToast('✅ 資料已保存！');
-}
-
-function updateStatsDisplay() {
-  const total = state.wins + state.losses;
-  const winRate = total > 0 ? Math.round(state.wins/total*100) : 0;
-  const totalAnswered = Object.values(state.topicStats).reduce((a,b)=>a+b, 0);
-  const avgAcc = Math.round(state.recentAccuracy.reduce((a,b)=>a+b,0)/state.recentAccuracy.length) || 0;
-  const totalScore = state.recentScores.reduce((a,b)=>a+b, 0);
-
-  document.getElementById('statLevel').textContent = state.level;
-  document.getElementById('statWins').textContent = state.wins;
-  document.getElementById('statLosses').textContent = state.losses;
-  document.getElementById('statWinRate').textContent = winRate + '%';
-  document.getElementById('statTotalAnswered').textContent = totalAnswered;
-  document.getElementById('statAvgAcc').textContent = avgAcc + '%';
-  document.getElementById('statTotalScore').textContent = totalScore.toLocaleString();
-  document.getElementById('statCoinsDisplay').textContent = state.coins.toLocaleString() + ' 🪙';
-  document.getElementById('statXp').textContent = state.xp.toLocaleString() + '/' + state.xpMax.toLocaleString();
-
-  const topTopics = Object.entries(state.topicStats)
-    .sort((a,b)=>b[1]-a[1])
-    .slice(0,5)
-    .map(([topic,count],i)=>
-      `<div class="stat-box" style="text-align:center">
-        <div style="font-size:24px;margin-bottom:6px">${topic.split(' ')[0]}</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:4px">${topic}</div>
-        <div style="font-size:16px;font-weight:900;color:${['#ffd700','#c0c0c0','#cd7f32','#7070a0','#7070a0'][i]}">${count}</div>
-      </div>`
-    ).join('');
-  document.getElementById('topTopics').innerHTML = topTopics;
-}
-
-let passwordVisible = false;
-const actualPassword = 'SecurePass123!';
-
-function togglePasswordVisibility() {
-  passwordVisible = !passwordVisible;
-  const display = document.getElementById('passwordDisplay');
-  const btn = document.getElementById('togglePwdBtn');
-  if(passwordVisible) {
-    display.textContent = actualPassword;
-    btn.textContent = '👁️ 隱藏';
-  } else {
-    display.textContent = '••••••••';
-    btn.textContent = '👁️ 顯示';
-  }
-}
-
-function changePassword() {
-  const newPwd = prompt('請輸入新密碼（至少8個字符）：');
-  if(!newPwd) return;
-  if(newPwd.length < 8) { showToast('❌ 密碼長度必須至少8個字符'); return; }
-  showToast('✅ 密碼已更改！');
-}
-
-function enableTwoFA() {
-  alert('將啟用雙重認證\n\n1. 下載認證器應用程式\n2. 掃描 QR 碼\n3. 輸入驗證碼\n\n此功能將大大提升帳號安全性！');
-}
-
-function logout() {
-  if(confirm('確定要登出嗎？')) {
-    showToast('👋 已登出，再見！');
-    setTimeout(()=>location.reload(), 1500);
-  }
-}
