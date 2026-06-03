@@ -9,6 +9,10 @@ import secrets  # 產生隨機 token
 import time  # 取得現在時間戳記
 import re  # 正規表達式，用來驗證格式
 import random  # 產生隨機驗證碼
+from dotenv import load_dotenv  # 讀取 .env 檔案裡的環境變數
+
+# 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)
 
 auth_bp = Blueprint('auth', __name__)  # 建立 auth 藍圖，所有路由前面會加上 /auth
 
@@ -174,9 +178,12 @@ def register():
         return jsonify({'error': '密碼至少需要6位數'}), 400  # 400 客戶端錯誤：密碼太短
 
     # 用 Supabase Auth 建立帳號，密碼會自動加密（hash）後存入
-    auth_response = supabase.auth.sign_up({'email': email, 'password': password})
-    if auth_response.user is None:  # 如果 user 是 None 代表建立失敗
-        return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400  # 400 客戶端錯誤：Email 已存在
+    try:
+        auth_response = supabase.auth.sign_up({'email': email, 'password': password})
+        if auth_response.user is None:  # 如果 user 是 None 代表建立失敗
+            return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400  # 400 客戶端錯誤：Email 已存在
+    except Exception:
+        return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400  # 400 客戶端錯誤：註冊失敗
 
     user_id = auth_response.user.id  # 取得 Supabase Auth 產生的 user id
 
@@ -279,8 +286,7 @@ def verify_link():
 
     # 現在時間 > 過期時間，代表已過期
     if int(time.time() * 1000) > int(expire_at):
-        # 查詢對應的玩家並刪除未驗證的帳號
-        user_response = supabase.table('users').select('email').eq('verify_token', token).execute()
+        user_response = supabase.table('users').select('email').eq('verify_token', token).execute()  # 查詢對應的玩家
         if user_response.data:  # 找到玩家才刪除
             delete_unverified_account(user_response.data[0]['email'])  # 自動刪除未驗證的帳號
         return jsonify({'error': '驗證連結已過期，請重新註冊'}), 400  # 400 客戶端錯誤：連結過期
@@ -332,10 +338,13 @@ def login():
             return jsonify({'error': '找不到使用者'}), 400  # 400 客戶端錯誤：找不到玩家
         email = user_response.data[0]['email']  # 取得對應的 email
 
-    # 用 email 和密碼登入 Supabase Auth
-    auth_response = supabase.auth.sign_in_with_password({'email': email, 'password': password})
-    if auth_response.user is None:  # 登入失敗
-        return jsonify({'error': '帳號或密碼錯誤'}), 400  # 400 客戶端錯誤：登入失敗
+    # 用 email 和密碼登入 Supabase Auth，密碼錯誤會丟出 exception
+    try:
+        auth_response = supabase.auth.sign_in_with_password({'email': email, 'password': password})
+        if auth_response.user is None:  # 登入失敗
+            return jsonify({'error': '帳號或密碼錯誤'}), 400  # 400 客戶端錯誤：登入失敗
+    except Exception:
+        return jsonify({'error': '帳號或密碼錯誤'}), 400  # 400 客戶端錯誤：密碼錯誤
 
     return jsonify({
         'message': '登入成功',

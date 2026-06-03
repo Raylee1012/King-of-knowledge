@@ -3,12 +3,13 @@ from flask_cors import CORS  # 允許跨域請求，讓前端可以呼叫後端 
 from dotenv import load_dotenv  # 讀取 .env 檔案裡的環境變數
 import os  # Python 內建模組，用來讀取環境變數
 
-load_dotenv(override=False)  # 讀取 .env 檔案，override=False 代表不覆蓋已存在的環境變數
+# 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)
 
 app = Flask(__name__)  # 建立 Flask 伺服器實體，__name__ 是目前模組的名稱
 app.config['JSON_AS_ASCII'] = False  # 讓 JSON 回傳時不轉義中文字元，保持原本的中文
 app.json.ensure_ascii = False  # 新版 Flask 需要這行才能正確顯示中文
-CORS(app)  # 讓所有來源的跨域請求都可以存取這個伺服器
+CORS(app)  # 允許所有來源的跨域請求
 
 from auth import auth_bp  # 從 auth.py 載入 auth_bp 藍圖（Blueprint）
 app.register_blueprint(auth_bp, url_prefix='/auth')  # 把 auth_bp 掛載到 /auth 路徑，所有 auth.py 的路由前面都會加上 /auth

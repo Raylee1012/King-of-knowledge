@@ -2,6 +2,10 @@ from flask import Blueprint, request, jsonify  # Flask 相關模組
 from supabase import create_client  # 從 supabase 套件取出 create_client 函式
 import httpx  # 用來發送 HTTP 請求，直接呼叫 Supabase admin API
 import os  # 讀取環境變數
+from dotenv import load_dotenv  # 讀取 .env 檔案裡的環境變數
+
+# 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)
 
 user_bp = Blueprint('user', __name__)  # 建立 user 藍圖，所有路由前面會加上 /user
 
@@ -36,7 +40,7 @@ def admin_delete_user(user_id):
 def get_profile(user_id):
     # 查詢玩家資料
     user_response = supabase.table('users').select(
-        'id, custom_id, email, is_verified, coins, avatar_url, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at'  # 加上 is_admin 欄位
+        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, wins, losses'
     ).eq('id', user_id).execute()  # 條件：找這個 id 的玩家
 
     # 找不到玩家
@@ -62,69 +66,15 @@ def get_profile(user_id):
         'email': user_data['email'],                  # 玩家 email
         'is_verified': user_data['is_verified'],      # 是否已驗證
         'coins': user_data['coins'],                  # 金幣數量
-        'avatar_url': user_data['avatar_url'],        # 頭像網址
         'nickname': user_data['nickname'],            # 遊戲暱稱
         'nickname_remaining_free': remaining_free,    # 本月剩餘免費修改暱稱次數
         'is_admin': user_data['is_admin'],            # 是否為管理員
-        'created_at': user_data['created_at']         # 帳號建立時間
+        'created_at': user_data['created_at'],        # 帳號建立時間
+        'level': user_data.get('level', 1),            # 玩家等級，預設 lv1
+        'xp': user_data.get('xp', 0),                  # 當前經驗值，預設 0
+        'wins': user_data.get('wins', 0),               # 勝場數，預設 0
+        'losses': user_data.get('losses', 0)            # 敗場數，預設 0
     }), 200  # 200 成功
-
-# 修改頭像 API
-# 路徑：POST /user/avatar
-# 傳入：multipart/form-data，包含 user_id 和 avatar（圖片檔案）或 avatar_url（網址）
-@user_bp.route('/avatar', methods=['POST'])  # 定義 POST /avatar 路由
-def update_avatar():
-    user_id = request.form.get('user_id')           # 從 form data 取出 user_id
-    url_from_body = request.form.get('avatar_url')  # 從 form data 取出 avatar_url
-    file = request.files.get('avatar')              # 取得上傳的圖片檔案
-
-    # 防呆：user_id 必填
-    if not user_id:
-        return jsonify({'error': '請填寫 user_id'}), 400  # 400 客戶端錯誤：欄位未填寫
-
-    # 防呆：圖片檔案和網址至少要有一個
-    if not file and not url_from_body:
-        return jsonify({'error': '請上傳圖片或填寫頭像網址'}), 400  # 400 客戶端錯誤：沒有圖片也沒有網址
-
-    # 允許的副檔名
-    allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.tif', '.svg', '.ico', '.psd', '.tga', '.xpm', '.pcx', '.ppm'}
-    # 允許的 MIME 類型
-    allowed_mimetypes = {'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/x-bmp', 'image/tiff', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/psd', 'image/x-photoshop', 'image/x-tga', 'image/x-xpm', 'image/x-pcx', 'application/octet-stream'}
-
-    avatar_url = None  # 最終要存進資料庫的頭像網址
-
-    if file:  # 如果有上傳圖片檔案，上傳到 Supabase Storage
-        import os as os_module  # 載入 os 模組
-        file_ext = os_module.path.splitext(file.filename)[1].lower()  # 取得副檔名並轉小寫
-
-        # 防呆：檢查副檔名或 MIME 類型是否允許
-        if file_ext not in allowed_extensions and file.mimetype not in allowed_mimetypes:
-            return jsonify({'error': '只允許上傳圖片檔案'}), 400  # 400 客戶端錯誤：檔案類型不允許
-
-        import time  # 載入時間模組
-        file_name = f'{user_id}_{int(time.time() * 1000)}{file_ext}'  # 格式：玩家ID_時間戳記.副檔名
-        file_data = file.read()  # 讀取圖片的二進位資料
-
-        # 上傳圖片到 Supabase Storage 的 avatars bucket
-        supabase.storage.from_('avatars').upload(
-            file_name,   # 檔案名稱
-            file_data,   # 圖片的二進位資料
-            {'content-type': file.mimetype, 'upsert': 'true'}  # 設定檔案類型，如果已存在就覆蓋
-        )
-
-        # 取得圖片的公開網址
-        avatar_url = supabase.storage.from_('avatars').get_public_url(file_name)
-
-    else:  # 如果沒有上傳圖片，直接用前端傳來的網址
-        # 防呆：驗證 avatar_url 格式，必須是 http 或 https 開頭
-        if not url_from_body.startswith('http://') and not url_from_body.startswith('https://'):
-            return jsonify({'error': '頭像網址格式不正確'}), 400  # 400 客戶端錯誤：網址格式錯誤
-        avatar_url = url_from_body  # 使用前端傳來的網址
-
-    # 更新資料庫裡的頭像網址
-    supabase.table('users').update({'avatar_url': avatar_url}).eq('id', user_id).execute()
-
-    return jsonify({'message': '頭像更新成功', 'avatar_url': avatar_url}), 200  # 200 成功
 
 # 修改暱稱 API
 # 路徑：POST /user/nickname
@@ -176,8 +126,8 @@ def update_nickname():
     if need_coins:
         if user_data['coins'] < NICKNAME_CHANGE_COST:
             return jsonify({
-                'error': f'金幣不足，修改暱稱需要 {NICKNAME_CHANGE_COST} 金幣，目前只有 {user_data["coins"]} 金幣'  # 400 客戶端錯誤：金幣不足
-            }), 400
+                'error': f'金幣不足，修改暱稱需要 {NICKNAME_CHANGE_COST} 金幣，目前只有 {user_data["coins"]} 金幣'
+            }), 400  # 400 客戶端錯誤：金幣不足
 
     # 準備要更新的資料
     update_data = {
@@ -200,6 +150,44 @@ def update_nickname():
         'remaining_coins': user_data['coins'] - NICKNAME_CHANGE_COST if need_coins else user_data['coins']  # 剩餘金幣
     }), 200  # 200 成功
 
+# 扣除金幣 API
+# 路徑：POST /user/spend-coins
+# 傳入：{ user_id, amount }
+@user_bp.route('/spend-coins', methods=['POST'])  # 定義 POST /spend-coins 路由
+def spend_coins():
+    data = request.get_json()  # 取得前端傳來的 JSON 資料
+    user_id = data.get('user_id')  # 取出 user_id 欄位
+    amount = data.get('amount')    # 取出 amount 欄位（要扣多少金幣）
+
+    # 防呆：兩個欄位都必填
+    if not user_id or amount is None:
+        return jsonify({'error': '請填寫所有欄位'}), 400  # 400 客戶端錯誤：欄位未填寫
+
+    # 防呆：金額必須是正整數
+    if not isinstance(amount, int) or amount <= 0:
+        return jsonify({'error': '金額必須是正整數'}), 400  # 400 客戶端錯誤：金額格式錯誤
+
+    # 查詢玩家目前的金幣
+    user_response = supabase.table('users').select('coins').eq('id', user_id).execute()
+    if not user_response.data:  # 找不到玩家
+        return jsonify({'error': '找不到使用者'}), 400  # 400 客戶端錯誤：找不到玩家
+
+    current_coins = user_response.data[0]['coins']  # 取得目前金幣數量
+
+    # 防呆：金幣不足
+    if current_coins < amount:
+        return jsonify({'error': f'金幣不足，還差 {amount - current_coins} 金幣'}), 400  # 400 客戶端錯誤：金幣不足
+
+    # 扣除金幣
+    new_coins = current_coins - amount  # 計算扣除後的金幣數量
+    supabase.table('users').update({'coins': new_coins}).eq('id', user_id).execute()  # 更新資料庫
+
+    return jsonify({
+        'message': '扣除成功',
+        'spent': amount,        # 扣了多少金幣
+        'remaining': new_coins  # 剩餘金幣
+    }), 200  # 200 成功
+
 # 刪除帳號 API
 # 路徑：DELETE /user/delete
 # 傳入：{ user_id, password }，需要輸入密碼確認才能刪除
@@ -213,8 +201,8 @@ def delete_account():
     if not user_id or not password:
         return jsonify({'error': '請填寫所有欄位'}), 400  # 400 客戶端錯誤：欄位未填寫
 
-    # 查詢玩家的 email 和頭像，用來驗證密碼和刪除頭像
-    user_response = supabase.table('users').select('email, avatar_url').eq('id', user_id).execute()
+    # 查詢玩家的 email，用來驗證密碼
+    user_response = supabase.table('users').select('email').eq('id', user_id).execute()
 
     if not user_response.data:  # 找不到玩家
         return jsonify({'error': '找不到使用者'}), 400  # 400 客戶端錯誤：找不到玩家
@@ -228,11 +216,6 @@ def delete_account():
             return jsonify({'error': '密碼錯誤'}), 400  # 400 客戶端錯誤：密碼不正確
     except Exception:
         return jsonify({'error': '密碼錯誤'}), 400  # 400 客戶端錯誤：密碼不正確
-
-    # 如果有頭像圖片存在 Supabase Storage，刪除它
-    if user_data['avatar_url'] and 'supabase.co/storage' in user_data['avatar_url']:
-        file_name = user_data['avatar_url'].split('/')[-1]  # 從網址取得檔案名稱
-        supabase.storage.from_('avatars').remove([file_name])  # 刪除這個檔案
 
     # 刪除 users 資料表的資料
     supabase.table('users').delete().eq('id', user_id).execute()
