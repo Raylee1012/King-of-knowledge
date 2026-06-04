@@ -1,0 +1,6 @@
+.env
+server/__pycache__/
+group1_backend/
+old_file/
+.vscode/
+node_modules/

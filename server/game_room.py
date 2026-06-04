@@ -1,248 +1,249 @@
 """GameRoom: 每個房間管理一場兩人對戰。"""
-import json
-import random
-import threading
+import json  # 用於 JSON 序列化
+import random  # 用於隨機選擇題目和道具
+import threading  # 用於多執行緒計時器
 
-QUESTION_TIMEOUT = 10
-RESULT_DELAY = 1.5
-QUESTIONS_PER_GAME = 10
-ITEM_MAX_USES = 2
+QUESTION_TIMEOUT = 10  # 每題的時間限制（秒）
+RESULT_DELAY = 1.5  # 題目結算後等待時間（秒）
+QUESTIONS_PER_GAME = 10  # 每場遊戲的題目數
+ITEM_MAX_USES = 2  # 每位玩家可使用道具的次數
 
 
-class GameRoom:
-    def __init__(self, room_id, p1, p2, question_bank, on_end):
-        self.room_id = room_id
-        self.players = [p1, p2]
-        self.on_end = on_end
-        self.questions = self.sample_questions(question_bank, QUESTIONS_PER_GAME)
-        self.scores = [0, 0]
-        self.answers = [None, None]
-        self.answered = [False, False]
-        self.item_uses_left = [ITEM_MAX_USES, ITEM_MAX_USES]
-        self.removed_options = [set(), set()]
-        self.current_q = 0
-        self.question_timer = None
-        self.ended = False
+class GameRoom:  # 遊戲房間類別
+    def __init__(self, room_id, p1, p2, question_bank, on_end):  # 初始化函式
+        self.room_id = room_id  # 房間 ID
+        self.players = [p1, p2]  # 玩家列表 [玩家1, 玩家2]
+        self.on_end = on_end  # 遊戲結束時的回調函式
+        self.questions = self.sample_questions(question_bank, QUESTIONS_PER_GAME)  # 從題庫中隨機抽取題目
+        self.scores = [0, 0]  # 兩位玩家的分數
+        self.answers = [None, None]  # 記錄兩位玩家的答案
+        self.answered = [False, False]  # 記錄兩位玩家是否已作答
+        self.item_uses_left = [ITEM_MAX_USES, ITEM_MAX_USES]  # 記錄兩位玩家剩餘道具次數
+        self.removed_options = [set(), set()]  # 記錄兩位玩家刪除的選項
+        self.current_q = 0  # 當前題目索引
+        self.question_timer = None  # 題目計時器
+        self.ended = False  # 遊戲是否已結束
 
-    def start(self):
-        for i, p in enumerate(self.players):
-            opp = self.players[1 - i]
-            self._send(p, {
-                'type': 'game_start',
-                'roomId': self.room_id,
-                'playerIndex': i,
-                'myName': p.player_name,
-                'opponentName': opp.player_name,
-                'totalQuestions': QUESTIONS_PER_GAME,
+    def start(self):  # 啟動遊戲函式
+        for i, p in enumerate(self.players):  # 遍歷兩位玩家
+            opp = self.players[1 - i]  # 取得對手
+            self._send(p, {  # 發送遊戲開始訊息
+                'type': 'game_start',  # 訊息類型
+                'roomId': self.room_id,  # 房間 ID
+                'playerIndex': i,  # 玩家索引（0 或 1）
+                'myName': p.player_name,  # 我的名稱
+                'opponentName': opp.player_name,  # 對手名稱
+                'totalQuestions': QUESTIONS_PER_GAME,  # 總題數
             })
 
-        threading.Timer(1.5, self._send_question).start()
+        threading.Timer(1.5, self._send_question).start()  # 1.5 秒後開始發送第一題
 
-    def _send_question(self):
-        if self.current_q >= len(self.questions):
-            self._end_game()
-            return
+    def _send_question(self):  # 發送題目函式
+        if self.current_q >= len(self.questions):  # 如果已超過題目數量
+            self._end_game()  # 結束遊戲
+            return  # 函式結束
 
-        q = self.questions[self.current_q]
-        self.answers = [None, None]
-        self.answered = [False, False]
-        self.removed_options = [set(), set()]
+        q = self.questions[self.current_q]  # 取得當前題目
+        self.answers = [None, None]  # 重置答案
+        self.answered = [False, False]  # 重置作答狀態
+        self.removed_options = [set(), set()]  # 重置已刪除選項
 
-        for i, p in enumerate(self.players):
-            self._send(p, {
-                'type': 'question',
-                'index': self.current_q,
-                'total': QUESTIONS_PER_GAME,
-                'question': q['q'],
-                'options': q['opts'],
-                'itemUsesLeft': self.item_uses_left[i],
+        for i, p in enumerate(self.players):  # 遍歷兩位玩家
+            self._send(p, {  # 發送題目訊息
+                'type': 'question',  # 訊息類型
+                'index': self.current_q,  # 題目索引
+                'total': QUESTIONS_PER_GAME,  # 總題數
+                'question': q['q'],  # 題目文本
+                'options': q['opts'],  # 選項列表
+                'itemUsesLeft': self.item_uses_left[i],  # 該玩家剩餘道具次數
             })
 
-        self.question_timer = threading.Timer(QUESTION_TIMEOUT, self._resolve_question)
-        self.question_timer.start()
-        # === 機器人作答邏輯 ===
-        for i, p in enumerate(self.players):
+        self.question_timer = threading.Timer(QUESTION_TIMEOUT, self._resolve_question)  # 建立 10 秒計時器
+        self.question_timer.start()  # 啟動計時器
+
+        for i, p in enumerate(self.players):  # 若房間內有機器人，模擬機器人作答
             if getattr(p, 'is_bot', False):
-                think_time = random.uniform(2.0, 8.0)
+                think_time = random.uniform(2.0, 8.0)  # 機器人等待 2-8 秒再作答
                 threading.Timer(think_time, self._bot_answer, args=(p.id, think_time)).start()
 
-    def submit_answer(self, player_id, answer_idx, used_sec):
-        player_idx = self._find_player_index(player_id)
-        if player_idx == -1 or self.answered[player_idx] or self.ended:
-            return
+    def submit_answer(self, player_id, answer_idx, used_sec):  # 提交答案函式
+        player_idx = self._find_player_index(player_id)  # 尋找玩家索引
+        if player_idx == -1 or self.answered[player_idx] or self.ended:  # 如果玩家無效、已作答或遊戲已結束
+            return  # 函式結束
 
-        self.answered[player_idx] = True
-        self.answers[player_idx] = {
-            'answerIdx': answer_idx,
-            'usedSec': max(0, min(QUESTION_TIMEOUT, used_sec)),
+        self.answered[player_idx] = True  # 標記玩家已作答
+        self.answers[player_idx] = {  # 儲存答案
+            'answerIdx': answer_idx,  # 答案選項索引
+            'usedSec': max(0, min(QUESTION_TIMEOUT, used_sec)),  # 用時（限制在 0-10 秒）
         }
 
-        opponent = self.players[1 - player_idx]
-        self._send(opponent, {'type': 'opponent_answered'})
+        opponent = self.players[1 - player_idx]  # 取得對手
+        self._send(opponent, {'type': 'opponent_answered'})  # 通知對手已作答
 
-        if self.answered[0] and self.answered[1]:
-            if self.question_timer:
-                self.question_timer.cancel()
-            self._resolve_question()
+        if self.answered[0] and self.answered[1]:  # 如果雙方都已作答
+            if self.question_timer:  # 如果計時器存在
+                self.question_timer.cancel()  # 取消計時器
+            self._resolve_question()  # 立即結算題目
 
-    def use_item(self, player_id, item_name):
-        player_idx = self._find_player_index(player_id)
-        if player_idx == -1 or self.ended:
-            return
+    def use_item(self, player_id, item_name):  # 使用道具函式
+        player_idx = self._find_player_index(player_id)  # 尋找玩家索引
+        if player_idx == -1 or self.ended:  # 如果玩家無效或遊戲已結束
+            return  # 函式結束
 
-        if self.answered[player_idx]:
-            self._send(self.players[player_idx], {
-                'type': 'item_error',
-                'message': '已作答後無法使用道具',
+        if self.answered[player_idx]:  # 如果玩家已作答
+            self._send(self.players[player_idx], {  # 發送錯誤訊息
+                'type': 'item_error',  # 訊息類型
+                'message': '已作答後無法使用道具',  # 錯誤訊息
             })
-            return
+            return  # 函式結束
 
-        if item_name != 'delete_wrong':
-            self._send(self.players[player_idx], {
-                'type': 'item_error',
-                'message': '未知的道具類型',
+        if item_name != 'delete_wrong':  # 如果道具名稱不是 'delete_wrong'
+            self._send(self.players[player_idx], {  # 發送錯誤訊息
+                'type': 'item_error',  # 訊息類型
+                'message': '未知的道具類型',  # 錯誤訊息
             })
-            return
+            return  # 函式結束
 
-        if self.item_uses_left[player_idx] <= 0:
-            self._send(self.players[player_idx], {
-                'type': 'item_error',
-                'message': '本局已無剩餘刪除錯誤選項道具',
+        if self.item_uses_left[player_idx] <= 0:  # 如果玩家沒有剩餘道具
+            self._send(self.players[player_idx], {  # 發送錯誤訊息
+                'type': 'item_error',  # 訊息類型
+                'message': '本局已無剩餘刪除錯誤選項道具',  # 錯誤訊息
             })
-            return
+            return  # 函式結束
 
-        current = self.questions[self.current_q]
-        wrong_indices = [i for i in range(len(current['opts']))
-                         if i != current['ans'] and i not in self.removed_options[player_idx]]
-        if not wrong_indices:
-            self._send(self.players[player_idx], {
-                'type': 'item_error',
-                'message': '已無可刪除的錯誤選項',
+        current = self.questions[self.current_q]  # 取得當前題目
+        wrong_indices = [i for i in range(len(current['opts']))  # 找出所有錯誤選項
+                         if i != current['ans'] and i not in self.removed_options[player_idx]]  # 排除正確答案和已刪除選項
+        if not wrong_indices:  # 如果沒有可刪除的選項
+            self._send(self.players[player_idx], {  # 發送錯誤訊息
+                'type': 'item_error',  # 訊息類型
+                'message': '已無可刪除的錯誤選項',  # 錯誤訊息
             })
-            return
+            return  # 函式結束
 
-        removed_idx = random.choice(wrong_indices)
-        self.removed_options[player_idx].add(removed_idx)
-        self.item_uses_left[player_idx] -= 1
+        removed_idx = random.choice(wrong_indices)  # 隨機選擇一個錯誤選項刪除
+        self.removed_options[player_idx].add(removed_idx)  # 將選項標記為已刪除
+        self.item_uses_left[player_idx] -= 1  # 減少剩餘道具次數
 
-        self._send(self.players[player_idx], {
-            'type': 'item_used',
-            'item': 'delete_wrong',
-            'removedOptionIdx': removed_idx,
-            'remainingUses': self.item_uses_left[player_idx],
-        })
-    def _bot_answer(self, bot_id, used_sec):
-     if self.ended:
-         return
-     player_idx = self._find_player_index(bot_id)
-     if player_idx != -1 and not self.answered[player_idx]:
-         # 避開已經被道具刪除的選項（雖然機器人不會用道具，但防呆一下）
-         valid_opts = [i for i in range(4) if i not in self.removed_options[player_idx]]
-         random_choice = random.choice(valid_opts) if valid_opts else random.randint(0, 3)
-
-         self.submit_answer(bot_id, random_choice, used_sec)
-         print(f"[Bot] 機器人選擇了選項 {random_choice}，耗時 {used_sec:.1f} 秒")
-         
-    def _resolve_question(self):
-        q = self.questions[self.current_q]
-        results = []
-        for i in range(2):
-            ans = self.answers[i]
-            answer_idx = ans['answerIdx'] if ans else -1
-            used_sec = ans['usedSec'] if ans else QUESTION_TIMEOUT
-            correct = answer_idx == q['ans']
-            gained = self.calc_score(used_sec) if correct else 0
-            self.scores[i] += gained
-            results.append({
-                'playerIndex': i,
-                'answerIdx': answer_idx,
-                'correct': correct,
-                'gained': gained,
-                'usedSec': used_sec,
-            })
-
-        self._broadcast({
-            'type': 'question_result',
-            'index': self.current_q,
-            'correctAns': q['ans'],
-            'results': results,
-            'scores': list(self.scores),
+        self._send(self.players[player_idx], {  # 發送道具使用成功訊息
+            'type': 'item_used',  # 訊息類型
+            'item': 'delete_wrong',  # 道具名稱
+            'removedOptionIdx': removed_idx,  # 已刪除的選項索引
+            'remainingUses': self.item_uses_left[player_idx],  # 剩餘使用次數
         })
 
-        threading.Timer(RESULT_DELAY, self._next_question).start()
-
-    def _next_question(self):
-        self.current_q += 1
-        if self.current_q < QUESTIONS_PER_GAME:
-            self._send_question()
-        else:
-            self._end_game()
-
-    def _end_game(self):
-        if self.ended:
+    def _bot_answer(self, bot_id, used_sec):  # 機器人自動作答函式
+        if self.ended:  # 若遊戲已結束，則不再作答
             return
-        self.ended = True
-        winner = None
-        if self.scores[0] > self.scores[1]:
-            winner = 0
-        elif self.scores[1] > self.scores[0]:
-            winner = 1
+        player_idx = self._find_player_index(bot_id)  # 取得機器人索引
+        if player_idx == -1 or self.answered[player_idx]:  # 若機器人已作答或不在房間
+            return
 
-        self._broadcast({
-            'type': 'game_end',
-            'scores': list(self.scores),
-            'winner': winner,
-            'playerNames': [p.player_name for p in self.players],
+        valid_opts = [i for i in range(4) if i not in self.removed_options[player_idx]]  # 可選擇的選項
+        answer_idx = random.choice(valid_opts) if valid_opts else random.randint(0, 3)  # 隨機選擇答案
+        self.submit_answer(bot_id, answer_idx, used_sec)  # 提交機器人答案
+        print(f"[Bot] 機器人選擇了選項 {answer_idx}，耗時 {used_sec:.1f} 秒")
+
+    def _resolve_question(self):  # 結算題目函式
+        q = self.questions[self.current_q]  # 取得當前題目
+        results = []  # 儲存結算結果
+        for i in range(2):  # 遍歷兩位玩家
+            ans = self.answers[i]  # 取得玩家的答案
+            answer_idx = ans['answerIdx'] if ans else -1  # 提取答案選項索引，如未作答則為 -1
+            used_sec = ans['usedSec'] if ans else QUESTION_TIMEOUT  # 提取用時，如未作答則為 10 秒
+            correct = answer_idx == q['ans']  # 判斷答案是否正確
+            gained = self.calc_score(used_sec) if correct else 0  # 計算得分，錯誤則為 0
+            self.scores[i] += gained  # 累加玩家分數
+            results.append({  # 添加結果到列表
+                'playerIndex': i,  # 玩家索引
+                'answerIdx': answer_idx,  # 玩家答案
+                'correct': correct,  # 是否正確
+                'gained': gained,  # 獲得的分數
+                'usedSec': used_sec,  # 用時
+            })
+
+        self._broadcast({  # 向雙方播送結算訊息
+            'type': 'question_result',  # 訊息類型
+            'index': self.current_q,  # 題目索引
+            'correctAns': q['ans'],  # 正確答案
+            'results': results,  # 結果列表
+            'scores': list(self.scores),  # 當前分數
         })
-        self.on_end()
-        print(f"[GameRoom {self.room_id}] 結束. 分數: {self.scores[0]} vs {self.scores[1]}")
 
-    def handle_disconnect(self, player_id):
-        if self.ended:
-            return
-        player_idx = self._find_player_index(player_id)
-        if player_idx == -1:
-            return
+        threading.Timer(RESULT_DELAY, self._next_question).start()  # 1.5 秒後進行下一題
 
-        self.ended = True
-        if self.question_timer:
-            self.question_timer.cancel()
+    def _next_question(self):  # 進行下一題函式
+        self.current_q += 1  # 題目索引加 1
+        if self.current_q < QUESTIONS_PER_GAME:  # 如果還有題目
+            self._send_question()  # 發送下一題
+        else:  # 如果已超過題目數量
+            self._end_game()  # 結束遊戲
 
-        opponent = self.players[1 - player_idx]
-        self._send(opponent, {
-            'type': 'opponent_disconnected',
-            'message': '對手已斷線，本局結束',
+    def _end_game(self):  # 結束遊戲函式
+        if self.ended:  # 如果遊戲已結束
+            return  # 函式結束
+        self.ended = True  # 標記遊戲已結束
+        winner = None  # 初始化勝者為 None（平局）
+        if self.scores[0] > self.scores[1]:  # 如果玩家 1 分數更高
+            winner = 0  # 玩家 1 獲勝
+        elif self.scores[1] > self.scores[0]:  # 如果玩家 2 分數更高
+            winner = 1  # 玩家 2 獲勝
+
+        self._broadcast({  # 向雙方播送遊戲結束訊息
+            'type': 'game_end',  # 訊息類型
+            'scores': list(self.scores),  # 最終分數
+            'winner': winner,  # 勝者（0、1 或 None）
+            'playerNames': [p.player_name for p in self.players],  # 玩家名稱
         })
-        self.on_end()
+        self.on_end()  # 呼叫遊戲結束回調函式
+        print(f"[GameRoom {self.room_id}] 結束. 分數: {self.scores[0]} vs {self.scores[1]}")  # 列印遊戲結束訊息
 
-    def is_empty(self):
-        return all(getattr(p, 'closed', False) or getattr(p, 'closed', None) for p in self.players)
+    def handle_disconnect(self, player_id):  # 處理玩家斷線函式
+        if self.ended:  # 如果遊戲已結束
+            return  # 函式結束
+        player_idx = self._find_player_index(player_id)  # 尋找玩家索引
+        if player_idx == -1:  # 如果玩家無效
+            return  # 函式結束
 
-    def _find_player_index(self, player_id):
-        for idx, p in enumerate(self.players):
-            if getattr(p, 'id', None) == player_id:
-                return idx
-        return -1
+        self.ended = True  # 標記遊戲已結束
+        if self.question_timer:  # 如果計時器存在
+            self.question_timer.cancel()  # 取消計時器
 
-    def _send(self, ws, data):
-        try:
-            ws.send(json.dumps(data))
-        except Exception:
-            pass
+        opponent = self.players[1 - player_idx]  # 取得對手
+        self._send(opponent, {  # 發送對手斷線訊息
+            'type': 'opponent_disconnected',  # 訊息類型
+            'message': '對手已斷線，本局結束',  # 訊息內容
+        })
+        self.on_end()  # 呼叫遊戲結束回調函式
 
-    def _broadcast(self, data):
-        for p in self.players:
-            self._send(p, data)
+    def is_empty(self):  # 檢查房間是否為空函式
+        return all(getattr(p, 'closed', False) or getattr(p, 'closed', None) for p in self.players)  # 如果所有玩家都已斷線則返回 True
 
-    @staticmethod
-    def calc_score(used_sec):
-        bonus = round(50 - (used_sec / QUESTION_TIMEOUT) * 50)
-        return 150 + max(0, bonus)
+    def _find_player_index(self, player_id):  # 尋找玩家索引函式
+        for idx, p in enumerate(self.players):  # 遍歷玩家列表
+            if getattr(p, 'id', None) == player_id:  # 如果找到匹配的玩家 ID
+                return idx  # 返回索引
+        return -1  # 如果未找到返回 -1
 
-    @staticmethod
-    def sample_questions(bank, n):
-        if len(bank) <= n:
-            return bank.copy()
-        selected = bank.copy()
-        random.shuffle(selected)
-        return selected[:n]
+    def _send(self, ws, data):  # 發送訊息給玩家函式
+        try:  # 開始 try 區塊
+            ws.send(json.dumps(data))  # 將數據轉為 JSON 字符串並發送
+        except Exception:  # 如果發送失敗
+            pass  # 忽略錯誤
+
+    def _broadcast(self, data):  # 向雙方播送訊息函式
+        for p in self.players:  # 遍歷兩位玩家
+            self._send(p, data)  # 發送訊息給每位玩家
+
+    @staticmethod  # 靜態方法裝飾器
+    def calc_score(used_sec):  # 計算分數的靜態方法
+        bonus = round(50 - (used_sec / QUESTION_TIMEOUT) * 50)  # 根據用時計算獎勵分數
+        return 150 + max(0, bonus)  # 返回基礎 150 分加獎勵分數（最少 150）
+
+    @staticmethod  # 靜態方法裝飾器
+    def sample_questions(bank, n):  # 從題庫中隨機抽取題目的靜態方法
+        if len(bank) <= n:  # 如果題庫數量少於需要數量
+            return bank.copy()  # 返回題庫副本
+        selected = bank.copy()  # 複製題庫
+        random.shuffle(selected)  # 隨機打亂順序
+        return selected[:n]  # 返回前 n 個題目
