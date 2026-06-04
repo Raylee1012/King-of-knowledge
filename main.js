@@ -1,5 +1,7 @@
 // ─── CONFIG ──────────────────────────────────────────────
-const API_BASE = 'http://localhost:3000'; // 後端網址，ngrok 共享時改成 ngrok 的網址
+const API_BASE = 'http://localhost:3000';  // 帳號系統後端（登入、註冊、玩家資料）
+const WS_BASE  = 'ws://localhost:4000/ws'; // 對戰系統後端（WebSocket）
+const GEN_BASE = 'http://localhost:5000';  // 題庫生成工具（管理員用）
 
 // ─── STATE ──────────────────────────────────────────────
 const state = {
@@ -18,7 +20,7 @@ const state = {
   },
   recentScores: [680,520,790,640,720,580,810,670,750,820],
   recentAccuracy: [72,65,83,70,78,62,88,74,80,85],
-  battleData: { round:0, playerScore:0, oppScore:0, correct:0, total:0, timer:null, timerVal:15, combo:1, answering:false },
+  battleData: { round:0, playerScore:0, oppScore:0, correct:0, total:0, timer:null, timerVal:15, combo:0, answering:false },
   skills: { used50: false, usedTime: false, usedHint: false },
   totalAnswered: 0,  // 累計答題數，從後端同步
   avgAccuracy: 0,    // 平均準確率，從後端同步
@@ -162,47 +164,181 @@ function updatePlayerBar() {
 
 // ─── BATTLE ──────────────────────────────────────────────
 let currentQ = 0, questionOrder = [];
+let battleWs = null;       // 對戰 WebSocket 連線
+let battleStartTime = 0;   // 題目開始時間，用來計算作答秒數
 
-function startBattle() {
-  showScreen('battleScreen');
+function startBattle(mode = 'bot') {
+  // 重置對戰資料
   const bd = state.battleData;
-  bd.round=0; bd.playerScore=0; bd.oppScore=0; bd.correct=0; bd.total=0; bd.combo=1; bd.answering=false;
-  if(bd.timer) clearInterval(bd.timer);
-  state.skills = { used50:false, usedTime:false, usedHint:false };
+  bd.round = 0; bd.playerScore = 0; bd.oppScore = 0; bd.correct = 0; bd.total = 0; bd.combo = 0; bd.answering = false;
+  if (bd.timer) clearInterval(bd.timer);
+  state.skills = { used50: false, usedTime: false, usedHint: false };
   resetSkillBtns();
-  questionOrder = [...Array(questions.length).keys()].sort(()=>Math.random()-.5);
   updateScoreDisplay();
   document.getElementById('battleAvatar').textContent = state.equippedEmoji;
   document.getElementById('battleName').textContent = state.playerName;
-  loadQuestion();
+
+  // 關閉舊的 WebSocket 連線
+  if (battleWs) {
+    battleWs.close();
+    battleWs = null;
+  }
+
+  // 建立新的 WebSocket 連線
+  battleWs = new WebSocket(WS_BASE);
+
+  battleWs.onopen = () => {
+    // 連線成功後依模式發送對應訊息
+    if (mode === 'bot') {
+      battleWs.send(JSON.stringify({ type: 'join_bot', userName: state.playerName, userId: state.userId }));
+    } else if (mode === 'queue') {
+      battleWs.send(JSON.stringify({ type: 'join_queue', userName: state.playerName, userId: state.userId }));
+    }
+  };
+
+  battleWs.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    handleBattleMessage(msg);
+  };
+
+  battleWs.onerror = (err) => {
+    console.error('WebSocket 錯誤:', err);
+    showToast('連線失敗，請確認對戰伺服器是否啟動');
+  };
+
+  battleWs.onclose = () => {
+    console.log('WebSocket 已關閉');
+  };
+
+  showScreen('battleScreen');
 }
 
-function loadQuestion() {
+function handleBattleMessage(msg) {
   const bd = state.battleData;
-  if (bd.round >= 10) { endBattle(); return; }
-  bd.round++;
-  bd.answering = false;
-  document.getElementById('roundNum').textContent = bd.round;
-  document.getElementById('comboMult').textContent = bd.combo;
 
-  const qi = questionOrder[(bd.round-1) % questions.length];
-  const q = questions[qi];
-  document.getElementById('topicBadge').textContent = q.topic;
-  document.getElementById('questionText').textContent = q.q;
+  if (msg.type === 'queued') {
+    // 已加入配對佇列，等待對手
+    showToast('尋找對手中...');
+    return;
+  }
 
-  const grid = document.getElementById('optionsGrid');
-  grid.innerHTML = '';
-  const labels = ['A','B','C','D'];
-  q.opts.forEach((opt,i) => {
-    const btn = document.createElement('button');
-    btn.className = 'option-btn';
-    btn.innerHTML = `<span class="option-label">${labels[i]}</span>${opt}`;
-    btn.onclick = () => answerQuestion(i, q.ans, btn);
-    grid.appendChild(btn);
-  });
+  if (msg.type === 'game_start') {
+    // 遊戲開始，設定對手名稱
+    const oppName = msg.playerIndex === 0 ? msg.opponentName : msg.myName;
+    const myName = msg.playerIndex === 0 ? msg.myName : msg.opponentName;
+    document.getElementById('oppName').textContent = msg.opponentName;
+    document.getElementById('battleName').textContent = state.playerName;
+    bd.playerIndex = msg.playerIndex;  // 記錄我是 player 0 還是 1
+    return;
+  }
 
-  startTimer(15);
+  if (msg.type === 'question') {
+    // 收到新題目
+    bd.round = msg.index + 1;
+    bd.answering = false;
+    bd.currentQuestion = msg;  // 儲存題目資料
+    battleStartTime = Date.now();  // 記錄題目開始時間
+    document.getElementById('roundNum').textContent = bd.round;
+    document.getElementById('comboMult').textContent = bd.combo;
+
+    // 顯示題目
+    document.getElementById('topicBadge').textContent = '知識王';
+    document.getElementById('questionText').textContent = msg.question;
+
+    // 顯示選項
+    const grid = document.getElementById('optionsGrid');
+    grid.innerHTML = '';
+    const labels = ['A', 'B', 'C', 'D'];
+    msg.options.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'option-btn';
+      btn.innerHTML = `<span class="option-label">${labels[i]}</span>${opt}`;
+      btn.onclick = () => answerQuestion(i, btn);
+      grid.appendChild(btn);
+    });
+
+    startTimer(10);  // 對戰系統是 10 秒計時
+    return;
+  }
+
+  if (msg.type === 'opponent_answered') {
+    // 對手已作答，顯示提示
+    showToast('對手已作答！');
+    return;
+  }
+
+  if (msg.type === 'question_result') {
+    // 題目結算
+    if (bd.timer) clearInterval(bd.timer);
+    const myResult = msg.results[bd.playerIndex];
+    const oppResult = msg.results[1 - bd.playerIndex];
+
+    // 更新分數
+    bd.playerScore = msg.scores[bd.playerIndex];
+    bd.oppScore = msg.scores[1 - bd.playerIndex];
+
+    // 顯示正確答案
+    const btns = document.getElementById('optionsGrid').querySelectorAll('.option-btn');
+    btns.forEach(b => b.disabled = true);
+    if (btns[msg.correctAns]) btns[msg.correctAns].classList.add('correct');
+    if (myResult.answerIdx !== -1 && myResult.answerIdx !== msg.correctAns) {
+      if (btns[myResult.answerIdx]) btns[myResult.answerIdx].classList.add('wrong');
+    }
+
+    // 更新 combo 和統計
+    bd.total++;
+    if (myResult.correct) {
+      bd.correct++;
+      bd.combo = bd.combo + 1;  // 答對加 1 連擊，無上限
+      document.getElementById('comboMult').textContent = bd.combo;  // 顯示新 combo
+      addCorrectEffect(myResult.gained);            // 答對特效
+      if (bd.combo >= 2) showComboPopup(bd.combo); // 2 連擊以上顯示彈出提示
+      showXpPopup();
+    } else {
+      bd.combo = 0;  // 答錯或超時重置 combo
+      document.getElementById('comboMult').textContent = bd.combo;
+      addWrongFlash();                              // 答錯特效
+    }
+    updateScoreDisplay();
+    return;
+  }
+
+  if (msg.type === 'item_used') {
+    // 道具使用成功
+    const btns = document.getElementById('optionsGrid').querySelectorAll('.option-btn');
+    if (btns[msg.removedOptionIdx]) {
+      btns[msg.removedOptionIdx].style.opacity = '.2';
+      btns[msg.removedOptionIdx].disabled = true;
+    }
+    return;
+  }
+
+  if (msg.type === 'item_error') {
+    showToast(msg.message);
+    return;
+  }
+
+  if (msg.type === 'opponent_disconnected') {
+    // 對手斷線
+    showToast('對手已斷線，本局結束');
+    endBattle(true);
+    return;
+  }
+
+  if (msg.type === 'game_end') {
+    // 遊戲結束
+    const bd = state.battleData;
+    const won = msg.winner === bd.playerIndex;
+    endBattle(won, msg.scores[bd.playerIndex], msg.scores[1 - bd.playerIndex]);
+    return;
+  }
+
+  if (msg.type === 'error') {
+    showToast(msg.message);
+    return;
+  }
 }
+
 
 function startTimer(sec) {
   const bd = state.battleData;
@@ -232,55 +368,48 @@ function updateTimer(val) {
 }
 
 function timeOut() {
-  state.battleData.answering = true;
-  state.battleData.combo = 1;
+  const bd = state.battleData;
+  if (bd.answering) return;  // 防止重複觸發
+  bd.answering = true;
+  bd.combo = 0;  // 超時 combo 重置
   document.getElementById('comboMult').textContent = 1;
-  const qi = questionOrder[(state.battleData.round-1)%questions.length];
-  const q = questions[qi];
+
+  // 禁用所有選項
   const btns = document.getElementById('optionsGrid').querySelectorAll('.option-btn');
-  btns.forEach(b=>b.disabled=true);
-  if(btns[q.ans]) btns[q.ans].classList.add('correct');
+  btns.forEach(b => b.disabled = true);
   addWrongFlash();
-  const oppPoints = Math.floor(Math.random()*100)+50;
-  state.battleData.oppScore += oppPoints;
-  updateScoreDisplay();
-  setTimeout(loadQuestion, 1800);
+
+  // 發送超時答案（answerIdx = -1 代表未作答）
+  if (battleWs && battleWs.readyState === WebSocket.OPEN) {
+    battleWs.send(JSON.stringify({
+      type: 'submit_answer',
+      answerIdx: -1,  // -1 代表超時未作答
+      usedSec: 10     // 超時用完全部時間
+    }));
+  }
 }
 
-function answerQuestion(chosen, correct, btn) {
+function answerQuestion(chosen, btn) {
   const bd = state.battleData;
-  if (bd.answering) return;
+  if (bd.answering) return;  // 防止重複作答
   bd.answering = true;
-  clearInterval(bd.timer);
-  bd.total++;
-  state.topicStats[questions[questionOrder[(bd.round-1)%questions.length]].topic] =
-    (state.topicStats[questions[questionOrder[(bd.round-1)%questions.length]].topic]||0)+1;
 
-  const grid = document.getElementById('optionsGrid');
-  const btns = grid.querySelectorAll('.option-btn');
+  // 計算作答秒數
+  const usedSec = Math.min(10, (Date.now() - battleStartTime) / 1000);
+
+  // 禁用所有選項按鈕
+  const btns = document.getElementById('optionsGrid').querySelectorAll('.option-btn');
   btns.forEach(b => b.disabled = true);
-  btns[correct].classList.add('correct');
+  btn.classList.add('correct');  // 先標記選擇的選項，等 question_result 再修正
 
-  if (chosen === correct) {
-    btn.classList.add('correct');
-    bd.correct++;
-    const timeBonus = bd.timerVal * 5;
-    const points = (100 + timeBonus) * bd.combo;
-    bd.playerScore += points;
-    bd.combo = Math.min(bd.combo+1, 5);
-    addCorrectEffect(points);
-    if (bd.combo >= 3) showComboPopup(bd.combo);
-    showXpPopup();
-  } else {
-    btn.classList.add('wrong');
-    bd.combo = 1;
-    addWrongFlash();
-    const oppPoints = Math.floor(Math.random()*120)+80;
-    bd.oppScore += oppPoints;
+  // 發送答案給對戰系統後端
+  if (battleWs && battleWs.readyState === WebSocket.OPEN) {
+    battleWs.send(JSON.stringify({
+      type: 'submit_answer',
+      answerIdx: chosen,
+      usedSec: usedSec
+    }));
   }
-  document.getElementById('comboMult').textContent = bd.combo;
-  updateScoreDisplay();
-  setTimeout(loadQuestion, 1800);
 }
 
 function updateScoreDisplay() {
@@ -292,30 +421,62 @@ function updateScoreDisplay() {
   document.getElementById('oppHp').style.width = Math.max(5,(bd.oppScore/maxP*100)).toFixed(0)+'%';
 }
 
-function endBattle() {
+async function endBattle(won, playerScore, oppScore) {
   const bd = state.battleData;
-  if(bd.timer) clearInterval(bd.timer);
-  const won = bd.playerScore > bd.oppScore;
-  const coins = won ? Math.floor(bd.playerScore/50)+100 : Math.floor(bd.playerScore/100)+30;
-  state.coins += coins;
-  state.xp += won ? 200 : 80;
-  if (state.xp >= state.xpMax) { state.level++; state.xp -= state.xpMax; state.xpMax = Math.floor(state.xpMax*1.3); showToast('🎉 升級了！Lv.' + state.level); }
-  if (won) state.wins++; else state.losses++;
-  state.recentScores.push(bd.playerScore);
-  state.recentScores = state.recentScores.slice(-10);
-  const acc = bd.total > 0 ? Math.round(bd.correct/bd.total*100) : 0;
-  state.recentAccuracy.push(acc);
-  state.recentAccuracy = state.recentAccuracy.slice(-10);
-  updatePlayerBar();
+  if (bd.timer) clearInterval(bd.timer);  // 停止計時器
 
-  document.getElementById('resultIcon').textContent = won ? '🏆' : '💀';
-  document.getElementById('resultTitle').className = 'result-title ' + (won?'result-win':'result-lose');
-  document.getElementById('resultTitle').textContent = won ? '勝利！' : '敗北';
-  document.getElementById('resultSub').textContent = won ? `你以 ${bd.playerScore} 分擊敗了對手！` : `對手以 ${bd.oppScore} 分獲勝`;
-  document.getElementById('statScore').textContent = bd.playerScore;
+  // 如果沒傳入分數，用 battleData 的
+  const finalPlayerScore = playerScore !== undefined ? playerScore : bd.playerScore;
+  const finalOppScore = oppScore !== undefined ? oppScore : bd.oppScore;
+  const finalWon = won !== undefined ? won : finalPlayerScore > finalOppScore;
+
+  // 關閉 WebSocket 連線
+  if (battleWs) {
+    battleWs.close();
+    battleWs = null;
+  }
+
+  const acc = bd.total > 0 ? Math.round(bd.correct / bd.total * 100) : 0;  // 計算準確率
+
+  // 呼叫後端更新統計資料
+  try {
+    const res = await fetch(`${API_BASE}/user/update-stats`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: state.userId,   // 玩家 ID
+        won: finalWon,            // 是否獲勝
+        score: finalPlayerScore,  // 本場得分
+        correct: bd.correct,      // 答對題數
+        total: bd.total           // 總題數
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      // 更新本地 state
+      state.coins = data.coins;          // 更新金幣
+      state.level = data.level;          // 更新等級
+      state.xp = data.xp;               // 更新 XP
+      state.xpMax = data.xp_max;         // 更新 XP 上限
+      state.wins = data.wins;            // 更新勝場
+      state.losses = data.losses;        // 更新敗場
+      if (data.leveled_up) showToast('🎉 升級了！Lv.' + data.level);  // 升級提示
+      updatePlayerBar();  // 更新玩家列
+    }
+  } catch (err) {
+    console.error('更新統計失敗:', err);
+  }
+
+  // 顯示結果畫面
+  const coins = finalWon ? Math.floor(finalPlayerScore / 50) + 100 : Math.floor(finalPlayerScore / 100) + 30;
+  document.getElementById('resultIcon').textContent = finalWon ? '🏆' : '💀';
+  document.getElementById('resultTitle').className = 'result-title ' + (finalWon ? 'result-win' : 'result-lose');
+  document.getElementById('resultTitle').textContent = finalWon ? '勝利！' : '敗北';
+  document.getElementById('resultSub').textContent = finalWon ? `你以 ${finalPlayerScore} 分擊敗了對手！` : `對手以 ${finalOppScore} 分獲勝`;
+  document.getElementById('statScore').textContent = finalPlayerScore;
   document.getElementById('statCorrect').textContent = `${bd.correct}/${bd.total}`;
-  document.getElementById('statAccuracy').textContent = acc+'%';
-  document.getElementById('statCoinsEarned').textContent = '+'+coins;
+  document.getElementById('statAccuracy').textContent = acc + '%';
+  document.getElementById('statCoinsEarned').textContent = '+' + coins;
   showScreen('resultScreen');
 }
 
@@ -329,12 +490,10 @@ function useSkill50() {
   if (state.skills.used50) return;
   state.skills.used50 = true;
   document.getElementById('skill50').classList.add('used');
-  const qi = questionOrder[(state.battleData.round-1)%questions.length];
-  const q = questions[qi];
-  const btns = document.getElementById('optionsGrid').querySelectorAll('.option-btn');
-  let removed = 0;
-  for (let i=0;i<4&&removed<2;i++) {
-    if (i !== q.ans && !btns[i].disabled) { btns[i].style.opacity='.2'; btns[i].disabled=true; removed++; }
+
+  // 發送使用道具訊息給對戰系統後端
+  if (battleWs && battleWs.readyState === WebSocket.OPEN) {
+    battleWs.send(JSON.stringify({ type: 'use_item', item: 'delete_wrong' }));
   }
 }
 function useSkillTime() {
@@ -396,10 +555,7 @@ function burstVector(angle, distance) {
 
 function addCorrectEffect(points) {
   const overlay = document.getElementById('effectOverlay');
-  const flash = document.createElement('div');
-  flash.className = 'correct-flash';
-  overlay.appendChild(flash);
-  setTimeout(()=>flash.remove(),450);
+
 
   const activeEffect = state.activeEffect || state.owned.activeEffect || 'eff-confetti';
   const origin = getEffectOrigin();
@@ -567,10 +723,7 @@ function addStarEffect(overlay, origin) {
 
 function addWrongFlash() {
   const overlay = document.getElementById('effectOverlay');
-  const flash = document.createElement('div');
-  flash.className = 'wrong-flash';
-  overlay.appendChild(flash);
-  setTimeout(()=>flash.remove(),400);
+
 }
 function showComboPopup(combo) {
   const el = document.createElement('div');
@@ -1168,9 +1321,9 @@ async function loadUserProfile(userId) {
     state.totalAnswered = profile.total_answered; // 累計答題數
     state.avgAccuracy = profile.avg_accuracy;     // 平均準確率
     state.totalScore = profile.total_score;       // 累計積分
-    state.topicStats = {};                // 主題統計（等 Group2 串接後才有）
-    state.recentScores = [];              // 近期得分（等 Group2 串接後才有）
-    state.recentAccuracy = [];            // 近期準確率（等 Group2 串接後才有）
+    state.topicStats = {};                // 主題統計（等對戰系統串接後才有）
+    state.recentScores = [];              // 近期得分（等對戰系統串接後才有）
+    state.recentAccuracy = [];            // 近期準確率（等對戰系統串接後才有）
 
     // 更新畫面上的玩家資料
     updatePlayerBar();    // 更新玩家列（金幣、等級、暱稱）

@@ -11,13 +11,14 @@ from flask_sock import Sock  # WebSocket 支援
 BASE_DIR = os.path.dirname(__file__)  # 取得當前文件目錄
 sys.path.insert(0, BASE_DIR)  # 將當前目錄加入 Python 路徑
 
-load_dotenv()  # 載入 .env 文件中的環境變數
+# 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
+load_dotenv(os.path.join(BASE_DIR, '.env'), override=False)
 
 from db import load_questions  # 導入載入題庫函式
 from game_room import GameRoom  # 導入遊戲房間類別
 from match_manager import MatchManager  # 導入配對管理器
 
-PORT = int(os.getenv('PORT', 3000))  # 從環境變數取得埠號，預設 3000
+PORT = int(os.getenv('PORT', 4000))  # 從環境變數取得埠號，預設 4000
 
 app = Flask(__name__, static_folder='../client', static_url_path='')  # 建立 Flask 應用，靜態文件位置為 client 資料夾
 sock = Sock(app)  # 為 Flask 應用添加 WebSocket 支援
@@ -29,7 +30,7 @@ questions = []  # 儲存所有題庫的列表
 
 @app.route('/')  # 定義根路由
 def index():  # 索引頁面處理函式
-    return app.send_static_file('index.html')  # 返回靜態 HTML 文件
+    return '知識王對戰系統運作中'  # 回傳純文字
 
 
 @app.route('/health')  # 定義健康檢查路由
@@ -68,7 +69,6 @@ def websocket(ws):  # WebSocket 連接處理函式
             rooms.pop(ws.room_id, None)  # 從房間字典中移除房間
 
 
-
 def get_player_name(msg):  # 從訊息中取得玩家名稱的函式
     return str(msg.get('userName') or msg.get('name') or '玩家')[:12]  # 返回玩家名稱，如沒有預設為 '玩家'，限制 12 字符
 
@@ -100,7 +100,7 @@ def handle_message(ws, msg):  # 訊息處理函式
         ws.player_name = get_player_name(msg)  # 設定玩家名稱
         ws.user_id = msg.get('userId')  # 設定玩家用戶 ID
         send(ws, {'type': 'queued'})  # 發送已加入佇列的確認
-        match_manager.enqueue_random(ws, lambda p1, p2, room_id: start_room(p1, p2, room_id))  # 加入隨機配對佇列，配對後啟動遊戲
+        match_manager.enqueue_random(ws, lambda p1, p2, room_id: start_room(p1, p2, room_id))  # 加入隨機配對佇列
         return  # 函式結束
 
     if msg_type == 'create_room':  # 如果是建立房間
@@ -146,8 +146,6 @@ def handle_message(ws, msg):  # 訊息處理函式
     print(f"[Server] 未知訊息: {msg_type}")  # 列印未知訊息類型
 
 
-
-
 def ensure_questions_loaded():  # 確保題庫已載入的函式
     global questions  # 聲明使用全局變數
     if not questions:  # 如果題庫為空
@@ -159,7 +157,7 @@ def start_room(p1, p2, room_id):  # 啟動遊戲房間函式
     ensure_questions_loaded()  # 確保題庫已載入
     p1.room_id = room_id  # 設定玩家 1 的房間 ID
     p2.room_id = room_id  # 設定玩家 2 的房間 ID
-    room = GameRoom(room_id, p1, p2, questions, lambda: rooms.pop(room_id, None))  # 建立遊戲房間，遊戲結束時移除房間
+    room = GameRoom(room_id, p1, p2, questions, lambda: rooms.pop(room_id, None))  # 建立遊戲房間
     rooms[room_id] = room  # 將房間添加到房間字典
     room.start()  # 啟動遊戲
     print(f"[Server] 遊戲開始 room={room_id}: {p1.player_name} vs {p2.player_name} (題庫{len(questions)}題)")  # 列印遊戲開始訊息
@@ -189,9 +187,5 @@ def bootstrap():  # 啟動函式（載入題庫）
 
 if __name__ == '__main__':  # 如果這是主程序
     bootstrap()  # 啟動並載入題庫
-    from gevent import pywsgi  # 導入 gevent WSGI 伺服器
-    from geventwebsocket.handler import WebSocketHandler  # 導入 WebSocket 處理器
-
-    http_server = pywsgi.WSGIServer(('0.0.0.0', PORT), app, handler_class=WebSocketHandler)  # 建立 WebSocket 伺服器
     print(f"[Server] 知識王伺服器啟動: http://localhost:{PORT}")  # 列印伺服器啟動訊息
-    http_server.serve_forever()  # 持續運行伺服器
+    app.run(host='0.0.0.0', port=PORT, debug=False)  # 用 Flask 內建伺服器啟動，debug=False 避免衝突
