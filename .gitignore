@@ -27,3 +27,6 @@ desktop.ini
 
 # Mac 系統檔案
 .DS_Store
+
+server/__pycache__/
+.vscode/
