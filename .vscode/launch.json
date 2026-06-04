@@ -1,43 +1,37 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "後端：帳號系統",
-            "type": "debugpy",
-            "request": "launch",
-            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
-            "module": "flask",
-            "env": {
-                "FLASK_APP": "backend\\index.py",
-                "FLASK_DEBUG": "1"
-            },
-            "args": [
-                "run",
-                "--no-debugger",
-                "--no-reload",
-                "--port", "3000"
-            ],
-            "jinja": true,
-            "autoStartBrowser": false
-        },
-        {
-            "name": "後端：題庫生成工具",
-            "type": "debugpy",
-            "request": "launch",
-            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
-            "module": "flask",
-            "env": {
-                "FLASK_APP": "generate\\app.py",
-                "FLASK_DEBUG": "1"
-            },
-            "args": [
-                "run",
-                "--no-debugger",
-                "--no-reload",
-                "--port", "5000"
-            ],
-            "jinja": true,
-            "autoStartBrowser": false
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "後端：帳號系統",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "module": "flask",
+      "env": { "FLASK_APP": "backend\\index.py", "FLASK_DEBUG": "1" },
+      "args": ["run", "--no-debugger", "--no-reload", "--port", "3000"],
+      "jinja": true,
+      "autoStartBrowser": false
+    },
+    {
+      "name": "後端：對戰系統",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "program": "${workspaceFolder}\\server\\app.py",
+      "env": { "PORT": "4000" },
+      "jinja": true,
+      "autoStartBrowser": false
+    },
+    {
+      "name": "後端：題庫生成工具",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "module": "flask",
+      "env": { "FLASK_APP": "generate\\app.py", "FLASK_DEBUG": "1" },
+      "args": ["run", "--no-debugger", "--no-reload", "--port", "5000"],
+      "jinja": true,
+      "autoStartBrowser": false
+    }
+  ]
 }
