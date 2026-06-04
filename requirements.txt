@@ -1,6 +1,13 @@
+# 帳號系統依賴
+flask
+flask-cors
+python-dotenv
+supabase
+httpx
+
+#對戰系統依賴
 Flask>=2.0
 Flask-Sock>=0.6
 gevent>=22.0
 gevent-websocket>=0.10
-python-dotenv>=1.0
 requests>=2.28

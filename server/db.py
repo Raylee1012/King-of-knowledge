@@ -7,7 +7,8 @@ import random  # 用於隨機打亂題庫
 from dotenv import load_dotenv  # 用於載入 .env 文件
 import requests  # 用於發送 HTTP 請求
 
-load_dotenv()  # 載入 .env 文件中的環境變數
+# 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)
 
 
 def load_questions():  # 載入題庫函式
