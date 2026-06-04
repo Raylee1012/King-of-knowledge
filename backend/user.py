@@ -40,7 +40,7 @@ def admin_delete_user(user_id):
 def get_profile(user_id):
     # 查詢玩家資料
     user_response = supabase.table('users').select(
-        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, wins, losses'
+        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score'
     ).eq('id', user_id).execute()  # 條件：找這個 id 的玩家
 
     # 找不到玩家
@@ -70,10 +70,14 @@ def get_profile(user_id):
         'nickname_remaining_free': remaining_free,    # 本月剩餘免費修改暱稱次數
         'is_admin': user_data['is_admin'],            # 是否為管理員
         'created_at': user_data['created_at'],        # 帳號建立時間
-        'level': user_data.get('level', 1),            # 玩家等級，預設 lv1
-        'xp': user_data.get('xp', 0),                  # 當前經驗值，預設 0
-        'wins': user_data.get('wins', 0),               # 勝場數，預設 0
-        'losses': user_data.get('losses', 0)            # 敗場數，預設 0
+        'level': user_data.get('level', 1),                          # 玩家等級，預設 lv1
+        'xp': user_data.get('xp', 0),                                  # 當前經驗值，預設 0
+        'xp_max': user_data.get('xp_max', 1000),                        # 升級所需 XP，預設 1000
+        'wins': user_data.get('wins', 0),                               # 勝場數，預設 0
+        'losses': user_data.get('losses', 0),                           # 敗場數，預設 0
+        'total_answered': user_data.get('total_answered', 0),           # 累計答題數，預設 0
+        'avg_accuracy': user_data.get('avg_accuracy', 0),               # 平均準確率，預設 0
+        'total_score': user_data.get('total_score', 0)                  # 累計積分，預設 0
     }), 200  # 200 成功
 
 # 修改暱稱 API
