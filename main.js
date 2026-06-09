@@ -148,9 +148,15 @@ function renderPlayerTag() {
 }
 
 function updatePlayerBar() {
-  document.getElementById('coinDisplay').textContent = state.coins.toLocaleString();
+  const coinsText = state.coins.toLocaleString();
+  document.getElementById('coinDisplay').textContent = coinsText;
   const shopCoinsEl = document.getElementById('shopCoins');
-  if(shopCoinsEl) shopCoinsEl.textContent = state.coins.toLocaleString();
+  if(shopCoinsEl) shopCoinsEl.textContent = coinsText;
+  // 同步對戰模式選擇屏幕的硬幣顯示
+  ['coinDisplay2', 'coinDisplay3'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = coinsText;
+  });
   document.getElementById('playerNameDisplay').innerHTML = escapeHTML(state.playerName) + renderPlayerTag();
   document.getElementById('playerLevel').textContent = state.level;
   document.getElementById('playerXP').textContent = state.xp;
@@ -166,8 +172,12 @@ function updatePlayerBar() {
 let currentQ = 0, questionOrder = [];
 let battleWs = null;       // 對戰 WebSocket 連線
 let battleStartTime = 0;   // 題目開始時間，用來計算作答秒數
+let currentBattleMode = null;  // 記錄當前對戰模式（'bot', 'queue', 'create_room', 'join_room'）
+let currentRoomId = null;   // 記錄當前房間 ID
 
 function startBattle(mode = 'bot') {
+  currentBattleMode = mode;
+  
   // 重置對戰資料
   const bd = state.battleData;
   bd.round = 0; bd.playerScore = 0; bd.oppScore = 0; bd.correct = 0; bd.total = 0; bd.combo = 0; bd.answering = false;
@@ -193,6 +203,10 @@ function startBattle(mode = 'bot') {
       battleWs.send(JSON.stringify({ type: 'join_bot', userName: state.playerName, userId: state.userId }));
     } else if (mode === 'queue') {
       battleWs.send(JSON.stringify({ type: 'join_queue', userName: state.playerName, userId: state.userId }));
+    } else if (mode === 'create_room') {
+      battleWs.send(JSON.stringify({ type: 'create_room', userName: state.playerName, userId: state.userId }));
+    } else if (mode === 'join_room') {
+      battleWs.send(JSON.stringify({ type: 'join_room', roomId: currentRoomId, userName: state.playerName, userId: state.userId }));
     }
   };
 
@@ -213,16 +227,83 @@ function startBattle(mode = 'bot') {
   showScreen('battleScreen');
 }
 
+// 創建戰鬥房間
+function createBattleRoom() {
+  startBattle('create_room');
+}
+
+// 取消對戰佇列
+function cancelBattleQueue() {
+  if (battleWs && battleWs.readyState === WebSocket.OPEN) {
+    battleWs.send(JSON.stringify({ type: 'cancel_queue' }));
+  }
+  showScreen('battleModeScreen');
+}
+
+// 顯示等待對手屏幕
+function showWaitingScreen(mode) {
+  const waitingScreen = document.getElementById('waitingForOpponentScreen');
+  const normalScreen = document.getElementById('normalBattleScreen');
+  if (waitingScreen && normalScreen) {
+    waitingScreen.style.display = 'block';
+    normalScreen.style.display = 'none';
+    
+    // 更新等待提示文本
+    const waitingTitle = document.getElementById('waitingTitle');
+    const waitingSubtext = document.getElementById('waitingSubtext');
+    
+    if (mode === 'queue') {
+      waitingTitle.textContent = '尋找對手中...';
+      waitingSubtext.textContent = '已加入快速配對佇列';
+    } else if (mode === 'create_room') {
+      waitingTitle.textContent = '等待對手加入...';
+      waitingSubtext.textContent = '房號已生成，分享給朋友';
+    } else if (mode === 'join_room') {
+      waitingTitle.textContent = '等待遊戲開始...';
+      waitingSubtext.textContent = '已加入房間，等待對手準備';
+    }
+  }
+}
+
+// 隱藏等待對手屏幕
+function hideWaitingScreen() {
+  const waitingScreen = document.getElementById('waitingForOpponentScreen');
+  const normalScreen = document.getElementById('normalBattleScreen');
+  if (waitingScreen && normalScreen) {
+    waitingScreen.style.display = 'none';
+    normalScreen.style.display = 'block';
+  }
+}
+
 function handleBattleMessage(msg) {
   const bd = state.battleData;
 
   if (msg.type === 'queued') {
     // 已加入配對佇列，等待對手
-    showToast('尋找對手中...');
+    if (currentBattleMode === 'queue') {
+      showWaitingScreen('queue');
+    } else if (currentBattleMode === 'join_room') {
+      showWaitingScreen('join_room');
+    }
+    return;
+  }
+
+  if (msg.type === 'room_created') {
+    // 房間已建立，顯示房號
+    currentRoomId = msg.roomId;
+    showToast(`房間已建立！房號：${msg.roomId}\n請分享給朋友加入`, 5);
+    showWaitingScreen('create_room');
+    // 在等待屏幕上也顯示房號
+    const waitingSubtext = document.getElementById('waitingSubtext');
+    if (waitingSubtext) {
+      waitingSubtext.innerHTML = `房號: <span style="font-weight:bold; font-size:18px; color:#FFD700;">${msg.roomId}</span><br>請分享給朋友`;
+    }
     return;
   }
 
   if (msg.type === 'game_start') {
+    // 遊戲開始，隱藏等待屏幕
+    hideWaitingScreen();
     // 遊戲開始，設定對手名稱
     const oppName = msg.playerIndex === 0 ? msg.opponentName : msg.myName;
     const myName = msg.playerIndex === 0 ? msg.myName : msg.opponentName;
@@ -335,6 +416,10 @@ function handleBattleMessage(msg) {
 
   if (msg.type === 'error') {
     showToast(msg.message);
+    // 如果是加入房間失敗，2 秒後返回房間配對屏幕
+    if (currentBattleMode === 'join_room') {
+      setTimeout(() => showScreen('roomMatchScreen'), 2000);
+    }
     return;
   }
 }
