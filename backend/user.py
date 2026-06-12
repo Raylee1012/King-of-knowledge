@@ -38,9 +38,11 @@ def admin_delete_user(user_id):
 # 傳入：URL 參數 user_id
 @user_bp.route('/profile/<user_id>', methods=['GET'])  # 定義 GET /profile/<user_id> 路由
 def get_profile(user_id):
-    # 查詢玩家資料
+    # 查詢玩家資料，包含所有統計欄位和已擁有的道具
     user_response = supabase.table('users').select(
-        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score'
+        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, '
+        'is_admin, wins, losses, total_answered, avg_accuracy, total_score, level, xp, xp_max, '
+        'owned_frames, owned_tags, owned_effects, created_at'
     ).eq('id', user_id).execute()  # 條件：找這個 id 的玩家
 
     # 找不到玩家
@@ -60,24 +62,32 @@ def get_profile(user_id):
     # 如果過了一個月，剩餘次數重置為 3，否則用目前的次數計算
     remaining_free = FREE_NICKNAME_CHANGE_LIMIT if is_new_month else max(0, FREE_NICKNAME_CHANGE_LIMIT - user_data['nickname_change_count'])
 
+    # 計算勝率
+    total_games = user_data['wins'] + user_data['losses']  # 總場數
+    win_rate = round(user_data['wins'] / total_games * 100) if total_games > 0 else 0  # 勝率百分比
+
     return jsonify({
-        'id': user_data['id'],                        # 玩家唯一 ID
-        'custom_id': user_data['custom_id'],          # 玩家自訂 ID
-        'email': user_data['email'],                  # 玩家 email
-        'is_verified': user_data['is_verified'],      # 是否已驗證
-        'coins': user_data['coins'],                  # 金幣數量
-        'nickname': user_data['nickname'],            # 遊戲暱稱
-        'nickname_remaining_free': remaining_free,    # 本月剩餘免費修改暱稱次數
-        'is_admin': user_data['is_admin'],            # 是否為管理員
-        'created_at': user_data['created_at'],        # 帳號建立時間
-        'level': user_data.get('level', 1),                          # 玩家等級，預設 lv1
-        'xp': user_data.get('xp', 0),                                  # 當前經驗值，預設 0
-        'xp_max': user_data.get('xp_max', 1000),                        # 升級所需 XP，預設 1000
-        'wins': user_data.get('wins', 0),                               # 勝場數，預設 0
-        'losses': user_data.get('losses', 0),                           # 敗場數，預設 0
-        'total_answered': user_data.get('total_answered', 0),           # 累計答題數，預設 0
-        'avg_accuracy': user_data.get('avg_accuracy', 0),               # 平均準確率，預設 0
-        'total_score': user_data.get('total_score', 0)                  # 累計積分，預設 0
+        'id': user_data['id'],                          # 玩家唯一 ID
+        'custom_id': user_data['custom_id'],            # 玩家自訂 ID
+        'email': user_data['email'],                    # 玩家 email
+        'is_verified': user_data['is_verified'],        # 是否已驗證
+        'coins': user_data['coins'],                    # 金幣數量
+        'nickname': user_data['nickname'],              # 遊戲暱稱
+        'nickname_remaining_free': remaining_free,      # 本月剩餘免費修改暱稱次數
+        'is_admin': user_data['is_admin'],              # 是否為管理員
+        'wins': user_data.get('wins', 0),               # 勝場數，預設 0
+        'losses': user_data.get('losses', 0),           # 敗場數，預設 0
+        'win_rate': win_rate,                           # 勝率百分比
+        'total_answered': user_data.get('total_answered', 0),  # 累計答題數，預設 0
+        'avg_accuracy': user_data.get('avg_accuracy', 0),      # 平均準確率，預設 0
+        'total_score': user_data.get('total_score', 0),        # 累計積分，預設 0
+        'level': user_data.get('level', 1),             # 等級，預設 1
+        'xp': user_data.get('xp', 0),                   # 目前 XP，預設 0
+        'xp_max': user_data.get('xp_max', 1000),        # XP 上限，預設 1000
+        'owned_frames': user_data.get('owned_frames') or ['frame-none'],   # 已擁有的頭像框
+        'owned_tags': user_data.get('owned_tags') or ['tag-rookie'],       # 已擁有的稱號
+        'owned_effects': user_data.get('owned_effects') or [],             # 已擁有的特效
+        'created_at': user_data['created_at']           # 帳號建立時間
     }), 200  # 200 成功
 
 # 修改暱稱 API
@@ -190,6 +200,140 @@ def spend_coins():
         'message': '扣除成功',
         'spent': amount,        # 扣了多少金幣
         'remaining': new_coins  # 剩餘金幣
+    }), 200  # 200 成功
+
+# 購買道具 API
+# 路徑：POST /user/buy-item
+# 傳入：{ user_id, item_type, item_id, price }
+@user_bp.route('/buy-item', methods=['POST'])  # 定義 POST /buy-item 路由
+def buy_item():
+    data = request.get_json()  # 取得前端傳來的 JSON 資料
+    user_id = data.get('user_id')      # 取出 user_id 欄位
+    item_type = data.get('item_type')  # 取出道具類型（frames、tags、effects）
+    item_id = data.get('item_id')      # 取出道具 ID（例如 frame-gold）
+    price = data.get('price')          # 取出道具價格
+
+    # 防呆：所有欄位都必填
+    if not user_id or not item_type or not item_id or price is None:
+        return jsonify({'error': '請填寫所有欄位'}), 400  # 400 客戶端錯誤：欄位未填寫
+
+    # 防呆：道具類型只能是這三種
+    if item_type not in ['frames', 'tags', 'effects']:
+        return jsonify({'error': '無效的道具類型'}), 400  # 400 客戶端錯誤：道具類型錯誤
+
+    # 查詢玩家目前的金幣和已擁有的道具
+    user_response = supabase.table('users').select(
+        f'coins, owned_{item_type}'  # 只查需要的欄位
+    ).eq('id', user_id).execute()
+
+    if not user_response.data:  # 找不到玩家
+        return jsonify({'error': '找不到使用者'}), 400  # 400 客戶端錯誤：找不到玩家
+
+    user_data = user_response.data[0]  # 取得第一筆資料
+    current_coins = user_data['coins']  # 目前金幣數量
+    owned_items = user_data[f'owned_{item_type}'] or []  # 已擁有的道具列表
+
+    # 防呆：已擁有此道具
+    if item_id in owned_items:
+        return jsonify({'error': '已擁有此道具'}), 400  # 400 客戶端錯誤：已擁有
+
+    # 防呆：金幣不足
+    if current_coins < price:
+        return jsonify({'error': f'金幣不足，還差 {price - current_coins} 金幣'}), 400  # 400 客戶端錯誤：金幣不足
+
+    # 扣除金幣並加入道具
+    new_coins = current_coins - price    # 計算扣除後的金幣
+    new_owned = owned_items + [item_id]  # 加入新道具到列表
+
+    # 更新資料庫（一次更新金幣和道具列表）
+    supabase.table('users').update({
+        'coins': new_coins,                  # 更新金幣
+        f'owned_{item_type}': new_owned      # 更新已擁有的道具列表
+    }).eq('id', user_id).execute()
+
+    return jsonify({
+        'message': '購買成功',
+        'remaining_coins': new_coins,  # 剩餘金幣
+        'owned': new_owned             # 更新後的道具列表
+    }), 200  # 200 成功
+
+# 更新對戰統計 API
+# 路徑：POST /user/update-stats
+# 傳入：{ user_id, won, score, correct, total }
+@user_bp.route('/update-stats', methods=['POST'])  # 定義 POST /update-stats 路由
+def update_stats():
+    data = request.get_json()  # 取得前端傳來的 JSON 資料
+    user_id = data.get('user_id')         # 取出 user_id 欄位
+    won = data.get('won')                 # 取出 won 欄位（是否獲勝）
+    score = data.get('score', 0)          # 取出 score 欄位（本場得分）
+    correct = data.get('correct', 0)      # 取出 correct 欄位（答對題數）
+    total = data.get('total', 0)          # 取出 total 欄位（總題數）
+
+    # 防呆：必填欄位
+    if not user_id or won is None:
+        return jsonify({'error': '請填寫所有欄位'}), 400  # 400 客戶端錯誤：欄位未填寫
+
+    # 查詢玩家目前的統計資料
+    user_response = supabase.table('users').select(
+        'wins, losses, total_answered, avg_accuracy, total_score, level, xp, xp_max, coins'
+    ).eq('id', user_id).execute()
+
+    if not user_response.data:  # 找不到玩家
+        return jsonify({'error': '找不到使用者'}), 400  # 400 客戶端錯誤：找不到玩家
+
+    u = user_response.data[0]  # 取得第一筆資料
+
+    # 計算新的統計數據
+    new_wins = u['wins'] + (1 if won else 0)          # 勝場加 1 或不變
+    new_losses = u['losses'] + (0 if won else 1)      # 敗場加 1 或不變
+    new_total_answered = u['total_answered'] + total  # 累計答題數
+    new_total_score = u['total_score'] + score        # 累計積分
+
+    # 計算新的平均準確率（加權平均）
+    acc = round(correct / total * 100) if total > 0 else 0  # 本場準確率
+    if u['total_answered'] > 0:  # 如果有歷史答題數據
+        new_avg_accuracy = round((u['avg_accuracy'] * u['total_answered'] + acc * total) / new_total_answered)
+    else:
+        new_avg_accuracy = acc  # 第一場直接用本場準確率
+
+    # 計算 XP 和等級
+    xp_gain = 200 if won else 80   # 勝利得 200 XP，失敗得 80 XP
+    new_xp = u['xp'] + xp_gain    # 累加 XP
+    new_level = u['level']         # 目前等級
+    new_xp_max = u['xp_max']       # 目前 XP 上限
+
+    # 升級判斷：XP 超過上限就升級
+    while new_xp >= new_xp_max:
+        new_xp -= new_xp_max               # 扣除升級所需 XP
+        new_level += 1                     # 等級加 1
+        new_xp_max = int(new_xp_max * 1.3) # 下一級需要更多 XP
+
+    # 計算金幣獎勵
+    coins_gain = int(score / 50) + 100 if won else int(score / 100) + 30  # 勝利得比較多金幣
+    new_coins = u['coins'] + coins_gain  # 累加金幣
+
+    # 更新資料庫
+    supabase.table('users').update({
+        'wins': new_wins,                      # 更新勝場
+        'losses': new_losses,                  # 更新敗場
+        'total_answered': new_total_answered,  # 更新累計答題數
+        'avg_accuracy': new_avg_accuracy,      # 更新平均準確率
+        'total_score': new_total_score,        # 更新累計積分
+        'level': new_level,                    # 更新等級
+        'xp': new_xp,                          # 更新 XP
+        'xp_max': new_xp_max,                  # 更新 XP 上限
+        'coins': new_coins                     # 更新金幣
+    }).eq('id', user_id).execute()
+
+    return jsonify({
+        'message': '統計更新成功',
+        'level': new_level,                    # 更新後的等級
+        'xp': new_xp,                          # 更新後的 XP
+        'xp_max': new_xp_max,                  # 更新後的 XP 上限
+        'coins': new_coins,                    # 更新後的金幣
+        'wins': new_wins,                      # 更新後的勝場
+        'losses': new_losses,                  # 更新後的敗場
+        'leveled_up': new_level > u['level']   # 是否升級
     }), 200  # 200 成功
 
 # 刪除帳號 API
