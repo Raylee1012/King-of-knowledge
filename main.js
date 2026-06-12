@@ -217,7 +217,12 @@ function startBattle(mode = 'bot') {
 
   battleWs.onerror = (err) => {
     console.error('WebSocket 錯誤:', err);
-    showToast('連線失敗，請確認對戰伺服器是否啟動');
+    // 延遲 1.5 秒再顯示錯誤，避免連線中就跳出提示
+    setTimeout(() => {
+      if (!battleWs || battleWs.readyState !== WebSocket.OPEN) {
+        showToast('連線失敗，請確認對戰伺服器是否啟動');
+      }
+    }, 1500);
   };
 
   battleWs.onclose = () => {
@@ -1105,6 +1110,64 @@ function renderRank() {
 
 // ─── INIT ────────────────────────────────────────────────
 createStars();
+
+// ─── 密碼欄位初始化 ───────────────────────────────────────
+(function initPasswordFields() {
+  ['passwordInput', 'regPasswordInput'].forEach(id => {
+    const pwdEl = document.getElementById(id);
+    const visEl = document.getElementById(id + 'Visible');
+    const wrap = pwdEl && pwdEl.closest('.password-wrap');
+    const btn = wrap && wrap.querySelector('.toggle-pwd-btn');
+    if (!pwdEl || !visEl || !btn) return;
+
+    // 預設：斜線（密碼隱藏）
+    btn.classList.add('active');
+
+    // 按著眼睛 → 顯示密碼
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      visEl.value = pwdEl.value;
+      pwdEl.style.display = 'none';
+      visEl.style.display = '';
+      btn.classList.remove('active');  // 移除斜線（顯示中）
+    });
+
+    // 放開 → 隱藏密碼
+    const hide = () => {
+      pwdEl.value = visEl.value;
+      visEl.style.display = 'none';
+      pwdEl.style.display = '';
+      btn.classList.add('active');  // 加上斜線（隱藏中）
+    };
+    btn.addEventListener('mouseup', hide);
+    btn.addEventListener('mouseleave', hide);
+    btn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      visEl.value = pwdEl.value;
+      pwdEl.style.display = 'none';
+      visEl.style.display = '';
+      btn.classList.remove('active');
+    });
+    btn.addEventListener('touchend', hide);
+
+    // 阻擋中文輸入
+    let composing = false;
+    pwdEl.addEventListener('compositionstart', () => { composing = true; });
+    pwdEl.addEventListener('compositionend', () => {
+      composing = false;
+      pwdEl.value = pwdEl.value.replace(/[^ -~]/g, '');
+    });
+    pwdEl.addEventListener('input', () => {
+      if (composing) return;
+      const pos = pwdEl.selectionStart;
+      const val = pwdEl.value.replace(/[^ -~]/g, '');
+      if (val !== pwdEl.value) { pwdEl.value = val; pwdEl.setSelectionRange(pos, pos); }
+    });
+    pwdEl.addEventListener('keydown', (e) => {
+      if (e.key.length === 1 && !/^[ -~]$/.test(e.key)) e.preventDefault();
+    });
+  });
+})();
 // 讓初始頁面淡入
 setTimeout(() => {
   const active = document.querySelector('.screen.active');
