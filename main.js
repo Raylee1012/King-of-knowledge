@@ -180,7 +180,7 @@ function startBattle(mode = 'bot') {
   
   // 重置對戰資料
   const bd = state.battleData;
-  bd.round = 0; bd.playerScore = 0; bd.oppScore = 0; bd.correct = 0; bd.total = 0; bd.combo = 0; bd.answering = false;
+  bd.round = 0; bd.playerScore = 0; bd.oppScore = 0; bd.correct = 0; bd.oppCorrect = 0; bd.total = 0; bd.combo = 0; bd.answering = false;
   if (bd.timer) clearInterval(bd.timer);
   state.skills = { used50: false, usedTime: false, usedHint: false };
   resetSkillBtns();
@@ -243,6 +243,18 @@ function cancelBattleQueue() {
     battleWs.send(JSON.stringify({ type: 'cancel_queue' }));
   }
   showScreen('battleModeScreen');
+}
+
+function requestQuitBattle() {
+  if (currentBattleMode !== 'bot') {
+    if (!confirm('你是否確定要退出對戰？')) return;
+  }
+  if (battleWs && battleWs.readyState === WebSocket.OPEN) {
+    battleWs.send(JSON.stringify({ type: 'quit_match' }));
+    battleWs.close();
+    battleWs = null;
+  }
+  endBattle(false);
 }
 
 // 顯示等待對手屏幕
@@ -373,6 +385,9 @@ function handleBattleMessage(msg) {
 
     // 更新 combo 和統計
     bd.total++;
+    if (oppResult.correct) {
+      bd.oppCorrect++;
+    }
     if (myResult.correct) {
       bd.correct++;
       bd.combo = bd.combo + 1;  // 答對加 1 連擊，無上限
@@ -538,7 +553,8 @@ async function endBattle(won, playerScore, oppScore) {
         won: finalWon,            // 是否獲勝
         score: finalPlayerScore,  // 本場得分
         correct: bd.correct,      // 答對題數
-        total: bd.total           // 總題數
+        total: bd.total,          // 總題數
+        opp_correct: bd.oppCorrect || 0
       })
     });
     const data = await res.json();
@@ -558,7 +574,7 @@ async function endBattle(won, playerScore, oppScore) {
   }
 
   // 顯示結果畫面
-  const coins = finalWon ? Math.floor(finalPlayerScore / 50) + 100 : Math.floor(finalPlayerScore / 100) + 30;
+  const coinDelta = finalWon ? 100 + 20 * bd.correct : -(50 + 20 * (bd.oppCorrect || 0));
   document.getElementById('resultIcon').textContent = finalWon ? '🏆' : '💀';
   document.getElementById('resultTitle').className = 'result-title ' + (finalWon ? 'result-win' : 'result-lose');
   document.getElementById('resultTitle').textContent = finalWon ? '勝利！' : '敗北';
@@ -566,7 +582,7 @@ async function endBattle(won, playerScore, oppScore) {
   document.getElementById('statScore').textContent = finalPlayerScore;
   document.getElementById('statCorrect').textContent = `${bd.correct}/${bd.total}`;
   document.getElementById('statAccuracy').textContent = acc + '%';
-  document.getElementById('statCoinsEarned').textContent = '+' + coins;
+  document.getElementById('statCoinsEarned').textContent = (coinDelta >= 0 ? '+' : '') + coinDelta;
   showScreen('resultScreen');
 }
 

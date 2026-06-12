@@ -192,6 +192,96 @@ def spend_coins():
         'remaining': new_coins  # 剩餘金幣
     }), 200  # 200 成功
 
+# 更新玩家對戰後統計資料 API
+# 路徑：POST /user/update-stats
+# 傳入：{ user_id, won, score, correct, total, opp_correct }
+@user_bp.route('/update-stats', methods=['POST'])
+def update_stats():
+    data = request.get_json()  # 取得前端傳來的 JSON 資料
+    user_id = data.get('user_id')  # 取出 user_id 欄位
+    won = data.get('won') is True  # 取出勝負
+    score = int(data.get('score', 0))  # 本場得分
+    correct = int(data.get('correct', 0))  # 本場答對題數
+    total = int(data.get('total', 0))  # 本場答題數
+    opp_correct = int(data.get('opp_correct', 0))  # 對手答對題數
+
+    # 防呆：必要欄位都必填
+    if not user_id:
+        return jsonify({'error': '缺少 user_id'}), 400
+
+    # 查詢玩家目前資料
+    user_response = supabase.table('users').select(
+        'coins, xp, xp_max, level, wins, losses, total_answered, avg_accuracy, total_score'
+    ).eq('id', user_id).execute()
+
+    if not user_response.data:
+        return jsonify({'error': '找不到使用者'}), 400
+
+    user_data = user_response.data[0]
+    coins = int(user_data.get('coins', 0) or 0)
+    xp = int(user_data.get('xp', 0) or 0)
+    xp_max = int(user_data.get('xp_max', 1000) or 1000)
+    level = int(user_data.get('level', 1) or 1)
+    wins = int(user_data.get('wins', 0) or 0)
+    losses = int(user_data.get('losses', 0) or 0)
+    total_answered = int(user_data.get('total_answered', 0) or 0)
+    avg_accuracy = float(user_data.get('avg_accuracy', 0) or 0)
+    total_score = int(user_data.get('total_score', 0) or 0)
+
+    if won:
+        coin_delta = 100 + 20 * correct
+        xp_gain = 20 + 5 * correct
+        wins += 1
+    else:
+        coin_delta = -(50 + 20 * opp_correct)
+        xp_gain = 3 * correct
+        losses += 1
+
+    coins = max(0, coins + coin_delta)
+    xp += xp_gain
+    leveled_up = False
+    while xp >= xp_max:
+        xp -= xp_max
+        level += 1
+        xp_max += 500
+        leveled_up = True
+
+    new_total_answered = total_answered + total
+    if new_total_answered > 0:
+        accuracy = round((avg_accuracy * total_answered + (100.0 * correct)) / new_total_answered, 2)
+    else:
+        accuracy = 0
+    total_score += score
+
+    update_data = {
+        'coins': coins,
+        'xp': xp,
+        'xp_max': xp_max,
+        'level': level,
+        'wins': wins,
+        'losses': losses,
+        'total_answered': new_total_answered,
+        'avg_accuracy': accuracy,
+        'total_score': total_score
+    }
+    supabase.table('users').update(update_data).eq('id', user_id).execute()
+
+    return jsonify({
+        'message': '更新成功',
+        'coins': coins,
+        'xp': xp,
+        'xp_max': xp_max,
+        'level': level,
+        'wins': wins,
+        'losses': losses,
+        'total_answered': new_total_answered,
+        'avg_accuracy': accuracy,
+        'total_score': total_score,
+        'coin_delta': coin_delta,
+        'xp_gain': xp_gain,
+        'leveled_up': leveled_up
+    }), 200  # 200 成功
+
 # 刪除帳號 API
 # 路徑：DELETE /user/delete
 # 傳入：{ user_id, password }，需要輸入密碼確認才能刪除

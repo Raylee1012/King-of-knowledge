@@ -39,6 +39,8 @@ class GameRoom:  # 遊戲房間類別
         threading.Timer(1.5, self._send_question).start()  # 1.5 秒後開始發送第一題
 
     def _send_question(self):  # 發送題目函式
+        if self.ended:  # 如果遊戲已結束
+            return  # 函式結束
         if self.current_q >= len(self.questions):  # 如果已超過題目數量
             self._end_game()  # 結束遊戲
             return  # 函式結束
@@ -145,6 +147,8 @@ class GameRoom:  # 遊戲房間類別
         print(f"[Bot] 機器人選擇了選項 {answer_idx}，耗時 {used_sec:.1f} 秒")
 
     def _resolve_question(self):  # 結算題目函式
+        if self.ended:  # 若遊戲已結束
+            return  # 函式結束
         q = self.questions[self.current_q]  # 取得當前題目
         results = []  # 儲存結算結果
         for i in range(2):  # 遍歷兩位玩家
@@ -173,6 +177,8 @@ class GameRoom:  # 遊戲房間類別
         threading.Timer(RESULT_DELAY, self._next_question).start()  # 1.5 秒後進行下一題
 
     def _next_question(self):  # 進行下一題函式
+        if self.ended:  # 如果遊戲已結束
+            return  # 函式結束
         self.current_q += 1  # 題目索引加 1
         if self.current_q < QUESTIONS_PER_GAME:  # 如果還有題目
             self._send_question()  # 發送下一題
