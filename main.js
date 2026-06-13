@@ -1414,6 +1414,11 @@ async function loadUserProfile(userId) {
     state.totalAnswered = profile.total_answered; // 累計答題數
     state.avgAccuracy = profile.avg_accuracy;     // 平均準確率
     state.totalScore = profile.total_score;       // 累計積分
+    // 同步已擁有的道具（從資料庫讀取）
+    state.owned.frames = profile.owned_frames || ['frame-none'];  // 已擁有的頭像框
+    state.owned.tags = profile.owned_tags || ['tag-rookie'];      // 已擁有的稱號
+    state.owned.effects = profile.owned_effects || [];            // 已擁有的特效
+
     state.topicStats = {};                // 主題統計（等對戰系統串接後才有）
     state.recentScores = [];              // 近期得分（等對戰系統串接後才有）
     state.recentAccuracy = [];            // 近期準確率（等對戰系統串接後才有）
