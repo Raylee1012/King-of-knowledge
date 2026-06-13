@@ -40,7 +40,7 @@ def admin_delete_user(user_id):
 def get_profile(user_id):
     # 查詢玩家資料
     user_response = supabase.table('users').select(
-        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score'
+        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect'
     ).eq('id', user_id).execute()  # 條件：找這個 id 的玩家
 
     # 找不到玩家
@@ -77,7 +77,11 @@ def get_profile(user_id):
         'losses': user_data.get('losses', 0),                           # 敗場數，預設 0
         'total_answered': user_data.get('total_answered', 0),           # 累計答題數，預設 0
         'avg_accuracy': user_data.get('avg_accuracy', 0),               # 平均準確率，預設 0
-        'total_score': user_data.get('total_score', 0)                  # 累計積分，預設 0
+        'total_score': user_data.get('total_score', 0),                  # 累計積分，預設 0
+        'owned_frames': user_data.get('owned_frames') or ['frame-none'],   # 已擁有的頭像框
+        'owned_tags': user_data.get('owned_tags') or ['tag-rookie'],       # 已擁有的稱號
+        'owned_effects': user_data.get('owned_effects') or [],             # 已擁有的特效
+        'active_effect': user_data.get('active_effect'),                      # 目前裝備的特效
     }), 200  # 200 成功
 
 # 修改暱稱 API
@@ -191,6 +195,62 @@ def spend_coins():
         'spent': amount,        # 扣了多少金幣
         'remaining': new_coins  # 剩餘金幣
     }), 200  # 200 成功
+
+# 購買道具 API
+# 路徑：POST /user/buy-item
+# 傳入：{ user_id, item_type, item_id, price }
+@user_bp.route('/buy-item', methods=['POST'])  # 定義 POST /buy-item 路由
+def buy_item():
+    data = request.get_json()  # 取得前端傳來的 JSON 資料
+    user_id = data.get('user_id')      # 取出 user_id 欄位
+    item_type = data.get('item_type')  # 取出道具類型（frames、tags、effects）
+    item_id = data.get('item_id')      # 取出道具 ID（例如 frame-gold）
+    price = data.get('price')          # 取出道具價格
+
+    # 防呆：所有欄位都必填
+    if not user_id or not item_type or not item_id or price is None:
+        return jsonify({'error': '請填寫所有欄位'}), 400  # 400 客戶端錯誤：欄位未填寫
+
+    # 防呆：道具類型只能是這三種
+    if item_type not in ['frames', 'tags', 'effects']:
+        return jsonify({'error': '無效的道具類型'}), 400  # 400 客戶端錯誤：道具類型錯誤
+
+    # 查詢玩家目前的金幣和已擁有的道具
+    user_response = supabase.table('users').select(
+        f'coins, owned_{item_type}'  # 只查需要的欄位
+    ).eq('id', user_id).execute()
+
+    if not user_response.data:  # 找不到玩家
+        return jsonify({'error': '找不到使用者'}), 400  # 400 客戶端錯誤：找不到玩家
+
+    user_data = user_response.data[0]  # 取得第一筆資料
+    current_coins = user_data['coins']  # 目前金幣數量
+    owned_items = user_data[f'owned_{item_type}'] or []  # 已擁有的道具列表
+
+    # 防呆：已擁有此道具
+    if item_id in owned_items:
+        return jsonify({'error': '已擁有此道具'}), 400  # 400 客戶端錯誤：已擁有
+
+    # 防呆：金幣不足
+    if current_coins < price:
+        return jsonify({'error': f'金幣不足，還差 {price - current_coins} 金幣'}), 400  # 400 客戶端錯誤：金幣不足
+
+    # 扣除金幣並加入道具
+    new_coins = current_coins - price    # 計算扣除後的金幣
+    new_owned = owned_items + [item_id]  # 加入新道具到列表
+
+    # 更新資料庫（一次更新金幣和道具列表）
+    supabase.table('users').update({
+        'coins': new_coins,                  # 更新金幣
+        f'owned_{item_type}': new_owned      # 更新已擁有的道具列表
+    }).eq('id', user_id).execute()
+
+    return jsonify({
+        'message': '購買成功',
+        'remaining_coins': new_coins,  # 剩餘金幣
+        'owned': new_owned             # 更新後的道具列表
+    }), 200  # 200 成功
+
 
 # 更新玩家對戰後統計資料 API
 # 路徑：POST /user/update-stats
@@ -318,3 +378,75 @@ def delete_account():
     admin_delete_user(user_id)
 
     return jsonify({'message': '帳號已刪除'}), 200  # 200 成功
+# 儲存已裝備的特效
+# 路徑：POST /user/active-effect
+# 傳入：{ user_id, effect_id }（effect_id 為 null 表示取消）
+@user_bp.route('/active-effect', methods=['POST'])
+def save_active_effect():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    effect_id = data.get('effect_id')  # 可以是 null（取消特效）
+
+    if not user_id:
+        return jsonify({'error': '缺少 user_id'}), 400
+
+    supabase.table('users').update(
+        {'active_effect': effect_id}
+    ).eq('id', user_id).execute()
+
+    return jsonify({'message': '特效已更新', 'active_effect': effect_id}), 200
+
+# 排行榜 API
+# 路徑：GET /user/rank
+# 回傳：前 50 名玩家（依 total_score 排序）+ 當前玩家排名
+@user_bp.route('/rank', methods=['GET'])
+def get_rank():
+    user_id = request.args.get('user_id')  # 當前玩家 ID（可選，用來標記「你」）
+
+    # 查詢前 50 名
+    rank_response = supabase.table('users').select(
+        'id, nickname, custom_id, total_score, wins, level'
+    ).order('total_score', desc=True).limit(50).execute()
+
+    players = rank_response.data or []
+
+    result = []
+    for i, p in enumerate(players):
+        result.append({
+            'rank': i + 1,
+            'id': p['id'],
+            'name': p['nickname'] or p['custom_id'],
+            'score': p.get('total_score', 0) or 0,
+            'wins': p.get('wins', 0) or 0,
+            'level': p.get('level', 1) or 1,
+            'isYou': p['id'] == user_id
+        })
+
+    # 如果玩家不在前 50，額外查詢他的排名
+    my_rank = None
+    if user_id and not any(p['isYou'] for p in result):
+        my_response = supabase.table('users').select(
+            'id, nickname, custom_id, total_score, wins, level'
+        ).eq('id', user_id).execute()
+
+        if my_response.data:
+            me = my_response.data[0]
+            my_score = me.get('total_score', 0) or 0
+            # 計算排名（分數比我高的人數 + 1）
+            count_response = supabase.table('users').select(
+                'id', count='exact'
+            ).gt('total_score', my_score).execute()
+            my_rank = {
+                'rank': (count_response.count or 0) + 1,
+                'id': me['id'],
+                'name': me['nickname'] or me['custom_id'],
+                'score': my_score,
+                'wins': me.get('wins', 0) or 0,
+                'level': me.get('level', 1) or 1,
+                'isYou': True
+            }
+
+    return jsonify({
+        'rank': result,
+        'myRank': my_rank
+    }), 200

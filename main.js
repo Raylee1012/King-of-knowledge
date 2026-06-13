@@ -73,6 +73,11 @@ const shopData = {
     {id:'eff-confetti',name:'彩紙爆炸',desc:'答對時彩紙飛舞',price:400,preview:'🎊'},
     {id:'eff-lightning',name:'閃電特效',desc:'連答正確閃電爆發',price:600,preview:'⚡'},
     {id:'eff-star',name:'星光迸發',desc:'每次答題星光特效',price:900,preview:'✨'},
+  ],
+  skills: [
+    {id:'skill-5050',name:'50/50',desc:'消去兩個錯誤選項',price:300,preview:'🎯'},
+    {id:'skill-time',name:'加時 +10秒',desc:'對戰時延長作答時間',price:300,preview:'⏱️'},
+    {id:'skill-hint',name:'提示',desc:'顯示正確答案方向',price:300,preview:'💡'},
   ]
 };
 
@@ -119,6 +124,7 @@ function showScreen(id) {
       if(id==='shopScreen') renderShop('frames');
       if(id==='rankScreen') renderRank();
       if(id==='profileScreen') { updateProfileEditUI(); updateStatsDisplay(); }
+      if(id==='adminScreen') initAdminScreen();  // 進入題庫管理時初始化
     }, 350);  // 等淡出完成後再切換
   } else {
     // 第一次載入沒有 active 頁面
@@ -588,9 +594,14 @@ async function endBattle(won, playerScore, oppScore) {
 
 // ─── SKILLS ──────────────────────────────────────────────
 function resetSkillBtns() {
-  document.getElementById('skill50').classList.remove('used');
-  document.getElementById('skillTime').classList.remove('used');
-  document.getElementById('skillHint').classList.remove('used');
+  // 根據已購買的道具決定是否可用
+  const ownedSkills = state.owned.skills || [];
+  const s50 = document.getElementById('skill50');
+  const sTime = document.getElementById('skillTime');
+  const sHint = document.getElementById('skillHint');
+  if (s50) s50.classList.toggle('used', !ownedSkills.includes('skill-5050'));
+  if (sTime) sTime.classList.toggle('used', !ownedSkills.includes('skill-time'));
+  if (sHint) sHint.classList.toggle('used', !ownedSkills.includes('skill-hint'));
 }
 function useSkill50() {
   if (state.skills.used50) return;
@@ -1012,7 +1023,7 @@ function switchShop(tab) {
   setTimeout(() => {
     document.querySelectorAll('#shopScreen .nav-btn').forEach((b, i) => {
       b.classList.remove('active');
-      if (['frames', 'tags', 'effects'][i] === tab) b.classList.add('active');
+      if (['frames', 'tags', 'effects', 'skills'][i] === tab) b.classList.add('active');
     });
     renderShop(tab);  // 重新渲染商店內容
     // 淡入商店內容
@@ -1059,7 +1070,7 @@ function renderShop(tab) {
       <div class="item-desc">${item.desc}</div>
       ${isEquipped ? '<span class="badge-equipped">使用中</span>' :
         isOwned ? '<span class="badge-owned">已擁有</span>' :
-        `<div class="item-price">🪙 ${item.price > 0 ? item.price : '免費'}</div>`}
+        `<div class="item-price">${item.price > 0 ? '🪙' + item.price : '免費'}</div>`}
     </div>`;
   }).join('')}</div>`;
 }
@@ -1100,28 +1111,55 @@ function showToast(msg) {
 }
 
 // ─── RANK ────────────────────────────────────────────────
-function renderRank() {
-  const medals = ['🥇','🥈','🥉'];
-  document.getElementById('rankList').innerHTML = rankData.map(r=>`
-    <div class="card" style="${r.isYou?'border-color:#ffd700;background:rgba(255,215,0,.05)':''}">
-      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <div style="font-size:${r.rank<=3?'28px':'20px'};font-weight:900;min-width:36px;text-align:center;font-family:'Orbitron',monospace;color:${r.rank<=3?'#ffd700':'#7070a0'}">
-          ${r.rank<=3?medals[r.rank-1]:r.rank}</div>
-        <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff6b35);
-          display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid rgba(255,255,255,.2);position:relative">
-          ${r.emoji}
-          ${r.frame?`<span style="position:absolute;inset:-6px;border-radius:50%;border:3px solid ${r.frame==='💎'?'#00d4ff':'#ff6b35'};box-shadow:0 0 8px ${r.frame==='💎'?'#00d4ff':'#ff6b35'}"></span>`:''}
+async function renderRank() {
+  const listEl = document.getElementById('rankList');
+  listEl.innerHTML = '<p style="text-align:center;color:var(--text2);padding:40px">載入中...</p>';
+
+  try {
+    const res = await fetch(`${API_BASE}/user/rank?user_id=${state.userId || ''}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const medals = ['🥇', '🥈', '🥉'];
+    const rankColor = (rank) => rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#7070a0';
+
+    const renderRow = (r) => `
+      <div class="card" style="${r.isYou ? 'border-color:#ffd700;background:rgba(255,215,0,.05)' : ''}">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="font-size:${r.rank <= 3 ? '28px' : '20px'};font-weight:900;min-width:36px;text-align:center;
+            font-family:'Orbitron',monospace;color:${rankColor(r.rank)}">
+            ${r.rank <= 3 ? medals[r.rank - 1] : r.rank}
+          </div>
+          <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff6b35);
+            display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid rgba(255,255,255,.2)">
+            🧠
+          </div>
+          <div style="flex:1">
+            <div style="font-size:16px;font-weight:900">
+              ${r.name}${r.isYou ? ' <span style="color:var(--accent);font-size:12px">(你)</span>' : ''}
+            </div>
+            <div style="font-size:12px;color:var(--text2)">Lv.${r.level} · ${r.wins} 勝</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:18px;font-weight:900;color:${rankColor(r.rank)}">${(r.score || 0).toLocaleString()}</div>
+            <div style="font-size:11px;color:var(--text2)">積分</div>
+          </div>
         </div>
-        <div style="flex:1">
-          <div style="font-size:16px;font-weight:900">${r.name}${r.isYou?' <span style="color:var(--accent);font-size:12px">(你)</span>':''}</div>
-          <div style="font-size:12px;color:var(--text2)">${r.tag} · ${r.wins} 勝</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:18px;font-weight:900;color:${r.rank===1?'#ffd700':r.rank===2?'#c0c0c0':r.rank===3?'#cd7f32':'#7070a0'}">${r.score.toLocaleString()}</div>
-          <div style="font-size:11px;color:var(--text2)">積分</div>
-        </div>
-      </div>
-    </div>`).join('');
+      </div>`;
+
+    let html = data.rank.map(r => renderRow(r)).join('');
+
+    // 不在前 50 時，在底部顯示自己的排名
+    if (data.myRank) {
+      html += `<div style="text-align:center;color:var(--text2);padding:12px;font-size:13px">⋯</div>`;
+      html += renderRow(data.myRank);
+    }
+
+    listEl.innerHTML = html || '<p style="text-align:center;color:var(--text2);padding:40px">暫無資料</p>';
+
+  } catch (e) {
+    listEl.innerHTML = `<p style="text-align:center;color:var(--red);padding:40px">載入失敗：${e.message}</p>`;
+  }
 }
 
 // ─── INIT ────────────────────────────────────────────────
@@ -1316,21 +1354,32 @@ function selectTag(tag) {
   updatePlayerBar();
 }
 
-function toggleEffect(effectId, forceEquip = false) {
+async function toggleEffect(effectId, forceEquip = false) {
   if (!state.owned.effects || !state.owned.effects.includes(effectId)) {
     showToast('❌ 你還未擁有此特效！請先在商店購買');
     return;
   }
-  if(!forceEquip && (state.activeEffect || state.owned.activeEffect) === effectId) {
-    state.activeEffect = null;
-    state.owned.activeEffect = null;
-  } else {
-    state.activeEffect = effectId;
-    state.owned.activeEffect = effectId;
-  }
-  profileEditState.activeEffect = state.activeEffect;
+
+  // 切換特效：已是同一個就取消，否則套用
+  const newEffect = (!forceEquip && (state.activeEffect || state.owned.activeEffect) === effectId)
+    ? null : effectId;
+
+  state.activeEffect = newEffect;
+  state.owned.activeEffect = newEffect;
+  profileEditState.activeEffect = newEffect;
   updateProfileEditUI();
-  showToast(state.activeEffect ? '✅ 特效已套用！' : '✅ 已取消特效');
+  showToast(newEffect ? '✅ 特效已套用！' : '✅ 已取消特效');
+
+  // 存到後端
+  try {
+    await fetch(`${API_BASE}/user/active-effect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: state.userId, effect_id: newEffect })
+    });
+  } catch (e) {
+    console.error('儲存特效失敗:', e);
+  }
 }
 
 function toggleNameEdit() {
@@ -1376,9 +1425,13 @@ function updateStatsDisplay() {
   document.getElementById('statCoinsDisplay').textContent = state.coins.toLocaleString() + ' 🪙';  // 金幣
   document.getElementById('statXp').textContent = state.xp.toLocaleString() + '/' + state.xpMax.toLocaleString();  // XP
 
-  // 更新帳號安全頁面的 email
+  // 更新帳號安全頁面
+  const idDisplay = document.getElementById('accountIdDisplay');
+  const nickDisplay = document.getElementById('accountNicknameDisplay');
   const emailDisplay = document.getElementById('accountEmailDisplay');
-  if (emailDisplay) emailDisplay.textContent = state.email || '未登入';
+  if (idDisplay) idDisplay.textContent = state.customId || '-';
+  if (nickDisplay) nickDisplay.textContent = state.playerName || '-';
+  if (emailDisplay) emailDisplay.textContent = state.email || '-';
 
   const topTopics = Object.entries(state.topicStats)
     .sort((a,b)=>b[1]-a[1])
@@ -1398,21 +1451,127 @@ function togglePasswordVisibility() {
   showToast('基於安全考量，密碼無法顯示');  // 不顯示密碼
 }
 
-function changePassword() {
-  showScreen('profileScreen');
-  switchProfileTab('account');
-  showToast('請使用帳號安全頁面的更換密碼功能');
+function ensureModalsAtBody() {
+  ['changePwdModal', 'deleteAccountModal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.parentElement !== document.body) document.body.appendChild(el);
+  });
 }
 
-function enableTwoFA() {
-  alert('將啟用雙重認證\n\n1. 下載認證器應用程式\n2. 掃描 QR 碼\n3. 輸入驗證碼\n\n此功能將大大提升帳號安全性！');
+function getPwdVal(id) {
+  const vis = document.getElementById(id + 'Visible');
+  const pwd = document.getElementById(id);
+  if (vis && vis.style.display !== 'none') return vis.value.trim();
+  return pwd ? pwd.value.trim() : '';
+}
+
+function showChangePwdModal() {
+  ensureModalsAtBody();
+  ['changePwdOld', 'changePwdNew', 'changePwdConfirm'].forEach(id => {
+    const pwd = document.getElementById(id);
+    const vis = document.getElementById(id + 'Visible');
+    if (pwd) { pwd.value = ''; pwd.style.display = ''; }
+    if (vis) { vis.value = ''; vis.style.display = 'none'; }
+  });
+  document.getElementById('changePwdError').style.display = 'none';
+  document.getElementById('changePwdModal').style.display = 'flex';
+  ['changePwdOld', 'changePwdNew', 'changePwdConfirm'].forEach(id => {
+    const pwdEl = document.getElementById(id);
+    const visEl = document.getElementById(id + 'Visible');
+    const wrap = pwdEl && pwdEl.closest('.password-wrap');
+    const oldBtn = wrap && wrap.querySelector('.toggle-pwd-btn');
+    if (!pwdEl || !visEl || !oldBtn) return;
+    const btn = oldBtn.cloneNode(true);
+    oldBtn.parentNode.replaceChild(btn, oldBtn);
+    btn.classList.add('active');
+    const show = (e) => { e.preventDefault(); visEl.value = pwdEl.value; pwdEl.style.display = 'none'; visEl.style.display = ''; btn.classList.remove('active'); };
+    const hide = () => { pwdEl.value = visEl.value; visEl.style.display = 'none'; pwdEl.style.display = ''; btn.classList.add('active'); };
+    btn.addEventListener('mousedown', show);
+    btn.addEventListener('mouseup', hide);
+    btn.addEventListener('mouseleave', hide);
+    btn.addEventListener('touchstart', show, { passive: false });
+    btn.addEventListener('touchend', hide);
+  });
+}
+
+async function handleChangePassword() {
+  const oldPwd = getPwdVal('changePwdOld');
+  const newPwd = getPwdVal('changePwdNew');
+  const confirmPwd = getPwdVal('changePwdConfirm');
+  const errEl = document.getElementById('changePwdError');
+  if (!oldPwd || !newPwd || !confirmPwd) { errEl.textContent = '請填寫所有欄位'; errEl.style.display = 'block'; return; }
+  if (newPwd.length < 6) { errEl.textContent = '新密碼至少需要 6 位'; errEl.style.display = 'block'; return; }
+  if (newPwd !== confirmPwd) { errEl.textContent = '兩次輸入的新密碼不一致'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch(`${API_BASE}/auth/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: state.userId, old_password: oldPwd, new_password: newPwd })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || '更換失敗'; errEl.style.display = 'block'; return; }
+    document.getElementById('changePwdModal').style.display = 'none';
+    showToast('✅ 密碼已更換成功');
+  } catch (err) {
+    errEl.textContent = '無法連線到伺服器';
+    errEl.style.display = 'block';
+  }
+}
+
+function showDeleteAccountModal() {
+  ensureModalsAtBody();
+  const pwd = document.getElementById('deleteAccountPwd');
+  const vis = document.getElementById('deleteAccountPwdVisible');
+  if (pwd) { pwd.value = ''; pwd.style.display = ''; }
+  if (vis) { vis.value = ''; vis.style.display = 'none'; }
+  document.getElementById('deleteAccountError').style.display = 'none';
+  document.getElementById('deleteAccountModal').style.display = 'flex';
+  const wrap = pwd && pwd.closest('.password-wrap');
+  const oldBtn = wrap && wrap.querySelector('.toggle-pwd-btn');
+  if (pwd && vis && oldBtn) {
+    const btn = oldBtn.cloneNode(true);
+    oldBtn.parentNode.replaceChild(btn, oldBtn);
+    btn.classList.add('active');
+    const show = (e) => { e.preventDefault(); vis.value = pwd.value; pwd.style.display = 'none'; vis.style.display = ''; btn.classList.remove('active'); };
+    const hide = () => { pwd.value = vis.value; vis.style.display = 'none'; pwd.style.display = ''; btn.classList.add('active'); };
+    btn.addEventListener('mousedown', show);
+    btn.addEventListener('mouseup', hide);
+    btn.addEventListener('mouseleave', hide);
+    btn.addEventListener('touchstart', show, { passive: false });
+    btn.addEventListener('touchend', hide);
+  }
+}
+
+async function handleDeleteAccount() {
+  const pwd = getPwdVal('deleteAccountPwd');
+  const errEl = document.getElementById('deleteAccountError');
+  if (!pwd) { errEl.textContent = '請輸入密碼'; errEl.style.display = 'block'; return; }
+  if (!confirm('確定要永久刪除帳號嗎？此操作無法復原！')) return;
+  try {
+    const res = await fetch(`${API_BASE}/user/delete`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: state.userId, password: pwd })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || '刪除失敗'; errEl.style.display = 'block'; return; }
+    document.getElementById('deleteAccountModal').style.display = 'none';
+    state.userId = null;
+    showToast('帳號已刪除');
+    setTimeout(() => showScreen('loginScreen'), 1500);
+  } catch (err) {
+    errEl.textContent = '無法連線到伺服器';
+    errEl.style.display = 'block';
+  }
 }
 
 function logout() {
-  if(confirm('確定要登出嗎？')) {
+  if (confirm('確定要登出嗎？')) {
     state.userId = null;
+    document.getElementById('usernameInput').value = '';
+    document.getElementById('passwordInput').value = '';
     showToast('👋 已登出，再見！');
-    setTimeout(()=>showScreen('loginScreen'), 1500);
+    setTimeout(() => showScreen('loginScreen'), 1500);
   }
 }
 
@@ -1474,6 +1633,7 @@ async function loadUserProfile(userId) {
 
     // 從後端更新所有 state 資料
     state.playerName = profile.nickname || profile.custom_id;  // 有暱稱用暱稱，沒有用 custom_id
+    state.customId = profile.custom_id;  // 帳號 ID
     state.coins = profile.coins;          // 金幣數量
     state.userId = profile.id;            // 玩家 uuid
     state.email = profile.email;          // 玩家 email
@@ -1489,6 +1649,8 @@ async function loadUserProfile(userId) {
     state.owned.frames = profile.owned_frames || ['frame-none'];  // 已擁有的頭像框
     state.owned.tags = profile.owned_tags || ['tag-rookie'];      // 已擁有的稱號
     state.owned.effects = profile.owned_effects || [];            // 已擁有的特效
+    state.activeEffect = profile.active_effect || null;           // 目前裝備的特效
+    state.owned.activeEffect = profile.active_effect || null;     // 同步 owned.activeEffect
 
     state.topicStats = {};                // 主題統計（等對戰系統串接後才有）
     state.recentScores = [];              // 近期得分（等對戰系統串接後才有）
@@ -1499,9 +1661,15 @@ async function loadUserProfile(userId) {
     updateStatsDisplay(); // 更新統計資料頁面
 
     // 如果是管理員，顯示題庫管理按鈕
+    // 管理員才顯示題庫管理按鈕，並控制個人設定的位置
+    const adminBtn = document.getElementById('adminBtn');
+    const profileBtn = document.getElementById('profileBtn');
     if (profile.is_admin) {
-      const adminBtn = document.getElementById('adminBtn');
-      if (adminBtn) adminBtn.style.display = 'flex';
+      if (adminBtn) adminBtn.style.display = '';      // 顯示題庫管理（排在第5格）
+      if (profileBtn) profileBtn.style.gridColumn = ''; // 個人設定排第6格
+    } else {
+      if (adminBtn) adminBtn.style.display = 'none';  // 隱藏題庫管理
+      if (profileBtn) profileBtn.style.gridColumn = '2'; // 個人設定移到第2欄（排行榜旁邊）
     }
   } catch (err) {
     console.error('載入玩家資料失敗:', err);
@@ -1672,5 +1840,391 @@ function showVerifyError(msg) {
   if (errEl) {
     errEl.textContent = msg;
     errEl.style.display = 'block';
+  }
+}
+
+// ─── 題庫管理（管理員專用）────────────────────────────────
+const ADMIN_CATEGORIES = [
+  '體育', '美術', '國文', '英文', '數學', '歷史', '地理', '公民',
+  '物理', '化學', '生物', '地科', '程式', '健教', '家政',
+  '軍教', '人文', '常識', '新聞', '其他'
+];
+
+let adminSelectedCats = [...ADMIN_CATEGORIES];  // 已選擇的分類
+let adminGeneratedQuestions = [];               // 本次生成的題目
+let adminReady = false;                         // generate 後端是否已連線
+
+// 初始化題庫管理頁面
+async function initAdminScreen() {
+  // 確認 generate 後端可以連線
+  if (!adminReady) {
+    try {
+      const res = await fetch(`${GEN_BASE}/config`);
+      if (!res.ok) throw new Error();
+      adminReady = true;  // 連線成功
+    } catch (e) {
+      showToast('無法連線到題庫生成工具後端');
+      return;
+    }
+  }
+
+  adminInitCategorySelects();  // 初始化分類下拉選單
+  adminLoadQuestions(1);         // 載入題目列表
+
+  // 初始化分類按鈕（只初始化一次）
+  const grid = document.getElementById('adminCatGrid');
+  if (grid && grid.children.length === 0) {
+    ['全選', '全清'].forEach(label => {
+      const btn = document.createElement('button');
+      btn.className = 'cat-btn special';
+      btn.textContent = label;
+      btn.onclick = () => {
+        const active = label === '全選';
+        adminSelectedCats = active ? [...ADMIN_CATEGORIES] : [];
+        grid.querySelectorAll('.cat-btn.cat-item').forEach(b => b.classList.toggle('active', active));
+      };
+      grid.appendChild(btn);
+    });
+
+    ADMIN_CATEGORIES.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = 'cat-btn cat-item active';
+      btn.textContent = cat;
+      btn.onclick = () => {
+        if (adminSelectedCats.includes(cat)) {
+          adminSelectedCats = adminSelectedCats.filter(c => c !== cat);
+          btn.classList.remove('active');
+        } else {
+          adminSelectedCats.push(cat);
+          btn.classList.add('active');
+        }
+      };
+      grid.appendChild(btn);
+    });
+  }
+}
+
+// 開始生成題目
+async function adminStartGenerate() {
+  if (adminSelectedCats.length === 0) {
+    showToast('請至少選擇一個分類！');
+    return;
+  }
+
+  if (!adminReady) {
+    showToast('尚未連線到題庫生成工具後端');
+    return;
+  }
+
+  const count = parseInt(document.getElementById('adminCountInput').value) || 10;
+  const btn = document.getElementById('adminGenBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 生成中...';
+
+  document.getElementById('adminProgressWrap').style.display = 'block';
+  document.getElementById('adminResultsSection').style.display = 'none';
+  document.getElementById('adminLogArea').innerHTML = '';
+  document.getElementById('adminPreviewArea').innerHTML = '';
+  adminGeneratedQuestions = [];
+
+  adminSetProgress(10, 'AI 正在生成題目...');
+  adminLog(`開始生成 ${count} 題，分類：${adminSelectedCats.join('、')}`, 'info');
+
+  try {
+    const questions = await adminGenerateQuestions(adminSelectedCats, count);
+    adminGeneratedQuestions = questions;
+
+    adminSetProgress(100, '完成！');
+    adminLog(`✓ 完成！共生成並存入 ${questions.length} 題`, 'ok');
+
+    document.getElementById('adminStatTotal').textContent = questions.length;
+    document.getElementById('adminStatSaved').textContent = questions.length;
+    document.getElementById('adminStatFail').textContent = 0;
+    document.getElementById('adminResultsSection').style.display = 'block';
+    showToast(`✅ 成功存入 ${questions.length} 題！`);
+
+  } catch (e) {
+    adminLog(`✗ 錯誤: ${e.message}`, 'err');
+    showToast('生成失敗：' + e.message);
+    adminSetProgress(0, '失敗');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '⚡ 開始生題並存入資料庫';
+}
+
+// 呼叫 generate 後端 POST /generate，後端負責呼叫 Gemini 和存入 Supabase
+async function adminGenerateQuestions(categories, count) {
+  const res = await fetch(`${GEN_BASE}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ categories, count })  // 傳送分類和數量
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || '生成失敗');
+  return data.questions;  // 回傳題目列表
+}
+
+function adminLog(msg, type = '') {
+  const area = document.getElementById('adminLogArea');
+  const div = document.createElement('div');
+  div.className = type;
+  div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+}
+
+function adminSetProgress(pct, text) {
+  document.getElementById('adminProgressBar').style.width = pct + '%';
+  document.getElementById('adminProgressText').textContent = text;
+  document.getElementById('adminProgressPct').textContent = pct + '%';
+}
+
+function adminShowPreview() {
+  if (!adminGeneratedQuestions.length) return;
+  const preview = adminGeneratedQuestions.slice(0, 5);
+  document.getElementById('adminPreviewArea').innerHTML = `
+    <div class="admin-preview-wrap">
+      <table>
+        <thead><tr><th>#</th><th>分類</th><th>題目</th><th>A</th><th>B</th><th>C</th><th>D</th><th>答</th></tr></thead>
+        <tbody>
+          ${preview.map((q, i) => `
+            <tr>
+              <td style="color:var(--text2)">${i + 1}</td>
+              <td><span class="cat-tag">${q.category}</span></td>
+              <td>${q.question}</td>
+              <td>${q.answer_a}</td>
+              <td>${q.answer_b}</td>
+              <td>${q.answer_c}</td>
+              <td>${q.answer_d}</td>
+              <td><strong style="color:var(--accent)">${q.correct_answer}</strong></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <p style="color:var(--text2);font-size:0.8rem;margin-top:8px;text-align:center">顯示前 ${preview.length} 題預覽</p>
+  `;
+}
+
+function adminExportSQL() {
+  if (!adminGeneratedQuestions.length) return;
+  const esc = s => (s || '').replace(/'/g, "''");
+  const sql = adminGeneratedQuestions.map(q =>
+    `INSERT INTO questions (category, question, answer_a, answer_b, answer_c, answer_d, correct_answer) VALUES ('${esc(q.category)}', '${esc(q.question)}', '${esc(q.answer_a)}', '${esc(q.answer_b)}', '${esc(q.answer_c)}', '${esc(q.answer_d)}', '${esc(q.correct_answer)}');`
+  ).join('\n');
+  const blob = new Blob([sql], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `questions_${new Date().toISOString().slice(0, 10)}.sql`;
+  a.click();
+}
+
+// ─── 題目管理（查詢、編輯、刪除）────────────────────────────
+const ADMIN_CATEGORIES_LIST = [
+  '體育', '美術', '國文', '英文', '數學', '歷史', '地理', '公民',
+  '物理', '化學', '生物', '地科', '程式', '健教', '家政',
+  '軍教', '人文', '常識', '新聞', '其他'
+];
+
+let adminCurrentPage = 1;   // 目前頁數
+let adminTotalPages = 1;    // 總頁數
+let adminSelectedIds = new Set();  // 已勾選的題目 ID
+
+// 初始化分類下拉選單
+function adminInitCategorySelects() {
+  const filterSel = document.getElementById('adminFilterCat');
+  const editSel = document.getElementById('editQCat');
+  if (filterSel && filterSel.options.length <= 1) {
+    ADMIN_CATEGORIES_LIST.forEach(cat => {
+      filterSel.appendChild(new Option(cat, cat));
+      if (editSel) editSel.appendChild(new Option(cat, cat));
+    });
+  }
+}
+
+// 載入題目列表
+// 切換題庫管理 Tab
+function switchAdminTab(tab) {
+  // 更新 nav 按鈕
+  document.querySelectorAll('#adminNav .nav-btn').forEach((b, i) => {
+    b.classList.toggle('active', (i === 0 && tab === 'generate') || (i === 1 && tab === 'manage'));
+  });
+
+  // 切換 tab 內容
+  ['generate', 'manage'].forEach(t => {
+    const el = document.getElementById('admin-tab-' + t);
+    if (!el) return;
+    if (t === tab) {
+      el.classList.add('active');
+      setTimeout(() => el.classList.add('visible'), 10);
+    } else {
+      el.classList.remove('active', 'visible');
+    }
+  });
+
+  // 切換到管理 Tab 時載入題目
+  if (tab === 'manage') adminLoadQuestions(1);
+}
+
+async function adminLoadQuestions(page = 1) {
+  adminCurrentPage = page;
+  adminSelectedIds.clear();
+
+  const keyword = document.getElementById('adminKeyword').value.trim();  // 搜尋關鍵字
+  const category = document.getElementById('adminFilterCat').value;       // 分類篩選
+
+  const params = new URLSearchParams({ page, page_size: 15 });
+  if (keyword) params.set('keyword', keyword);
+  if (category) params.set('category', category);
+
+  const listEl = document.getElementById('adminQuestionList');
+  listEl.innerHTML = '<p style="color:var(--text2);text-align:center;padding:20px">載入中...</p>';
+
+  try {
+    const res = await fetch(`${GEN_BASE}/questions?${params}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const questions = data.questions;
+    adminTotalPages = Math.ceil(data.total / 15) || 1;
+
+    if (questions.length === 0) {
+      listEl.innerHTML = '<p style="color:var(--text2);text-align:center;padding:20px">沒有找到題目</p>';
+      document.getElementById('adminPagination').innerHTML = '';
+      return;
+    }
+
+    // 渲染題目列表
+    listEl.innerHTML = questions.map(q => `
+      <div class="admin-q-row" id="qrow-${q.id}">
+        <input type="checkbox" class="admin-q-check" value="${q.id}" onchange="adminToggleSelect(${q.id}, this.checked)">
+        <span class="cat-tag">${q.category}</span>
+        <span class="admin-q-text">${q.question}</span>
+        <span class="admin-q-ans">答：${q.correct_answer}</span>
+        <div class="admin-q-actions">
+          <button class="btn btn-outline btn-sm" onclick="adminOpenEdit(${JSON.stringify(q).replace(/"/g, '&quot;')})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="adminDeleteOne(${q.id})">🗑️</button>
+        </div>
+      </div>
+    `).join('');
+
+    // 渲染分頁
+    adminRenderPagination(data.total);
+
+  } catch (e) {
+    listEl.innerHTML = `<p style="color:var(--red);text-align:center;padding:20px">載入失敗：${e.message}</p>`;
+  }
+}
+
+// 渲染分頁按鈕
+function adminRenderPagination(total) {
+  const el = document.getElementById('adminPagination');
+  if (adminTotalPages <= 1) { el.innerHTML = ''; return; }
+
+  const cur = adminCurrentPage;
+  const last = adminTotalPages;
+  let html = `<span style="color:var(--text2);font-size:13px;margin-right:4px">共 ${total} 筆</span>`;
+
+  if (cur > 1) html += `<button class="btn btn-sm btn-outline" onclick="adminLoadQuestions(${cur - 1})">‹</button>`;
+
+  const pages = new Set([1, last, cur-2, cur-1, cur, cur+1, cur+2].filter(p => p >= 1 && p <= last));
+  let prev = 0;
+  for (const p of [...pages].sort((a,b) => a-b)) {
+    if (prev && p - prev > 1) html += `<span style="color:var(--text2);padding:0 4px">…</span>`;
+    html += `<button class="btn btn-sm ${p === cur ? 'btn-gold' : 'btn-outline'}" onclick="adminLoadQuestions(${p})">${p}</button>`;
+    prev = p;
+  }
+
+  if (cur < last) html += `<button class="btn btn-sm btn-outline" onclick="adminLoadQuestions(${cur + 1})">›</button>`;
+
+  el.innerHTML = html;
+}
+
+// 勾選題目
+function adminToggleSelect(id, checked) {
+  if (checked) adminSelectedIds.add(id);
+  else adminSelectedIds.delete(id);
+}
+
+// 刪除單筆
+async function adminDeleteOne(id) {
+  if (!confirm('確定要刪除這題嗎？')) return;
+  await adminDoDelete([id]);
+}
+
+// 刪除選取的多筆
+async function adminDeleteSelected() {
+  if (adminSelectedIds.size === 0) { showToast('請先勾選要刪除的題目'); return; }
+  if (!confirm(`確定要刪除選取的 ${adminSelectedIds.size} 題嗎？`)) return;
+  await adminDoDelete([...adminSelectedIds]);
+}
+
+// 執行刪除
+async function adminDoDelete(ids) {
+  try {
+    const res = await fetch(`${GEN_BASE}/questions`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(`✅ 已刪除 ${ids.length} 題`);
+    adminLoadQuestions(adminCurrentPage);  // 重新載入
+  } catch (e) {
+    showToast('刪除失敗：' + e.message);
+  }
+}
+
+// 開啟編輯 Modal
+function adminOpenEdit(q) {
+  document.getElementById('editQId').value = q.id;
+  document.getElementById('editQText').value = q.question;
+  document.getElementById('editQA').value = q.answer_a;
+  document.getElementById('editQB').value = q.answer_b;
+  document.getElementById('editQC').value = q.answer_c;
+  document.getElementById('editQD').value = q.answer_d;
+  document.getElementById('editQAns').value = q.correct_answer;
+  document.getElementById('editQCat').value = q.category;
+  document.getElementById('adminEditModal').style.display = 'flex';
+}
+
+// 關閉編輯 Modal
+function adminCloseEdit() {
+  document.getElementById('adminEditModal').style.display = 'none';
+}
+
+// 儲存編輯
+async function adminSaveEdit() {
+  const id = document.getElementById('editQId').value;
+  const data = {
+    question: document.getElementById('editQText').value.trim(),
+    answer_a: document.getElementById('editQA').value.trim(),
+    answer_b: document.getElementById('editQB').value.trim(),
+    answer_c: document.getElementById('editQC').value.trim(),
+    answer_d: document.getElementById('editQD').value.trim(),
+    correct_answer: document.getElementById('editQAns').value,
+    category: document.getElementById('editQCat').value,
+  };
+
+  if (!data.question || !data.answer_a || !data.answer_b || !data.answer_c || !data.answer_d) {
+    showToast('請填寫所有欄位');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${GEN_BASE}/questions/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error);
+    showToast('✅ 題目已更新');
+    adminCloseEdit();
+    adminLoadQuestions(adminCurrentPage);  // 重新載入
+  } catch (e) {
+    showToast('更新失敗：' + e.message);
   }
 }

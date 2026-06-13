@@ -9,7 +9,7 @@ REQUIRED_FIELDS = {"category", "question", "answer_a", "answer_b", "answer_c", "
 VALID_ANSWERS = {"A", "B", "C", "D"}
 
 # Gemini REST API 網址（不需要安裝任何套件）
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"  # 額度較多，約 300 次/天
 
 
 def build_prompt(categories, count):
