@@ -180,7 +180,7 @@ function startBattle(mode = 'bot') {
   
   // 重置對戰資料
   const bd = state.battleData;
-  bd.round = 0; bd.playerScore = 0; bd.oppScore = 0; bd.correct = 0; bd.total = 0; bd.combo = 0; bd.answering = false;
+  bd.round = 0; bd.playerScore = 0; bd.oppScore = 0; bd.correct = 0; bd.oppCorrect = 0; bd.total = 0; bd.combo = 0; bd.answering = false;
   if (bd.timer) clearInterval(bd.timer);
   state.skills = { used50: false, usedTime: false, usedHint: false };
   resetSkillBtns();
@@ -217,7 +217,12 @@ function startBattle(mode = 'bot') {
 
   battleWs.onerror = (err) => {
     console.error('WebSocket 錯誤:', err);
-    showToast('連線失敗，請確認對戰伺服器是否啟動');
+    // 延遲 1.5 秒再顯示錯誤，避免連線中就跳出提示
+    setTimeout(() => {
+      if (!battleWs || battleWs.readyState !== WebSocket.OPEN) {
+        showToast('連線失敗，請確認對戰伺服器是否啟動');
+      }
+    }, 1500);
   };
 
   battleWs.onclose = () => {
@@ -238,6 +243,18 @@ function cancelBattleQueue() {
     battleWs.send(JSON.stringify({ type: 'cancel_queue' }));
   }
   showScreen('battleModeScreen');
+}
+
+function requestQuitBattle() {
+  if (currentBattleMode !== 'bot') {
+    if (!confirm('你是否確定要退出對戰？')) return;
+  }
+  if (battleWs && battleWs.readyState === WebSocket.OPEN) {
+    battleWs.send(JSON.stringify({ type: 'quit_match' }));
+    battleWs.close();
+    battleWs = null;
+  }
+  endBattle(false);
 }
 
 // 顯示等待對手屏幕
@@ -368,6 +385,9 @@ function handleBattleMessage(msg) {
 
     // 更新 combo 和統計
     bd.total++;
+    if (oppResult.correct) {
+      bd.oppCorrect++;
+    }
     if (myResult.correct) {
       bd.correct++;
       bd.combo = bd.combo + 1;  // 答對加 1 連擊，無上限
@@ -533,7 +553,8 @@ async function endBattle(won, playerScore, oppScore) {
         won: finalWon,            // 是否獲勝
         score: finalPlayerScore,  // 本場得分
         correct: bd.correct,      // 答對題數
-        total: bd.total           // 總題數
+        total: bd.total,          // 總題數
+        opp_correct: bd.oppCorrect || 0
       })
     });
     const data = await res.json();
@@ -553,7 +574,7 @@ async function endBattle(won, playerScore, oppScore) {
   }
 
   // 顯示結果畫面
-  const coins = finalWon ? Math.floor(finalPlayerScore / 50) + 100 : Math.floor(finalPlayerScore / 100) + 30;
+  const coinDelta = finalWon ? 100 + 20 * bd.correct : -(50 + 20 * (bd.oppCorrect || 0));
   document.getElementById('resultIcon').textContent = finalWon ? '🏆' : '💀';
   document.getElementById('resultTitle').className = 'result-title ' + (finalWon ? 'result-win' : 'result-lose');
   document.getElementById('resultTitle').textContent = finalWon ? '勝利！' : '敗北';
@@ -561,7 +582,7 @@ async function endBattle(won, playerScore, oppScore) {
   document.getElementById('statScore').textContent = finalPlayerScore;
   document.getElementById('statCorrect').textContent = `${bd.correct}/${bd.total}`;
   document.getElementById('statAccuracy').textContent = acc + '%';
-  document.getElementById('statCoinsEarned').textContent = '+' + coins;
+  document.getElementById('statCoinsEarned').textContent = (coinDelta >= 0 ? '+' : '') + coinDelta;
   showScreen('resultScreen');
 }
 
@@ -1105,6 +1126,64 @@ function renderRank() {
 
 // ─── INIT ────────────────────────────────────────────────
 createStars();
+
+// ─── 密碼欄位初始化 ───────────────────────────────────────
+(function initPasswordFields() {
+  ['passwordInput', 'regPasswordInput'].forEach(id => {
+    const pwdEl = document.getElementById(id);
+    const visEl = document.getElementById(id + 'Visible');
+    const wrap = pwdEl && pwdEl.closest('.password-wrap');
+    const btn = wrap && wrap.querySelector('.toggle-pwd-btn');
+    if (!pwdEl || !visEl || !btn) return;
+
+    // 預設：斜線（密碼隱藏）
+    btn.classList.add('active');
+
+    // 按著眼睛 → 顯示密碼
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      visEl.value = pwdEl.value;
+      pwdEl.style.display = 'none';
+      visEl.style.display = '';
+      btn.classList.remove('active');  // 移除斜線（顯示中）
+    });
+
+    // 放開 → 隱藏密碼
+    const hide = () => {
+      pwdEl.value = visEl.value;
+      visEl.style.display = 'none';
+      pwdEl.style.display = '';
+      btn.classList.add('active');  // 加上斜線（隱藏中）
+    };
+    btn.addEventListener('mouseup', hide);
+    btn.addEventListener('mouseleave', hide);
+    btn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      visEl.value = pwdEl.value;
+      pwdEl.style.display = 'none';
+      visEl.style.display = '';
+      btn.classList.remove('active');
+    });
+    btn.addEventListener('touchend', hide);
+
+    // 阻擋中文輸入
+    let composing = false;
+    pwdEl.addEventListener('compositionstart', () => { composing = true; });
+    pwdEl.addEventListener('compositionend', () => {
+      composing = false;
+      pwdEl.value = pwdEl.value.replace(/[^ -~]/g, '');
+    });
+    pwdEl.addEventListener('input', () => {
+      if (composing) return;
+      const pos = pwdEl.selectionStart;
+      const val = pwdEl.value.replace(/[^ -~]/g, '');
+      if (val !== pwdEl.value) { pwdEl.value = val; pwdEl.setSelectionRange(pos, pos); }
+    });
+    pwdEl.addEventListener('keydown', (e) => {
+      if (e.key.length === 1 && !/^[ -~]$/.test(e.key)) e.preventDefault();
+    });
+  });
+})();
 // 讓初始頁面淡入
 setTimeout(() => {
   const active = document.querySelector('.screen.active');
@@ -1332,14 +1411,6 @@ function enableTwoFA() {
 function logout() {
   if(confirm('確定要登出嗎？')) {
     state.userId = null;
-    // 清除登入欄位
-    const u = document.getElementById('usernameInput');
-    const p = document.getElementById('passwordInput');
-    const pv = document.getElementById('passwordInputVisible');
-    if (u) u.value = '';
-    if (p) p.value = '';
-    if (pv) { pv.value = ''; pv.style.display = 'none'; }
-    if (p) p.style.display = '';
     showToast('👋 已登出，再見！');
     setTimeout(()=>showScreen('loginScreen'), 1500);
   }
@@ -1427,14 +1498,6 @@ async function loadUserProfile(userId) {
     updatePlayerBar();    // 更新玩家列（金幣、等級、暱稱）
     updateStatsDisplay(); // 更新統計資料頁面
 
-    // 更新帳號安全頁面的顯示資料（所有人都顯示）
-    const idEl = document.getElementById('accountIdDisplay');
-    const nickEl = document.getElementById('accountNicknameDisplay');
-    const emailEl2 = document.getElementById('accountEmailDisplay');
-    if (idEl) idEl.textContent = profile.custom_id;
-    if (nickEl) nickEl.textContent = profile.nickname || profile.custom_id;
-    if (emailEl2) emailEl2.textContent = profile.email;
-
     // 如果是管理員，顯示題庫管理按鈕
     if (profile.is_admin) {
       const adminBtn = document.getElementById('adminBtn');
@@ -1456,54 +1519,6 @@ function showLoginError(msg) {
 }
 
 // 按下 Enter 鍵也可以登入
-// 初始化眼睛按鈕：按下時顯示明文，放開時隱藏
-function initPasswordToggle(pwdId, visibleId, btnSelector) {
-  const pwd = document.getElementById(pwdId);
-  const btn = document.querySelector(btnSelector);
-  if (!pwd || !btn) return;
-
-  // 預設狀態：密碼隱藏，眼睛有斜線
-  btn.classList.add('active');
-
-  let isVisible = false;
-  let savedStart = 0, savedEnd = 0;
-
-  function showPwd() {
-    if (isVisible) return;
-    isVisible = true;
-    savedStart = pwd.selectionStart ?? pwd.value.length;
-    savedEnd   = pwd.selectionEnd   ?? pwd.value.length;
-    pwd.type = 'text';
-    btn.classList.remove('active');
-    requestAnimationFrame(() => {
-      pwd.focus();
-      pwd.setSelectionRange(savedStart, savedEnd);
-    });
-  }
-  function hidePwd() {
-    if (!isVisible) return;
-    isVisible = false;
-    savedStart = pwd.selectionStart ?? pwd.value.length;
-    savedEnd   = pwd.selectionEnd   ?? pwd.value.length;
-    pwd.type = 'password';
-    btn.classList.add('active');
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        pwd.focus();
-        try { pwd.setSelectionRange(savedStart, savedEnd); } catch(e) {}
-      });
-    });
-  }
-  // 桌機
-  btn.addEventListener('mousedown', (e) => { e.preventDefault(); showPwd(); });
-  btn.addEventListener('mouseup', () => { hidePwd(); });
-  btn.addEventListener('mouseleave', () => { hidePwd(); });
-  // 手機觸控
-  btn.addEventListener('touchstart', (e) => { e.preventDefault(); showPwd(); });
-  btn.addEventListener('touchend', (e) => { e.preventDefault(); hidePwd(); });
-  btn.addEventListener('touchcancel', () => { hidePwd(); });
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   const pwdInput = document.getElementById('passwordInput');
   if (pwdInput) {
@@ -1517,10 +1532,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Enter') handleLogin();
     });
   }
-  // 初始化登入表單眼睛按鈕
-  initPasswordToggle('passwordInput', 'passwordInputVisible', '#loginScreen .toggle-pwd-btn');
-  // 初始化註冊表單眼睛按鈕
-  initPasswordToggle('regPasswordInput', 'regPasswordInputVisible', '#registerScreen .toggle-pwd-btn');
 });
 
 // ─── REGISTER & VERIFY ───────────────────────────────────

@@ -129,6 +129,14 @@ def handle_message(ws, msg):  # 訊息處理函式
         send(ws, {'type': 'cancelled'})  # 發送取消確認訊息
         return  # 函式結束
 
+    if msg_type == 'quit_match':  # 如果玩家主動退出對戰
+        if ws.room_id and ws.room_id in rooms:  # 如果在有效房間中
+            room = rooms[ws.room_id]
+            room.handle_disconnect(ws.id)  # 將退出視為斷線，結束本局
+            rooms.pop(ws.room_id, None)  # 從房間字典中移除房間
+            ws.room_id = None
+        return  # 函式結束
+
     if msg_type == 'submit_answer':  # 如果是提交答案
         if not ws.room_id or ws.room_id not in rooms:  # 檢查玩家是否在有效房間
             return  # 如果不在房間則返回

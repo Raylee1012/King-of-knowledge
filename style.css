@@ -2467,9 +2467,3 @@ input[type="search"]::-webkit-search-decoration {
   -webkit-appearance: none;
   appearance: none;
 }
-/* 房號配對頁面的大按鈕 */
-.btn-room {
-  width: 100%;
-  padding: 15px;
-  font-size: 16px;
-}
