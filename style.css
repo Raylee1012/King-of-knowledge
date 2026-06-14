@@ -2738,6 +2738,14 @@ input[type="search"]::-webkit-search-decoration {
   display: flex;
   align-items: center;
   justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.admin-modal-overlay.modal-open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .admin-modal-card {
@@ -2745,6 +2753,12 @@ input[type="search"]::-webkit-search-decoration {
   max-width: 600px;
   max-height: 85vh;
   overflow-y: auto;
+  transform: translateY(20px) scale(0.97);
+  transition: transform 0.25s ease;
+}
+
+.admin-modal-overlay.modal-open .admin-modal-card {
+  transform: translateY(0) scale(1);
 }
 
 .admin-textarea {
@@ -2793,4 +2807,24 @@ input[type="search"]::-webkit-search-decoration {
   color: var(--text2);
   font-size: 13px;
   margin-bottom: 20px;
+}
+
+/* 忘記密碼成功提示 */
+.auth-success {
+  display: none;
+  color: var(--green);
+  font-size: 13px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+/* 忘記密碼連結包裝 */
+.forgot-pwd-wrap {
+  text-align: center;
+  margin-top: 10px;
+}
+/* 帳號安全操作按鈕列 */
+.account-action-row {
+  display: flex;
+  gap: 8px;
 }

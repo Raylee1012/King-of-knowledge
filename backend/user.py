@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify  # Flask 相關模組
+from flask import Blueprint, request, jsonify  # Blueprint 將路由拆分到不同檔案管理；request 讀取請求；jsonify 回傳 JSON
 from supabase import create_client  # 從 supabase 套件取出 create_client 函式
 import httpx  # 用來發送 HTTP 請求，直接呼叫 Supabase admin API
 import os  # 讀取環境變數
@@ -7,7 +7,7 @@ from dotenv import load_dotenv  # 讀取 .env 檔案裡的環境變數
 # 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)
 
-user_bp = Blueprint('user', __name__)  # 建立 user 藍圖，所有路由前面會加上 /user
+user_bp = Blueprint('user', __name__)  # 使用者功能路由群組，在 index.py 掛載後路由前綴為 /user
 
 # 建立 Supabase 連線
 supabase = create_client(

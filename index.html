@@ -40,6 +40,9 @@
       </div>
       <div id="loginError" class="auth-error"></div>
       <button class="btn btn-gold" class="btn-full" onclick="handleLogin()">進入競技場</button>
+      <div class="forgot-pwd-wrap">
+        <button onclick="showScreen('forgotScreen')" class="auth-link">忘記密碼？</button>
+      </div>
     </div>
     <div class="auth-footer">登入即代表同意 知識王 戰鬥條約</div>
     <div class="auth-switch">
@@ -73,14 +76,43 @@
       <div class="auth-field">
         <label class="auth-label">密碼（至少 6 位）</label>
         <div class="password-wrap">
-          <input type="password" id="regPasswordInput" class="auth-input" placeholder="請輸入密碼..." autocomplete="off">
-          <input type="text" id="regPasswordInputVisible" class="auth-input pwd-visible" placeholder="請輸入密碼..." autocomplete="off" readonly style="display:none">
+          <input type="password" id="regPasswordInput" class="auth-input" placeholder="請輸入密碼..." autocomplete="off" aria-label="密碼">
+          <input type="text" id="regPasswordInputVisible" class="auth-input pwd-visible" placeholder="請輸入密碼..." autocomplete="off" readonly style="display:none" aria-label="密碼（顯示）">
+          <button type="button" class="toggle-pwd-btn" onclick="">👁</button>
+        </div>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">確認密碼</label>
+        <div class="password-wrap">
+          <input type="password" id="regPasswordConfirm" class="auth-input" placeholder="請再輸入一次密碼..." autocomplete="off" aria-label="確認密碼">
+          <input type="text" id="regPasswordConfirmVisible" class="auth-input pwd-visible" placeholder="請再輸入一次密碼..." autocomplete="off" readonly style="display:none" aria-label="確認密碼（顯示）">
           <button type="button" class="toggle-pwd-btn" onclick="">👁</button>
         </div>
       </div>
       <div id="registerError" class="auth-error"></div>
       <button class="btn btn-gold" class="btn-full btn-mb" onclick="handleRegister()">建立帳號</button>
       <button class="btn btn-outline" class="btn-full" onclick="showScreen('loginScreen')">← 返回登入</button>
+    </div>
+  </div>
+</div>
+
+<!-- FORGOT PASSWORD -->
+<div class="screen" id="forgotScreen">
+  <div class="stars" id="forgotStars"></div>
+  <div class="auth-screen">
+    <div class="logo">知識王</div>
+    <div class="logo-sub">KNOWLEDGE KING</div>
+    <div class="card card-glow">
+      <h3 class="auth-title">重設密碼</h3>
+      <p class="verify-email-hint">輸入你的帳號信箱，我們將寄送重設密碼連結</p>
+      <div class="auth-field">
+        <label class="auth-label">信箱</label>
+        <input type="text" id="forgotEmailInput" class="auth-input" placeholder="請輸入註冊信箱" inputmode="email" autocomplete="new-password" aria-label="重設密碼信箱">
+      </div>
+      <div id="forgotError" class="auth-error"></div>
+      <div id="forgotSuccess" class="auth-success" style="display:none"></div>
+      <button class="btn btn-gold btn-full btn-mb" onclick="handleForgotPassword()">📧 寄送重設連結</button>
+      <button class="btn btn-outline btn-full" onclick="showScreen('loginScreen')">← 返回登入</button>
     </div>
   </div>
 </div>
@@ -641,9 +673,11 @@
       <div class="profile-section">
       </div>
       <div class="profile-section">
-        <button class="btn btn-outline btn-full btn-mb" onclick="showChangePwdModal()">🔄 更換密碼</button>
-        <button class="btn btn-danger btn-full btn-mb" onclick="showDeleteAccountModal()">🗑️ 刪除帳號</button>
-        <button class="btn btn-outline btn-full" onclick="logout()">🚪 登出</button>
+        <div class="account-action-row">
+          <button class="btn btn-outline btn-flex" onclick="showChangePwdModal()">🔄 更換密碼</button>
+          <button class="btn btn-danger btn-flex" onclick="showDeleteAccountModal()">🗑️ 刪除帳號</button>
+          <button class="btn btn-outline btn-flex" onclick="logout()">🚪 登出</button>
+        </div>
       </div>
     </div>
   </div>
@@ -770,8 +804,8 @@
     <div class="auth-field">
       <label class="auth-label">目前密碼</label>
       <div class="password-wrap">
-        <input type="password" id="changePwdOld" class="auth-input" placeholder="請輸入目前密碼" autocomplete="off">
-        <input type="text" id="changePwdOldVisible" class="auth-input" placeholder="請輸入目前密碼" autocomplete="off" readonly style="display:none">
+        <input type="password" id="changePwdOld" class="auth-input" placeholder="請輸入目前密碼" autocomplete="off" aria-label="目前密碼">
+        <input type="text" id="changePwdOldVisible" class="auth-input" placeholder="請輸入目前密碼" autocomplete="off" readonly style="display:none" aria-label="目前密碼（顯示）">
         <button type="button" class="toggle-pwd-btn active">👁</button>
       </div>
     </div>
@@ -794,7 +828,7 @@
     <div id="changePwdError" class="auth-error"></div>
     <div class="admin-modal-actions">
       <button class="btn btn-gold btn-flex" onclick="handleChangePassword()">✅ 確認更換</button>
-      <button class="btn btn-outline btn-flex" onclick="document.getElementById('changePwdModal').style.display='none'">✕ 取消</button>
+      <button class="btn btn-outline btn-flex" onclick="(el=>{el.classList.remove('modal-open');setTimeout(()=>{el.style.display='none'},250)})(document.getElementById('changePwdModal'))">✕ 取消</button>
     </div>
   </div>
 </div>
@@ -815,7 +849,7 @@
     <div id="deleteAccountError" class="auth-error"></div>
     <div class="admin-modal-actions">
       <button class="btn btn-danger btn-flex" onclick="handleDeleteAccount()">🗑️ 確認刪除</button>
-      <button class="btn btn-outline btn-flex" onclick="document.getElementById('deleteAccountModal').style.display='none'">✕ 取消</button>
+      <button class="btn btn-outline btn-flex" onclick="(el=>{el.classList.remove('modal-open');setTimeout(()=>{el.style.display='none'},250)})(document.getElementById('deleteAccountModal'))">✕ 取消</button>
     </div>
   </div>
 </div>

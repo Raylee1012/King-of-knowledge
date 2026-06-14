@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, redirect  # Flask 相關模組，Blueprint 是藍圖，request 是請求物件，jsonify 把 dict 轉成 JSON 回傳，redirect 是跳轉
+from flask import Blueprint, request, jsonify, redirect  # Blueprint 將路由拆分到不同檔案管理；request 讀取請求；jsonify 回傳 JSON；redirect 跳轉頁面
 from supabase import create_client  # 從 supabase 套件取出 create_client 函式
 import httpx  # 用來發送 HTTP 請求，直接呼叫 Supabase admin API
 import smtplib  # Python 內建 SMTP 寄信模組
@@ -14,7 +14,7 @@ from dotenv import load_dotenv  # 讀取 .env 檔案裡的環境變數
 # 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)
 
-auth_bp = Blueprint('auth', __name__)  # 建立 auth 藍圖，所有路由前面會加上 /auth
+auth_bp = Blueprint('auth', __name__)  # 帳號驗證路由群組，在 index.py 掛載後路由前綴為 /auth
 
 # 建立 Supabase 連線，之後用 supabase.table() 操作資料庫
 supabase = create_client(

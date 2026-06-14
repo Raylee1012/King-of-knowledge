@@ -27,30 +27,6 @@ const state = {
   totalScore: 0      // 累計積分，從後端同步
 };
 
-// ─── QUESTIONS ───────────────────────────────────────────
-const questions = [
-  {topic:'🔬 科學',q:'光速大約是多少 km/s？',opts:['約 30 萬 km/s','約 3 萬 km/s','約 300 萬 km/s','約 3000 km/s'],ans:0},
-  {topic:'🌍 地理',q:'世界上最長的河流是？',opts:['亞馬遜河','尼羅河','長江','密西西比河'],ans:1},
-  {topic:'📚 歷史',q:'1492 年哥倫布登陸了哪裡？',opts:['北美洲大陸','加勒比海群島','南美洲大陸','中美洲'],ans:1},
-  {topic:'🖥️ 科技',q:'HTML 的全稱是什麼？',opts:['Hyper Text Markup Language','High Tech Modern Language','Hyper Transfer Markup Logic','Home Text Markup Language'],ans:0},
-  {topic:'🎮 電競',q:'《英雄聯盟》中，玩家需要摧毀對方什麼才能贏？',opts:['城堡','暴君','基地水晶','防禦塔'],ans:2},
-  {topic:'📐 數學',q:'π（圓周率）精確到小數點後兩位是？',opts:['3.12','3.14','3.16','3.18'],ans:1},
-  {topic:'🧪 化學',q:'水的化學式是？',opts:['H2O2','H3O','H2O','OH'],ans:2},
-  {topic:'🎵 音樂',q:'吉他標準調音，最細的弦是哪個音？',opts:['E','A','G','B'],ans:0},
-  {topic:'🚀 航太',q:'人類第一次登月是哪一年？',opts:['1965','1967','1969','1971'],ans:2},
-  {topic:'💡 發明',q:'電話的發明者是？',opts:['愛迪生','特斯拉','貝爾','莫爾斯'],ans:2},
-  {topic:'🐾 動物',q:'哪種動物有最長的壽命？',opts:['大象','格陵蘭鯊','烏龜','弓頭鯨'],ans:1},
-  {topic:'⚽ 體育',q:'世界盃足球賽每幾年舉辦一次？',opts:['2年','3年','4年','5年'],ans:2},
-  {topic:'🎬 電影',q:'《鐵達尼號》上映於哪一年？',opts:['1995','1996','1997','1998'],ans:2},
-  {topic:'🍜 美食',q:'義大利麵的主要原料是？',opts:['米','小麥粉','玉米粉','馬鈴薯'],ans:1},
-  {topic:'🌿 植物',q:'光合作用中，植物吸收哪種氣體？',opts:['O2','N2','CO2','H2'],ans:2},
-  {topic:'🏛️ 政治',q:'聯合國總部位於哪個城市？',opts:['日內瓦','紐約','巴黎','維也納'],ans:1},
-  {topic:'💰 經濟',q:'GDP 的全稱是什麼？',opts:['Gross Domestic Product','General Development Plan','Global Data Protocol','Government Debt Policy'],ans:0},
-  {topic:'🔭 天文',q:'太陽系中最大的行星是？',opts:['土星','海王星','木星','天王星'],ans:2},
-  {topic:'🌊 海洋',q:'地球表面約有多少比例是海洋？',opts:['51%','61%','71%','81%'],ans:2},
-  {topic:'🦁 生態',q:'哪個生態系統被稱為「地球之肺」？',opts:['珊瑚礁','濕地','熱帶雨林','草原'],ans:2},
-  {topic:'🎨 藝術',q:'《蒙娜麗莎》是哪位藝術家的作品？',opts:['米開朗基羅','達文西','拉斐爾','波提切利'],ans:1},
-];
 
 // ─── SHOP DATA ───────────────────────────────────────────
 const shopData = {
@@ -120,11 +96,12 @@ function showScreen(id) {
       const next = document.getElementById(id);
       next.classList.add('active');
       setTimeout(() => next.classList.add('visible'), 10);  // 稍微延遲讓 CSS transition 生效
-      if(id==='analyticsScreen') setTimeout(initCharts, 100);
+      if(id==='analyticsScreen') { switchAnalytics('distribution'); setTimeout(initCharts, 100); }
       if(id==='shopScreen') renderShop('frames');
       if(id==='rankScreen') renderRank();
-      if(id==='profileScreen') { updateProfileEditUI(); updateStatsDisplay(); }
-      if(id==='adminScreen') initAdminScreen();  // 進入題庫管理時初始化
+      if(id==='profileScreen') { switchProfileTab('edit'); updateProfileEditUI(); updateStatsDisplay(); }
+      if(id==='adminScreen') { switchAdminTab('generate'); initAdminScreen(); }
+      if(id==='registerScreen') initPwdToggle('regPasswordConfirm');  // 補初始化確認密碼眼睛
     }, 350);  // 等淡出完成後再切換
   } else {
     // 第一次載入沒有 active 頁面
@@ -891,7 +868,7 @@ async function initCharts() {
   const topics = Object.keys(stats);
   const totalPerCat = topics.map(t => (stats[t].correct||0) + (stats[t].wrong||0));
 
-  const NO_DATA = '<p style="text-align:center;color:var(--text2);padding:40px;font-size:14px">尚無對戰記錄</p>';
+  const NO_DATA = '<div style="display:flex;align-items:center;justify-content:center;width:100%;min-height:120px"><p style="color:var(--text2);font-size:14px">尚無對戰記錄</p></div>';
 
   // ─── 主題分佈 ───────────────────────────────────────────
   if (document.getElementById('tab-distribution').classList.contains('active')) {
@@ -1279,6 +1256,23 @@ createStars();
 
 // ─── 密碼欄位初始化 ───────────────────────────────────────
 (function initPasswordFields() {
+  // 初始化指定 id 的眼睛按鈕
+  function initPwdToggle(id) {
+    const pwdEl = document.getElementById(id);
+    const visEl = document.getElementById(id + 'Visible');
+    const wrap = pwdEl && pwdEl.closest('.password-wrap');
+    const btn = wrap && wrap.querySelector('.toggle-pwd-btn');
+    if (!pwdEl || !visEl || !btn) return;
+    btn.classList.add('active');
+    const show = (e) => { e.preventDefault(); visEl.value = pwdEl.value; pwdEl.style.display = 'none'; visEl.style.display = ''; btn.classList.remove('active'); };
+    const hide = () => { pwdEl.value = visEl.value; visEl.style.display = 'none'; pwdEl.style.display = ''; btn.classList.add('active'); };
+    btn.addEventListener('mousedown', show);
+    btn.addEventListener('mouseup', hide);
+    btn.addEventListener('mouseleave', hide);
+    btn.addEventListener('touchstart', show, { passive: false });
+    btn.addEventListener('touchend', hide);
+  }
+
   ['passwordInput', 'regPasswordInput'].forEach(id => {
     const pwdEl = document.getElementById(id);
     const visEl = document.getElementById(id + 'Visible');
@@ -1586,7 +1580,9 @@ function showChangePwdModal() {
     if (vis) { vis.value = ''; vis.style.display = 'none'; }
   });
   document.getElementById('changePwdError').style.display = 'none';
-  document.getElementById('changePwdModal').style.display = 'flex';
+  const _cpM = document.getElementById('changePwdModal');
+  _cpM.style.display = 'flex';
+  requestAnimationFrame(() => _cpM.classList.add('modal-open'));
   ['changePwdOld', 'changePwdNew', 'changePwdConfirm'].forEach(id => {
     const pwdEl = document.getElementById(id);
     const visEl = document.getElementById(id + 'Visible');
@@ -1622,7 +1618,9 @@ async function handleChangePassword() {
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || '更換失敗'; errEl.style.display = 'block'; return; }
-    document.getElementById('changePwdModal').style.display = 'none';
+    const _cpC = document.getElementById('changePwdModal');
+    _cpC.classList.remove('modal-open');
+    setTimeout(() => { _cpC.style.display = 'none'; }, 250);
     showToast('✅ 密碼已更換成功');
   } catch (err) {
     errEl.textContent = '無法連線到伺服器';
@@ -1637,7 +1635,9 @@ function showDeleteAccountModal() {
   if (pwd) { pwd.value = ''; pwd.style.display = ''; }
   if (vis) { vis.value = ''; vis.style.display = 'none'; }
   document.getElementById('deleteAccountError').style.display = 'none';
-  document.getElementById('deleteAccountModal').style.display = 'flex';
+  const _daM = document.getElementById('deleteAccountModal');
+  _daM.style.display = 'flex';
+  requestAnimationFrame(() => _daM.classList.add('modal-open'));
   const wrap = pwd && pwd.closest('.password-wrap');
   const oldBtn = wrap && wrap.querySelector('.toggle-pwd-btn');
   if (pwd && vis && oldBtn) {
@@ -1667,7 +1667,9 @@ async function handleDeleteAccount() {
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || '刪除失敗'; errEl.style.display = 'block'; return; }
-    document.getElementById('deleteAccountModal').style.display = 'none';
+    const _daC = document.getElementById('deleteAccountModal');
+    _daC.classList.remove('modal-open');
+    setTimeout(() => { _daC.style.display = 'none'; }, 250);
     state.userId = null;
     showToast('帳號已刪除');
     setTimeout(() => showScreen('loginScreen'), 1500);
@@ -1688,6 +1690,33 @@ function logout() {
 }
 
 // ─── LOGIN ───────────────────────────────────────────────
+// 忘記密碼：寄送重設連結
+async function handleForgotPassword() {
+  const email = document.getElementById('forgotEmailInput').value.trim();
+  const errEl = document.getElementById('forgotError');
+  const sucEl = document.getElementById('forgotSuccess');
+  errEl.style.display = 'none';
+  sucEl.style.display = 'none';
+
+  if (!email) { errEl.textContent = '請輸入信箱'; errEl.style.display = 'block'; return; }
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || '寄送失敗，請再試一次'; errEl.style.display = 'block'; return; }
+    sucEl.textContent = '✅ 重設連結已寄出，請查收信箱';
+    sucEl.style.display = 'block';
+    document.getElementById('forgotEmailInput').value = '';
+  } catch (err) {
+    errEl.textContent = '無法連線到伺服器';
+    errEl.style.display = 'block';
+  }
+}
+
 async function handleLogin() {
   const identifier = document.getElementById('usernameInput').value.trim(); // 取得帳號（custom_id 或 email）
   const password = document.getElementById('passwordInput').value.trim();   // 取得密碼
@@ -1800,6 +1829,11 @@ function showLoginError(msg) {
 
 // 按下 Enter 鍵也可以登入
 document.addEventListener('DOMContentLoaded', () => {
+  // Modal 移到 body 最上層，避免被 transform/overflow 影響 position:fixed
+  ['changePwdModal', 'deleteAccountModal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) document.body.appendChild(el);
+  });
   const pwdInput = document.getElementById('passwordInput');
   if (pwdInput) {
     pwdInput.addEventListener('keydown', (e) => {
