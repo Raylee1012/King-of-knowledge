@@ -2758,3 +2758,39 @@ input[type="search"]::-webkit-search-decoration {
   gap: 12px;
   margin-top: 16px;
 }
+/* ─── INLINE STYLE 移除後的替代 CSS ─────────────────────── */
+.btn-flex { flex: 1; }
+
+.btn-room {
+  width: 100%;
+  padding: 15px;
+  font-size: 16px;
+}
+
+.admin-keyword-input { flex: 1; }
+
+.admin-filter-cat { width: 130px; }
+
+.admin-question-list { margin-top: 12px; }
+
+.admin-results-section { margin-top: 20px; }
+
+.admin-stat-card { text-align: center; }
+
+.admin-stat-accent { color: var(--accent); }
+
+.admin-stat-green { color: var(--green); }
+
+.admin-stat-red { color: var(--red); }
+
+.text-muted { color: var(--text2); }
+
+.text-sm { font-size: 0.85rem; }
+
+.card-section-title-danger { color: var(--red); }
+
+.delete-account-desc {
+  color: var(--text2);
+  font-size: 13px;
+  margin-bottom: 20px;
+}

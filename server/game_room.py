@@ -57,6 +57,7 @@ class GameRoom:  # 遊戲房間類別
                 'total': QUESTIONS_PER_GAME,  # 總題數
                 'question': q['q'],  # 題目文本
                 'options': q['opts'],  # 選項列表
+                'category': q.get('category', '一般'),  # 題目分類
                 'itemUsesLeft': self.item_uses_left[i],  # 該玩家剩餘道具次數
             })
 

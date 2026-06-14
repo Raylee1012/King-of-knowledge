@@ -226,7 +226,7 @@
       
       <!-- 建立房間 -->
       <div class="room-section">
-        <button class="btn btn-gold" onclick="createBattleRoom()" style="width:100%; padding:15px; font-size:16px;">
+        <button class="btn btn-gold btn-room"  onclick="createBattleRoom()">
           ➕ 建立新房間
         </button>
         <div class="room-hint">系統會生成房號，分享給朋友</div>
@@ -236,7 +236,7 @@
       <div class="room-input-wrap">
         <input type="text" id="roomIdInput" class="auth-input room-id-input" placeholder="請輸入房號（6位數字）" maxlength="6" autocomplete="off">
       </div>
-      <button class="btn btn-blue" onclick="joinBattleRoom()" style="width:100%; padding:15px; font-size:16px;">
+      <button class="btn btn-blue btn-room" onclick="joinBattleRoom()">
         🔑 加入房間
       </button>
       <div class="room-hint">輸入朋友分享的房號</div>
@@ -673,9 +673,9 @@
     <div class="card">
       <div class="card-section-title">生成數量</div>
       <div class="count-row">
-        <span style="color:var(--text2)">每次生成</span>
-        <input type="number" class="count-input" id="adminCountInput" value="10" min="1" max="50">
-        <span style="color:var(--text2);font-size:0.85rem">題（建議 5～20 題）</span>
+        <span class="text-muted">每次生成</span>
+        <input type="number" class="count-input" id="adminCountInput" value="10" min="1" max="50" aria-label="生成數量">
+        <span class="text-muted text-sm">題（建議 5～20 題）</span>
       </div>
     </div>
     <button class="btn btn-gold admin-gen-btn" id="adminGenBtn" onclick="adminStartGenerate()">
@@ -691,25 +691,25 @@
       </div>
       <div class="admin-log-area" id="adminLogArea"></div>
     </div>
-    <div id="adminResultsSection" style="display:none;margin-top:20px">
+    <div id="adminResultsSection" class="admin-results-section" style="display:none">
       <div class="admin-stat-grid">
-        <div class="card" style="text-align:center">
-          <div class="admin-stat-val" style="color:var(--accent)" id="adminStatTotal">0</div>
+        <div class="card admin-stat-card">
+          <div class="admin-stat-val admin-stat-accent" id="adminStatTotal">0</div>
           <div class="admin-stat-label">本次生成</div>
         </div>
-        <div class="card" style="text-align:center">
-          <div class="admin-stat-val" style="color:var(--green)" id="adminStatSaved">0</div>
+        <div class="card admin-stat-card">
+          <div class="admin-stat-val admin-stat-green" id="adminStatSaved">0</div>
           <div class="admin-stat-label">成功存入</div>
         </div>
-        <div class="card" style="text-align:center">
-          <div class="admin-stat-val" style="color:var(--red)" id="adminStatFail">0</div>
+        <div class="card admin-stat-card">
+          <div class="admin-stat-val admin-stat-red" id="adminStatFail">0</div>
           <div class="admin-stat-label">失敗</div>
         </div>
       </div>
       <div class="admin-action-row">
-        <button class="btn btn-gold" style="flex:1" onclick="adminStartGenerate()">🔄 再生一批</button>
-        <button class="btn btn-outline" style="flex:1" onclick="adminShowPreview()">👁 預覽題目</button>
-        <button class="btn btn-outline" style="flex:1" onclick="adminExportSQL()">💾 匯出 SQL</button>
+        <button class="btn btn-gold btn-flex" onclick="adminStartGenerate()">🔄 再生一批</button>
+        <button class="btn btn-outline btn-flex" onclick="adminShowPreview()">👁 預覽題目</button>
+        <button class="btn btn-outline btn-flex" onclick="adminExportSQL()">💾 匯出 SQL</button>
       </div>
       <div id="adminPreviewArea"></div>
     </div>
@@ -718,14 +718,14 @@
   <!-- TAB 2：管理題目 -->
   <div class="tab-content" id="admin-tab-manage">
     <div class="admin-filter-row">
-      <input type="text" id="adminKeyword" class="auth-input" placeholder="搜尋題目關鍵字..." style="flex:1">
-      <select id="adminFilterCat" class="auth-input" style="width:130px">
+      <input type="text" id="adminKeyword" class="auth-input admin-keyword-input" placeholder="搜尋題目關鍵字...">
+      <select id="adminFilterCat" class="auth-input admin-filter-cat" aria-label="篩選分類">
         <option value="">全部分類</option>
       </select>
       <button class="btn btn-outline btn-sm" onclick="adminLoadQuestions(1)">🔍 搜尋</button>
       <button class="btn btn-danger btn-sm" onclick="adminDeleteSelected()">🗑️ 刪除選取</button>
     </div>
-    <div id="adminQuestionList" style="margin-top:12px"></div>
+    <div id="adminQuestionList" class="admin-question-list"></div>
     <div id="adminPagination" class="admin-pagination"></div>
   </div>
 
@@ -756,8 +756,8 @@
       </select>
     </div>
     <div class="admin-modal-actions">
-      <button class="btn btn-gold" style="flex:1" onclick="adminSaveEdit()">💾 儲存</button>
-      <button class="btn btn-outline" style="flex:1" onclick="adminCloseEdit()">✕ 取消</button>
+      <button class="btn btn-gold btn-flex" onclick="adminSaveEdit()">💾 儲存</button>
+      <button class="btn btn-outline btn-flex" onclick="adminCloseEdit()">✕ 取消</button>
     </div>
   </div>
 </div>
@@ -793,8 +793,8 @@
     </div>
     <div id="changePwdError" class="auth-error"></div>
     <div class="admin-modal-actions">
-      <button class="btn btn-gold" style="flex:1" onclick="handleChangePassword()">✅ 確認更換</button>
-      <button class="btn btn-outline" style="flex:1" onclick="document.getElementById('changePwdModal').style.display='none'">✕ 取消</button>
+      <button class="btn btn-gold btn-flex" onclick="handleChangePassword()">✅ 確認更換</button>
+      <button class="btn btn-outline btn-flex" onclick="document.getElementById('changePwdModal').style.display='none'">✕ 取消</button>
     </div>
   </div>
 </div>
@@ -802,8 +802,8 @@
 <!-- 刪除帳號 Modal -->
 <div id="deleteAccountModal" class="admin-modal-overlay" style="display:none">
   <div class="card admin-modal-card">
-    <div class="card-section-title" style="color:var(--red)">🗑️ 刪除帳號</div>
-    <p style="color:var(--text2);font-size:13px;margin-bottom:20px">刪除後無法復原，所有資料將永久消失。</p>
+    <div class="card-section-title card-section-title-danger">🗑️ 刪除帳號</div>
+    <p class="delete-account-desc">刪除後無法復原，所有資料將永久消失。</p>
     <div class="auth-field">
       <label class="auth-label">輸入密碼確認</label>
       <div class="password-wrap">
@@ -814,8 +814,8 @@
     </div>
     <div id="deleteAccountError" class="auth-error"></div>
     <div class="admin-modal-actions">
-      <button class="btn btn-danger" style="flex:1" onclick="handleDeleteAccount()">🗑️ 確認刪除</button>
-      <button class="btn btn-outline" style="flex:1" onclick="document.getElementById('deleteAccountModal').style.display='none'">✕ 取消</button>
+      <button class="btn btn-danger btn-flex" onclick="handleDeleteAccount()">🗑️ 確認刪除</button>
+      <button class="btn btn-outline btn-flex" onclick="document.getElementById('deleteAccountModal').style.display='none'">✕ 取消</button>
     </div>
   </div>
 </div>

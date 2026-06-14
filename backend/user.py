@@ -82,6 +82,8 @@ def get_profile(user_id):
         'owned_tags': user_data.get('owned_tags') or ['tag-rookie'],       # 已擁有的稱號
         'owned_effects': user_data.get('owned_effects') or [],             # 已擁有的特效
         'active_effect': user_data.get('active_effect'),                      # 目前裝備的特效
+        'topic_stats': user_data.get('topic_stats') or {},                     # 主題統計
+        'active_effect': user_data.get('active_effect'),                      # 目前裝備的特效
     }), 200  # 200 成功
 
 # 修改暱稱 API
@@ -398,22 +400,33 @@ def save_active_effect():
 
 # 排行榜 API
 # 路徑：GET /user/rank
-# 回傳：前 50 名玩家（依 total_score 排序）+ 當前玩家排名
+# 參數：user_id（可選，標記自己並查詢自己的排名）
+# 回傳：前 3 名（積分高者優先，同分比勝場）+ 當前玩家排名
 @user_bp.route('/rank', methods=['GET'])
 def get_rank():
-    user_id = request.args.get('user_id')  # 當前玩家 ID（可選，用來標記「你」）
+    user_id = request.args.get('user_id')  # 當前玩家 ID
 
-    # 查詢前 50 名
+    # 查詢前 3 名（積分優先，同分比勝場）
     rank_response = supabase.table('users').select(
         'id, nickname, custom_id, total_score, wins, level'
-    ).order('total_score', desc=True).limit(50).execute()
+    ).order('total_score', desc=True).order('wins', desc=True).limit(3).execute()
 
     players = rank_response.data or []
 
+    # 計算名次（積分和勝場都相同則並列）
     result = []
+    current_rank = 1
     for i, p in enumerate(players):
+        if i > 0:
+            prev = players[i - 1]
+            same = (
+                (p.get('total_score', 0) or 0) == (prev.get('total_score', 0) or 0) and
+                (p.get('wins', 0) or 0) == (prev.get('wins', 0) or 0)
+            )
+            if not same:
+                current_rank = i + 1
         result.append({
-            'rank': i + 1,
+            'rank': current_rank,
             'id': p['id'],
             'name': p['nickname'] or p['custom_id'],
             'score': p.get('total_score', 0) or 0,
@@ -422,9 +435,9 @@ def get_rank():
             'isYou': p['id'] == user_id
         })
 
-    # 如果玩家不在前 50，額外查詢他的排名
+    # 查詢當前玩家的排名（積分更高 OR 積分相同但勝場更多）
     my_rank = None
-    if user_id and not any(p['isYou'] for p in result):
+    if user_id:
         my_response = supabase.table('users').select(
             'id, nickname, custom_id, total_score, wins, level'
         ).eq('id', user_id).execute()
@@ -432,16 +445,22 @@ def get_rank():
         if my_response.data:
             me = my_response.data[0]
             my_score = me.get('total_score', 0) or 0
-            # 計算排名（分數比我高的人數 + 1）
-            count_response = supabase.table('users').select(
+            my_wins = me.get('wins', 0) or 0
+
+            higher_score = supabase.table('users').select(
                 'id', count='exact'
             ).gt('total_score', my_score).execute()
+
+            same_score_more_wins = supabase.table('users').select(
+                'id', count='exact'
+            ).eq('total_score', my_score).gt('wins', my_wins).execute()
+
             my_rank = {
-                'rank': (count_response.count or 0) + 1,
+                'rank': (higher_score.count or 0) + (same_score_more_wins.count or 0) + 1,
                 'id': me['id'],
                 'name': me['nickname'] or me['custom_id'],
                 'score': my_score,
-                'wins': me.get('wins', 0) or 0,
+                'wins': my_wins,
                 'level': me.get('level', 1) or 1,
                 'isYou': True
             }
@@ -450,3 +469,96 @@ def get_rank():
         'rank': result,
         'myRank': my_rank
     }), 200
+
+# 更新主題統計
+# 路徑：POST /user/topic-stats
+# 傳入：{ user_id, topic_stats: { 分類: { correct, wrong } } }
+@user_bp.route('/topic-stats', methods=['POST'])
+def update_topic_stats():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    new_stats = data.get('topic_stats', {})
+    if not user_id:
+        return jsonify({'error': '缺少 user_id'}), 400
+
+    # 取得現有統計並合併（累加答題數）
+    res = supabase.table('users').select('topic_stats').eq('id', user_id).execute()
+    if not res.data:
+        return jsonify({'error': '找不到使用者'}), 400
+    existing = res.data[0].get('topic_stats') or {}
+    merged = dict(existing)
+    for cat, stats in new_stats.items():
+        if cat not in merged:
+            merged[cat] = {'correct': 0, 'wrong': 0}
+        merged[cat]['correct'] = merged[cat].get('correct', 0) + stats.get('correct', 0)
+        merged[cat]['wrong'] = merged[cat].get('wrong', 0) + stats.get('wrong', 0)
+
+    supabase.table('users').update({'topic_stats': merged}).eq('id', user_id).execute()
+    return jsonify({'message': '更新成功', 'topic_stats': merged}), 200
+
+
+# 儲存單場對戰記錄
+# 路徑：POST /user/battle-record
+# 傳入：{ user_id, score, correct, total, won }
+@user_bp.route('/battle-record', methods=['POST'])
+def save_battle_record():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'error': '缺少 user_id'}), 400
+
+    supabase.table('battle_records').insert({
+        'user_id': user_id,
+        'score': data.get('score', 0),
+        'correct': data.get('correct', 0),
+        'total': data.get('total', 0),
+        'won': data.get('won', False),
+    }).execute()
+    return jsonify({'message': '記錄成功'}), 200
+
+
+# 查詢最近對戰記錄
+# 路徑：GET /user/recent-battles
+# 參數：user_id, limit（預設 10）
+@user_bp.route('/recent-battles', methods=['GET'])
+def get_recent_battles():
+    user_id = request.args.get('user_id')
+    limit = int(request.args.get('limit', 10))
+    if not user_id:
+        return jsonify({'error': '缺少 user_id'}), 400
+
+    try:
+        res = supabase.table('battle_records').select(
+            'score, correct, total, won, created_at'
+        ).eq('user_id', user_id).order('created_at', desc=True).limit(limit).execute()
+
+        records = list(reversed(res.data or []))  # 最舊的排前面（時間軸左到右）
+        scores = [r['score'] for r in records]
+        accuracy = [round(r['correct']/r['total']*100) if r['total'] > 0 else 0 for r in records]
+        return jsonify({'scores': scores, 'accuracy': accuracy}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# 全體玩家各分類平均準確率
+# 路徑：GET /user/avg-topic-stats
+@user_bp.route('/avg-topic-stats', methods=['GET'])
+def get_avg_topic_stats():
+    try:
+        res = supabase.table('users').select('topic_stats').not_.is_('topic_stats', 'null').execute()
+        players = res.data or []
+
+        totals = {}
+        for p in players:
+            stats = p.get('topic_stats') or {}
+            for cat, s in stats.items():
+                if cat not in totals:
+                    totals[cat] = {'correct': 0, 'total': 0}
+                totals[cat]['correct'] += s.get('correct', 0)
+                totals[cat]['total'] += s.get('correct', 0) + s.get('wrong', 0)
+
+        avg = {cat: round(v['correct']/v['total']*100) if v['total'] > 0 else 0
+               for cat, v in totals.items()}
+
+        return jsonify(avg), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

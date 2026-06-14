@@ -882,103 +882,203 @@ function switchAnalytics(tab) {
   }, 200);
 }
 
-function initCharts() {
-  const topics = Object.keys(state.topicStats);
-  const vals = Object.values(state.topicStats);
+async function initCharts() {
   const bgColors = ['#ffd700','#ff6b35','#ff1744','#00e676','#00d4ff','#e040fb','#40c4ff',
     '#ffab40','#69f0ae','#ea80fc','#ff6090','#84ffff','#b9f6ca','#ffd740','#ff9e80',
     '#cfd8dc','#80d8ff','#a7ffeb','#ccff90','#ffe57f','#ff9d80'];
 
+  const stats = state.topicStats || {};
+  const topics = Object.keys(stats);
+  const totalPerCat = topics.map(t => (stats[t].correct||0) + (stats[t].wrong||0));
+
+  const NO_DATA = '<p style="text-align:center;color:var(--text2);padding:40px;font-size:14px">尚無對戰記錄</p>';
+
+  // ─── 主題分佈 ───────────────────────────────────────────
   if (document.getElementById('tab-distribution').classList.contains('active')) {
-    if (distChart) distChart.destroy();
-    distChart = new Chart(document.getElementById('distributionChart'), {
-      type: 'bar',
-      data: { labels: topics, datasets: [{
-        label: '答題數', data: vals,
-        backgroundColor: bgColors, borderWidth: 0, borderRadius: 6,
-      }]},
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend:{display:false} },
-        scales: {
-          x: { ticks:{color:'#b0b0d0',font:{size:10},maxRotation:45}, grid:{color:'rgba(255,255,255,.05)'} },
-          y: { ticks:{color:'#b0b0d0',font:{size:11}}, grid:{color:'rgba(255,255,255,.08)'} }
+    const totalAll = totalPerCat.reduce((s,v) => s+v, 0);
+
+    const distEl = document.getElementById('distributionChart');
+    if (totalAll === 0) {
+      if (distChart) { distChart.destroy(); distChart = null; }
+      if (distEl) distEl.parentElement.innerHTML = NO_DATA;
+    } else {
+      if (distChart) distChart.destroy();
+      distChart = new Chart(distEl, {
+        type: 'bar',
+        data: { labels: topics, datasets: [{
+          label: '答題數', data: totalPerCat,
+          backgroundColor: bgColors, borderWidth: 0, borderRadius: 6,
+        }]},
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend:{display:false} },
+          scales: {
+            x: { ticks:{color:'#b0b0d0',font:{size:10},maxRotation:45}, grid:{color:'rgba(255,255,255,.05)'} },
+            y: { ticks:{color:'#b0b0d0',font:{size:11}}, grid:{color:'rgba(255,255,255,.08)'} }
+          }
         }
-      }
-    });
+      });
+    }
 
-    const cats = ['自然科學','人文歷史','娛樂電競','地理政經','科技發明'];
-    const catVals = [
-      vals[0]+vals[14]+vals[12]+vals[11]+vals[19]+vals[20],
-      vals[2]+vals[17]+vals[18]+vals[16],
-      vals[3]+vals[4]+vals[5]+vals[6],
-      vals[1]+vals[7]+vals[8]+vals[9]+vals[10],
-      vals[7]+vals[13]+vals[15]
-    ];
+    const catMap = {
+      '自然科學': ['物理','化學','生物','地科'],
+      '人文社會': ['歷史','地理','公民','人文','軍教'],
+      '語文數理': ['國文','英文','數學','程式','美術'],
+      '生活體育': ['常識','健教','家政','體育'],
+      '時事綜合': ['新聞','其他'],
+    };
+    const cats = Object.keys(catMap);
     const catColors = ['#ffd700','#ff6b35','#e040fb','#00d4ff','#00e676'];
-    if (pieChartInst) pieChartInst.destroy();
-    pieChartInst = new Chart(document.getElementById('pieChart'), {
-      type: 'doughnut',
-      data: { labels: cats, datasets: [{ data: catVals, backgroundColor: catColors, borderWidth:2, borderColor:'#0a0a1a' }]},
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend:{display:false} },
-        cutout: '60%'
-      }
-    });
+    const catVals = cats.map(cat =>
+      catMap[cat].reduce((s,c) => s + (stats[c] ? (stats[c].correct||0)+(stats[c].wrong||0) : 0), 0)
+    );
+    const totalCat = catVals.reduce((s,v) => s+v, 0);
+    const pieEl = document.getElementById('pieChart');
     const legend = document.getElementById('pieLegend');
-    legend.innerHTML = cats.map((c,i)=>`
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <div style="width:12px;height:12px;border-radius:2px;background:${catColors[i]};flex-shrink:0"></div>
-        <span style="font-size:13px;color:#b0b0d0">${c}</span>
-        <span style="margin-left:auto;font-size:13px;color:#fff;font-weight:700">${catVals[i]}</span>
-      </div>`).join('');
+    const pieRow = pieEl ? pieEl.closest('.pie-chart-row') : null;
+
+    if (totalCat === 0) {
+      if (pieChartInst) { pieChartInst.destroy(); pieChartInst = null; }
+      // 把整個 pie-chart-row 換成置中文字
+      if (pieRow) pieRow.innerHTML = NO_DATA;
+    } else {
+      if (pieChartInst) pieChartInst.destroy();
+      pieChartInst = new Chart(pieEl, {
+        type: 'doughnut',
+        data: { labels: cats, datasets: [{ data: catVals, backgroundColor: catColors, borderWidth:2, borderColor:'#0a0a1a' }]},
+        options: { responsive: true, maintainAspectRatio: false, plugins:{legend:{display:false}}, cutout:'60%' }
+      });
+      legend.innerHTML = cats.map((c,i) => {
+        const pct = Math.round(catVals[i]/totalCat*100);
+        return `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <div style="width:12px;height:12px;border-radius:2px;background:${catColors[i]};flex-shrink:0"></div>
+          <span style="font-size:13px;color:#b0b0d0">${c}</span>
+          <span style="margin-left:auto;font-size:13px;color:#fff;font-weight:700">${catVals[i]} 題 (${pct}%)</span>
+        </div>`;
+      }).join('');
+    }
   }
 
+  // ─── 個人能力雷達圖 ─────────────────────────────────────
   if (document.getElementById('tab-radar').classList.contains('active')) {
-    const radarLabels = ['科學知識','地理歷史','娛樂常識','體育競技','科技資訊','藝術文化','生活常識','數理邏輯'];
-    const radarData = [85,72,90,60,88,65,78,82];
-    if (radarChartInst) radarChartInst.destroy();
-    radarChartInst = new Chart(document.getElementById('radarChart'), {
-      type: 'radar',
-      data: {
-        labels: radarLabels,
-        datasets: [{
-          label: '你的能力', data: radarData,
-          backgroundColor: 'rgba(255,215,0,.15)', borderColor: '#ffd700', pointBackgroundColor: '#ffd700',
-          borderWidth: 2, pointRadius: 5
-        }, {
-          label: '平均水準', data: [70,70,70,70,70,70,70,70],
-          backgroundColor: 'rgba(0,212,255,.08)', borderColor: 'rgba(0,212,255,.5)',
-          borderWidth: 1, borderDash:[5,5], pointRadius: 0
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend:{labels:{color:'#b0b0d0',font:{size:12}}} },
-        scales: { r: {
-          ticks:{color:'#7070a0',backdropColor:'transparent',font:{size:10}},
-          grid:{color:'rgba(255,255,255,.1)'},
-          pointLabels:{color:'#b0b0d0',font:{size:12}},
-          min:0, max:100
-        }}
-      }
-    });
-    const total = state.wins + state.losses;
-    const topEntry = Object.entries(state.topicStats).sort((a,b)=>b[1]-a[1])[0];
-    document.getElementById('bestTopic').textContent = topEntry ? topEntry[0] : '-';
-    document.getElementById('avgAccuracy').textContent = Math.round(state.recentAccuracy.reduce((a,b)=>a+b,0)/state.recentAccuracy.length)+'%';
-    document.getElementById('totalAnswered').textContent = Object.values(state.topicStats).reduce((a,b)=>a+b,0);
-    document.getElementById('winRate').textContent = total>0?Math.round(state.wins/total*100)+'%':'0%';
+    const totalAnsweredCheck = topics.reduce((s,t) => s + (stats[t] ? (stats[t].correct||0)+(stats[t].wrong||0) : 0), 0);
+    if (totalAnsweredCheck === 0) {
+      if (radarChartInst) { radarChartInst.destroy(); radarChartInst = null; }
+      const radarEl = document.getElementById('radarChart');
+      if (radarEl) radarEl.parentElement.innerHTML = NO_DATA;
+      document.getElementById('bestTopic').textContent = '-';
+      document.getElementById('avgAccuracy').textContent = '0%';
+      document.getElementById('totalAnswered').textContent = '0';
+      const total0 = state.wins + state.losses;
+      document.getElementById('winRate').textContent = total0 > 0 ? Math.round(state.wins/total0*100)+'%' : '0%';
+    } else {
+      const categoryMap = {
+        '科學知識': ['物理','化學','生物','地科'],
+        '地理歷史': ['地理','歷史'],
+        '語文藝術': ['國文','英文','美術'],
+        '數理邏輯': ['數學','程式'],
+        '社會公民': ['公民','人文','軍教'],
+        '生活常識': ['常識','健教','家政'],
+        '體育競技': ['體育'],
+        '時事新聞': ['新聞'],
+        '綜合其他': ['其他'],
+      };
+      const radarLabels = Object.keys(categoryMap);
+      const radarData = radarLabels.map(label => {
+        const cats = categoryMap[label] || [];
+        const total = cats.reduce((s,c) => s + (stats[c] ? (stats[c].correct||0)+(stats[c].wrong||0) : 0), 0);
+        const correct = cats.reduce((s,c) => s + (stats[c] ? (stats[c].correct||0) : 0), 0);
+        return total > 0 ? Math.round((correct/total)*100) : 0;
+      });
+
+      let avgData = radarLabels.map(() => 0);
+      try {
+        const avgRes = await fetch(`${API_BASE}/user/avg-topic-stats`);
+        if (avgRes.ok) {
+          const avgStats = await avgRes.json();
+          avgData = radarLabels.map(label => {
+            const cats = categoryMap[label] || [];
+            const vals = cats.map(c => avgStats[c]).filter(v => v !== undefined);
+            return vals.length > 0 ? Math.round(vals.reduce((s,v) => s+v, 0) / vals.length) : 0;
+          });
+        }
+      } catch (e) {}
+
+      if (radarChartInst) radarChartInst.destroy();
+      radarChartInst = new Chart(document.getElementById('radarChart'), {
+        type: 'radar',
+        data: {
+          labels: radarLabels,
+          datasets: [{
+            label: '你的能力', data: radarData,
+            backgroundColor: 'rgba(255,215,0,.15)', borderColor: '#ffd700', pointBackgroundColor: '#ffd700',
+            borderWidth: 2, pointRadius: 5
+          }, {
+            label: '平均水準', data: avgData,
+            backgroundColor: 'rgba(0,212,255,.08)', borderColor: 'rgba(0,212,255,.5)',
+            borderWidth: 1, borderDash:[5,5], pointRadius: 0
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend:{labels:{color:'#b0b0d0',font:{size:12}}} },
+          scales: { r: {
+            ticks:{color:'#7070a0',backdropColor:'transparent',font:{size:10}},
+            grid:{color:'rgba(255,255,255,.1)'},
+            pointLabels:{color:'#b0b0d0',font:{size:12}},
+            min:0, max:100
+          }}
+        }
+      });
+
+      const total = state.wins + state.losses;
+      const totalAnswered = topics.reduce((s,t) => s + (stats[t].correct||0) + (stats[t].wrong||0), 0);
+      const totalCorrect = topics.reduce((s,t) => s + (stats[t].correct||0), 0);
+      const overallAcc = totalAnswered > 0 ? Math.round(totalCorrect/totalAnswered*100) : 0;
+      const bestEntry = topics
+        .filter(t => ((stats[t].correct||0)+(stats[t].wrong||0)) >= 5)
+        .sort((a,b) => {
+          const accA = stats[a].correct / ((stats[a].correct||0)+(stats[a].wrong||0));
+          const accB = stats[b].correct / ((stats[b].correct||0)+(stats[b].wrong||0));
+          return accB - accA;
+        })[0];
+      document.getElementById('bestTopic').textContent = bestEntry || '-';
+      document.getElementById('avgAccuracy').textContent = overallAcc + '%';
+      document.getElementById('totalAnswered').textContent = totalAnswered;
+      document.getElementById('winRate').textContent = total > 0 ? Math.round(state.wins/total*100)+'%' : '0%';
+    }
   }
 
+  // ─── 戰績趨勢 ───────────────────────────────────────────
   if (document.getElementById('tab-trend').classList.contains('active')) {
-    const labels = state.recentScores.map((_,i)=>`第${i+1}場`);
+    let recentScores = [];
+    let recentAccuracy = [];
+    try {
+      const res = await fetch(`${API_BASE}/user/recent-battles?user_id=${state.userId}&limit=10`);
+      if (res.ok) {
+        const data = await res.json();
+        recentScores = data.scores || [];
+        recentAccuracy = data.accuracy || [];
+      }
+    } catch (e) {}
+
+    const trendEl = document.getElementById('trendChart');
+    const accEl = document.getElementById('accuracyChart');
+    if (recentScores.length === 0) {
+      if (trendChartInst) { trendChartInst.destroy(); trendChartInst = null; }
+      if (accChartInst) { accChartInst.destroy(); accChartInst = null; }
+      if (trendEl) trendEl.parentElement.innerHTML = NO_DATA;
+      if (accEl) accEl.parentElement.innerHTML = NO_DATA;
+      return;
+    }
+
+    const labels = recentScores.map((_,i) => `第${i+1}場`);
     if (trendChartInst) trendChartInst.destroy();
-    trendChartInst = new Chart(document.getElementById('trendChart'), {
+    trendChartInst = new Chart(trendEl, {
       type: 'line',
       data: { labels, datasets: [{
-        label: '得分', data: state.recentScores,
+        label: '得分', data: recentScores,
         borderColor: '#ffd700', backgroundColor: 'rgba(255,215,0,.1)',
         pointBackgroundColor: '#ffd700', borderWidth: 2, tension: .4, fill: true
       }]},
@@ -992,11 +1092,11 @@ function initCharts() {
       }
     });
     if (accChartInst) accChartInst.destroy();
-    accChartInst = new Chart(document.getElementById('accuracyChart'), {
+    accChartInst = new Chart(accEl, {
       type: 'bar',
       data: { labels, datasets: [{
-        label: '正確率%', data: state.recentAccuracy,
-        backgroundColor: state.recentAccuracy.map(v => v>=80?'#00e676':v>=60?'#ffd700':'#ff1744'),
+        label: '正確率%', data: recentAccuracy,
+        backgroundColor: recentAccuracy.map(v => v>=80?'#00e676':v>=60?'#ffd700':'#ff1744'),
         borderWidth: 0, borderRadius: 6
       }]},
       options: {
@@ -1123,8 +1223,12 @@ async function renderRank() {
     const medals = ['🥇', '🥈', '🥉'];
     const rankColor = (rank) => rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#7070a0';
 
-    const renderRow = (r) => `
-      <div class="card" style="${r.isYou ? 'border-color:#ffd700;background:rgba(255,215,0,.05)' : ''}">
+    const renderRow = (r) => {
+      const isTop3 = r.rank <= 3;
+      const bg = isTop3 ? 'background:var(--card2);border-color:rgba(255,215,0,0.3);' : '';
+      const you = r.isYou ? 'border-color:#ffd700;' : '';
+      return `
+      <div class="card" style="${bg}${you}">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <div style="font-size:${r.rank <= 3 ? '28px' : '20px'};font-weight:900;min-width:36px;text-align:center;
             font-family:'Orbitron',monospace;color:${rankColor(r.rank)}">
@@ -1146,13 +1250,21 @@ async function renderRank() {
           </div>
         </div>
       </div>`;
+    };
 
-    let html = data.rank.map(r => renderRow(r)).join('');
+    // 只顯示前 3 名
+    let html = data.rank.slice(0, 3).map(r => renderRow(r)).join('');
 
-    // 不在前 50 時，在底部顯示自己的排名
-    if (data.myRank) {
-      html += `<div style="text-align:center;color:var(--text2);padding:12px;font-size:13px">⋯</div>`;
-      html += renderRow(data.myRank);
+    // 當前玩家（在前3裡或在myRank）
+    const me = data.rank.find(r => r.isYou) || data.myRank;
+    if (me && !data.rank.find(r => r.isYou)) {
+      // 第 5 名以後才顯示直線
+      if (me.rank >= 5) {
+        html += `<div style="text-align:center;color:var(--text2);padding:2px 0;line-height:1.2">│<br>│<br>│</div>`;
+      }
+      html += renderRow(me);
+    } else if (!me) {
+      html += `<div class="card" style="text-align:center;color:var(--text2);padding:16px;font-size:13px">尚未有積分，快去對戰吧！</div>`;
     }
 
     listEl.innerHTML = html || '<p style="text-align:center;color:var(--text2);padding:40px">暫無資料</p>';
@@ -1652,7 +1764,7 @@ async function loadUserProfile(userId) {
     state.activeEffect = profile.active_effect || null;           // 目前裝備的特效
     state.owned.activeEffect = profile.active_effect || null;     // 同步 owned.activeEffect
 
-    state.topicStats = {};                // 主題統計（等對戰系統串接後才有）
+    state.topicStats = profile.topic_stats || {};  // 主題統計（從後端讀取）
     state.recentScores = [];              // 近期得分（等對戰系統串接後才有）
     state.recentAccuracy = [];            // 近期準確率（等對戰系統串接後才有）
 
