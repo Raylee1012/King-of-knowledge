@@ -302,7 +302,7 @@ def verify_link():
 
     # 已驗證過，不需要再驗證，直接跳轉登入
     if user_data['is_verified']:
-        return redirect(f'{os.environ.get("FRONTEND_URL")}/login')  # 跳轉到登入頁面
+        return redirect(os.environ.get("FRONTEND_URL", "http://localhost:5500") + "/index.html")  # 跳轉到前端登入頁面
 
     # 開通帳號並清空 verify_token
     supabase.table('users').update({
@@ -313,7 +313,7 @@ def verify_link():
     # 用 httpx 直接呼叫 Supabase admin API，把 email 標記為已確認
     admin_update_user(user_data['id'], {'email_confirm': True})
 
-    return redirect(f'{os.environ.get("FRONTEND_URL")}/verified')  # 跳轉到驗證成功頁面
+    return redirect(os.environ.get("BACKEND_URL", "http://localhost:3000") + "/verified")  # 跳轉到後端驗證成功頁面
 
 # 登入 API
 # 路徑：POST /auth/login

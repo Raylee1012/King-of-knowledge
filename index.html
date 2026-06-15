@@ -71,7 +71,7 @@
       </div>
       <div class="auth-field">
         <label class="auth-label">信箱</label>
-        <input type="text" id="regEmailInput" class="auth-input" placeholder="請輸入信箱..." autocomplete="off">
+        <input type="text" id="regEmailInput" class="auth-input" placeholder="請輸入信箱..." autocomplete="new-password" inputmode="email">
       </div>
       <div class="auth-field">
         <label class="auth-label">密碼（至少 6 位）</label>
@@ -828,7 +828,7 @@
     <div id="changePwdError" class="auth-error"></div>
     <div class="admin-modal-actions">
       <button class="btn btn-gold btn-flex" onclick="handleChangePassword()">✅ 確認更換</button>
-      <button class="btn btn-outline btn-flex" onclick="(el=>{el.classList.remove('modal-open');setTimeout(()=>{el.style.display='none'},250)})(document.getElementById('changePwdModal'))">✕ 取消</button>
+      <button class="btn btn-outline btn-flex" onclick="document.getElementById('changePwdModal').style.display='none'">✕ 取消</button>
     </div>
   </div>
 </div>
@@ -849,7 +849,7 @@
     <div id="deleteAccountError" class="auth-error"></div>
     <div class="admin-modal-actions">
       <button class="btn btn-danger btn-flex" onclick="handleDeleteAccount()">🗑️ 確認刪除</button>
-      <button class="btn btn-outline btn-flex" onclick="(el=>{el.classList.remove('modal-open');setTimeout(()=>{el.style.display='none'},250)})(document.getElementById('deleteAccountModal'))">✕ 取消</button>
+      <button class="btn btn-outline btn-flex" onclick="document.getElementById('deleteAccountModal').style.display='none'">✕ 取消</button>
     </div>
   </div>
 </div>

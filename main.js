@@ -95,13 +95,12 @@ function showScreen(id) {
       // 淡入新頁面
       const next = document.getElementById(id);
       next.classList.add('active');
-      setTimeout(() => next.classList.add('visible'), 10);  // 稍微延遲讓 CSS transition 生效
+      setTimeout(() => { next.classList.add('visible'); document.getElementById(id).scrollTop = 0; }, 10);
       if(id==='analyticsScreen') { switchAnalytics('distribution'); setTimeout(initCharts, 100); }
       if(id==='shopScreen') renderShop('frames');
       if(id==='rankScreen') renderRank();
       if(id==='profileScreen') { switchProfileTab('edit'); updateProfileEditUI(); updateStatsDisplay(); }
       if(id==='adminScreen') { switchAdminTab('generate'); initAdminScreen(); }
-      if(id==='registerScreen') initPwdToggle('regPasswordConfirm');  // 補初始化確認密碼眼睛
     }, 350);  // 等淡出完成後再切換
   } else {
     // 第一次載入沒有 active 頁面
@@ -850,7 +849,7 @@ function switchAnalytics(tab) {
     });
     const next = document.getElementById('tab-' + tab);
     next.classList.add('active');
-    setTimeout(() => next.classList.add('visible'), 10);
+    setTimeout(() => { next.classList.add('visible'); next.scrollTop = 0; }, 10);
     document.querySelectorAll('#analyticsNav .nav-btn').forEach((b, i) => {
       b.classList.remove('active');
       if (['distribution', 'radar', 'trend'][i] === tab) b.classList.add('active');
@@ -1257,23 +1256,8 @@ createStars();
 // ─── 密碼欄位初始化 ───────────────────────────────────────
 (function initPasswordFields() {
   // 初始化指定 id 的眼睛按鈕
-  function initPwdToggle(id) {
-    const pwdEl = document.getElementById(id);
-    const visEl = document.getElementById(id + 'Visible');
-    const wrap = pwdEl && pwdEl.closest('.password-wrap');
-    const btn = wrap && wrap.querySelector('.toggle-pwd-btn');
-    if (!pwdEl || !visEl || !btn) return;
-    btn.classList.add('active');
-    const show = (e) => { e.preventDefault(); visEl.value = pwdEl.value; pwdEl.style.display = 'none'; visEl.style.display = ''; btn.classList.remove('active'); };
-    const hide = () => { pwdEl.value = visEl.value; visEl.style.display = 'none'; pwdEl.style.display = ''; btn.classList.add('active'); };
-    btn.addEventListener('mousedown', show);
-    btn.addEventListener('mouseup', hide);
-    btn.addEventListener('mouseleave', hide);
-    btn.addEventListener('touchstart', show, { passive: false });
-    btn.addEventListener('touchend', hide);
-  }
 
-  ['passwordInput', 'regPasswordInput'].forEach(id => {
+  ['passwordInput', 'regPasswordInput', 'regPasswordConfirm'].forEach(id => {
     const pwdEl = document.getElementById(id);
     const visEl = document.getElementById(id + 'Visible');
     const wrap = pwdEl && pwdEl.closest('.password-wrap');
@@ -1359,7 +1343,7 @@ function switchProfileTab(tab) {
     // 淡入新 tab
     const next = document.getElementById('tab-' + tab);
     next.classList.add('active');
-    setTimeout(() => next.classList.add('visible'), 10);  // 稍微延遲讓 CSS transition 生效
+    setTimeout(() => { next.classList.add('visible'); next.scrollTop = 0; }, 10);
     document.querySelectorAll('#profileNav .nav-btn').forEach((b, i) => {
       b.classList.remove('active');
       if (['edit', 'stats', 'account'][i] === tab) b.classList.add('active');
@@ -1539,16 +1523,27 @@ function updateStatsDisplay() {
   if (nickDisplay) nickDisplay.textContent = state.playerName || '-';
   if (emailDisplay) emailDisplay.textContent = state.email || '-';
 
-  const topTopics = Object.entries(state.topicStats)
-    .sort((a,b)=>b[1]-a[1])
-    .slice(0,5)
-    .map(([topic,count],i)=>
-      `<div class="stat-box" style="text-align:center">
-        <div style="font-size:24px;margin-bottom:6px">${topic.split(' ')[0]}</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:4px">${topic}</div>
-        <div style="font-size:16px;font-weight:900;color:${['#ffd700','#c0c0c0','#cd7f32','#7070a0','#7070a0'][i]}">${count}</div>
-      </div>`
-    ).join('');
+  const _colors = ['#ffd700','#c0c0c0','#cd7f32','#7070a0','#7070a0'];
+  const _topEntries = Object.entries(state.topicStats)
+    .map(([topic, val]) => {
+      const total = typeof val === 'object' ? (val.correct||0)+(val.wrong||0) : (val||0);
+      const correct = typeof val === 'object' ? (val.correct||0) : (val||0);
+      return [topic, total, correct];
+    })
+    .filter(([,total]) => total > 0)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0,5);
+  const topTopics = _topEntries.length === 0
+    ? '<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;padding:24px;color:var(--text2);font-size:13px">尚無對戰記錄</div>'
+    : _topEntries.map(([topic, total, correct], i) => {
+        const acc = total > 0 ? Math.round(correct/total*100) : 0;
+        return `<div class="stat-box" style="text-align:center">
+          <div style="font-size:24px;margin-bottom:4px">${topic.split(' ')[0]}</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px">${topic.includes(' ') ? topic.split(' ').slice(1).join(' ') : topic}</div>
+          <div style="font-size:15px;font-weight:900;color:${_colors[i]}">${total} 題</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${acc}% 正確</div>
+        </div>`;
+      }).join('');
   document.getElementById('topTopics').innerHTML = topTopics;
 }
 
