@@ -290,13 +290,15 @@ def update_stats():
     avg_accuracy = float(user_data.get('avg_accuracy', 0) or 0)
     total_score = int(user_data.get('total_score', 0) or 0)
 
+    mode = str(data.get('mode') or '').lower()
+
     if won:
         coin_delta = 100 + 20 * correct
-        xp_gain = 20 + 5 * correct
+        xp_gain = 20 + (3 * correct if mode == 'bot' else 5 * correct)
         wins += 1
     else:
-        coin_delta = -(50 + 20 * opp_correct)
-        xp_gain = 3 * correct
+        coin_delta = 0 if mode == 'bot' else -(50 + 20 * opp_correct)
+        xp_gain = correct if mode == 'bot' else 3 * correct
         losses += 1
 
     coins = max(0, coins + coin_delta)

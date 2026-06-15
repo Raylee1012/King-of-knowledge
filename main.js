@@ -145,7 +145,15 @@ function updatePlayerBar() {
   document.getElementById('playerXPMax').textContent = state.xpMax;
   const pct = (state.xp/state.xpMax*100).toFixed(0);
   document.getElementById('xpBar').style.width = pct+'%';
-  document.getElementById('playerAvatar').textContent = state.equippedEmoji;
+  if (document.getElementById('playerLevel3')) document.getElementById('playerLevel3').textContent = state.level;
+  if (document.getElementById('playerXP3')) document.getElementById('playerXP3').textContent = state.xp;
+  if (document.getElementById('playerXPMax3')) document.getElementById('playerXPMax3').textContent = state.xpMax;
+  if (document.getElementById('xpBar3')) document.getElementById('xpBar3').style.width = pct+'%';
+  if (document.getElementById('playerNameDisplay3')) document.getElementById('playerNameDisplay3').textContent = state.playerName;
+  if (document.getElementById('playerAvatar3')) document.getElementById('playerAvatar3').textContent = state.equippedEmoji;
+  if (document.getElementById('playerFrame3')) document.getElementById('playerFrame3').className = 'avatar-frame ' + (state.equippedFrame !== 'frame-none' ? state.equippedFrame : '');
+  const coinDisplay3 = document.getElementById('coinDisplay3');
+  if (coinDisplay3) coinDisplay3.textContent = state.coins.toLocaleString();
   const pf = document.getElementById('playerFrame');
   pf.className = 'avatar-frame ' + (state.equippedFrame !== 'frame-none' ? state.equippedFrame : '');
 }
@@ -156,6 +164,7 @@ let battleWs = null;       // 對戰 WebSocket 連線
 let battleStartTime = 0;   // 題目開始時間，用來計算作答秒數
 let currentBattleMode = null;  // 記錄當前對戰模式（'bot', 'queue', 'create_room', 'join_room'）
 let currentRoomId = null;   // 記錄當前房間 ID
+let battleClosing = false; // 是否為主動結束對戰
 
 function startBattle(mode = 'bot') {
   currentBattleMode = mode;
@@ -198,6 +207,7 @@ function startBattle(mode = 'bot') {
   };
 
   battleWs.onerror = (err) => {
+    if (battleClosing) return;
     console.error('WebSocket 錯誤:', err);
     // 延遲 1.5 秒再顯示錯誤，避免連線中就跳出提示
     setTimeout(() => {
@@ -209,6 +219,7 @@ function startBattle(mode = 'bot') {
 
   battleWs.onclose = () => {
     console.log('WebSocket 已關閉');
+    battleClosing = false;
   };
 
   showScreen('battleScreen');
@@ -232,6 +243,7 @@ function requestQuitBattle() {
     if (!confirm('你是否確定要退出對戰？')) return;
   }
   if (battleWs && battleWs.readyState === WebSocket.OPEN) {
+    battleClosing = true;
     battleWs.send(JSON.stringify({ type: 'quit_match' }));
     battleWs.close();
     battleWs = null;
@@ -536,7 +548,8 @@ async function endBattle(won, playerScore, oppScore) {
         score: finalPlayerScore,  // 本場得分
         correct: bd.correct,      // 答對題數
         total: bd.total,          // 總題數
-        opp_correct: bd.oppCorrect || 0
+        opp_correct: bd.oppCorrect || 0,
+        mode: currentBattleMode || ''
       })
     });
     const data = await res.json();
@@ -550,6 +563,9 @@ async function endBattle(won, playerScore, oppScore) {
       state.losses = data.losses;        // 更新敗場
       if (data.leveled_up) showToast('🎉 升級了！Lv.' + data.level);  // 升級提示
       updatePlayerBar();  // 更新玩家列
+      if (document.getElementById('statXpEarned')) {
+        document.getElementById('statXpEarned').textContent = (data.xp_gain >= 0 ? '+' : '') + data.xp_gain;
+      }
     }
   } catch (err) {
     console.error('更新統計失敗:', err);
@@ -565,6 +581,9 @@ async function endBattle(won, playerScore, oppScore) {
   document.getElementById('statCorrect').textContent = `${bd.correct}/${bd.total}`;
   document.getElementById('statAccuracy').textContent = acc + '%';
   document.getElementById('statCoinsEarned').textContent = (coinDelta >= 0 ? '+' : '') + coinDelta;
+  if (document.getElementById('statXpEarned')) {
+    document.getElementById('statXpEarned').textContent = data && data.xp_gain !== undefined ? (data.xp_gain >= 0 ? '+' : '') + data.xp_gain : '+' + (currentBattleMode === 'bot' ? (finalWon ? 20 + 3 * bd.correct : bd.correct) : 0);
+  }
   showScreen('resultScreen');
 }
 
