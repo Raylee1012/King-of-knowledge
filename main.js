@@ -95,12 +95,13 @@ function showScreen(id) {
       // 淡入新頁面
       const next = document.getElementById(id);
       next.classList.add('active');
-      setTimeout(() => { next.classList.add('visible'); document.getElementById(id).scrollTop = 0; }, 10);
+      setTimeout(() => next.classList.add('visible'), 10);  // 稍微延遲讓 CSS transition 生效
       if(id==='analyticsScreen') { switchAnalytics('distribution'); setTimeout(initCharts, 100); }
       if(id==='shopScreen') renderShop('frames');
       if(id==='rankScreen') renderRank();
       if(id==='profileScreen') { switchProfileTab('edit'); updateProfileEditUI(); updateStatsDisplay(); }
       if(id==='adminScreen') { switchAdminTab('generate'); initAdminScreen(); }
+      if(id==='registerScreen' && window.initPwdToggle) window.initPwdToggle('regPasswordConfirm');  // 補初始化確認密碼眼睛
     }, 350);  // 等淡出完成後再切換
   } else {
     // 第一次載入沒有 active 頁面
@@ -145,15 +146,7 @@ function updatePlayerBar() {
   document.getElementById('playerXPMax').textContent = state.xpMax;
   const pct = (state.xp/state.xpMax*100).toFixed(0);
   document.getElementById('xpBar').style.width = pct+'%';
-  if (document.getElementById('playerLevel3')) document.getElementById('playerLevel3').textContent = state.level;
-  if (document.getElementById('playerXP3')) document.getElementById('playerXP3').textContent = state.xp;
-  if (document.getElementById('playerXPMax3')) document.getElementById('playerXPMax3').textContent = state.xpMax;
-  if (document.getElementById('xpBar3')) document.getElementById('xpBar3').style.width = pct+'%';
-  if (document.getElementById('playerNameDisplay3')) document.getElementById('playerNameDisplay3').textContent = state.playerName;
-  if (document.getElementById('playerAvatar3')) document.getElementById('playerAvatar3').textContent = state.equippedEmoji;
-  if (document.getElementById('playerFrame3')) document.getElementById('playerFrame3').className = 'avatar-frame ' + (state.equippedFrame !== 'frame-none' ? state.equippedFrame : '');
-  const coinDisplay3 = document.getElementById('coinDisplay3');
-  if (coinDisplay3) coinDisplay3.textContent = state.coins.toLocaleString();
+  document.getElementById('playerAvatar').textContent = state.equippedEmoji;
   const pf = document.getElementById('playerFrame');
   pf.className = 'avatar-frame ' + (state.equippedFrame !== 'frame-none' ? state.equippedFrame : '');
 }
@@ -164,7 +157,6 @@ let battleWs = null;       // 對戰 WebSocket 連線
 let battleStartTime = 0;   // 題目開始時間，用來計算作答秒數
 let currentBattleMode = null;  // 記錄當前對戰模式（'bot', 'queue', 'create_room', 'join_room'）
 let currentRoomId = null;   // 記錄當前房間 ID
-let battleClosing = false; // 是否為主動結束對戰
 
 function startBattle(mode = 'bot') {
   currentBattleMode = mode;
@@ -207,7 +199,6 @@ function startBattle(mode = 'bot') {
   };
 
   battleWs.onerror = (err) => {
-    if (battleClosing) return;
     console.error('WebSocket 錯誤:', err);
     // 延遲 1.5 秒再顯示錯誤，避免連線中就跳出提示
     setTimeout(() => {
@@ -219,7 +210,6 @@ function startBattle(mode = 'bot') {
 
   battleWs.onclose = () => {
     console.log('WebSocket 已關閉');
-    battleClosing = false;
   };
 
   showScreen('battleScreen');
@@ -243,7 +233,6 @@ function requestQuitBattle() {
     if (!confirm('你是否確定要退出對戰？')) return;
   }
   if (battleWs && battleWs.readyState === WebSocket.OPEN) {
-    battleClosing = true;
     battleWs.send(JSON.stringify({ type: 'quit_match' }));
     battleWs.close();
     battleWs = null;
@@ -548,8 +537,7 @@ async function endBattle(won, playerScore, oppScore) {
         score: finalPlayerScore,  // 本場得分
         correct: bd.correct,      // 答對題數
         total: bd.total,          // 總題數
-        opp_correct: bd.oppCorrect || 0,
-        mode: currentBattleMode || ''
+        opp_correct: bd.oppCorrect || 0
       })
     });
     const data = await res.json();
@@ -563,9 +551,6 @@ async function endBattle(won, playerScore, oppScore) {
       state.losses = data.losses;        // 更新敗場
       if (data.leveled_up) showToast('🎉 升級了！Lv.' + data.level);  // 升級提示
       updatePlayerBar();  // 更新玩家列
-      if (document.getElementById('statXpEarned')) {
-        document.getElementById('statXpEarned').textContent = (data.xp_gain >= 0 ? '+' : '') + data.xp_gain;
-      }
     }
   } catch (err) {
     console.error('更新統計失敗:', err);
@@ -581,9 +566,6 @@ async function endBattle(won, playerScore, oppScore) {
   document.getElementById('statCorrect').textContent = `${bd.correct}/${bd.total}`;
   document.getElementById('statAccuracy').textContent = acc + '%';
   document.getElementById('statCoinsEarned').textContent = (coinDelta >= 0 ? '+' : '') + coinDelta;
-  if (document.getElementById('statXpEarned')) {
-    document.getElementById('statXpEarned').textContent = data && data.xp_gain !== undefined ? (data.xp_gain >= 0 ? '+' : '') + data.xp_gain : '+' + (currentBattleMode === 'bot' ? (finalWon ? 20 + 3 * bd.correct : bd.correct) : 0);
-  }
   showScreen('resultScreen');
 }
 
@@ -868,7 +850,7 @@ function switchAnalytics(tab) {
     });
     const next = document.getElementById('tab-' + tab);
     next.classList.add('active');
-    setTimeout(() => { next.classList.add('visible'); next.scrollTop = 0; }, 10);
+    setTimeout(() => next.classList.add('visible'), 10);
     document.querySelectorAll('#analyticsNav .nav-btn').forEach((b, i) => {
       b.classList.remove('active');
       if (['distribution', 'radar', 'trend'][i] === tab) b.classList.add('active');
@@ -1275,8 +1257,38 @@ createStars();
 // ─── 密碼欄位初始化 ───────────────────────────────────────
 (function initPasswordFields() {
   // 初始化指定 id 的眼睛按鈕
+  function initPwdToggle(id) {
+    const pwdEl = document.getElementById(id);
+    const visEl = document.getElementById(id + 'Visible');
+    const wrap = pwdEl && pwdEl.closest('.password-wrap');
+    const btn = wrap && wrap.querySelector('.toggle-pwd-btn');
+    if (!pwdEl || !visEl || !btn) return;
+    if (btn.dataset.pwdBound === '1') return;
+    btn.dataset.pwdBound = '1';
+    btn.classList.add('active');
+    const show = (e) => {
+      e.preventDefault();
+      visEl.value = pwdEl.value;
+      pwdEl.style.display = 'none';
+      visEl.style.display = '';
+      btn.classList.remove('active');
+    };
+    const hide = () => {
+      pwdEl.value = visEl.value;
+      visEl.style.display = 'none';
+      pwdEl.style.display = '';
+      btn.classList.add('active');
+    };
+    btn.addEventListener('mousedown', show);
+    btn.addEventListener('mouseup', hide);
+    btn.addEventListener('mouseleave', hide);
+    btn.addEventListener('touchstart', show, { passive: false });
+    btn.addEventListener('touchend', hide);
+  }
 
-  ['passwordInput', 'regPasswordInput', 'regPasswordConfirm'].forEach(id => {
+  window.initPwdToggle = initPwdToggle;
+
+  ['passwordInput', 'regPasswordInput'].forEach(id => {
     const pwdEl = document.getElementById(id);
     const visEl = document.getElementById(id + 'Visible');
     const wrap = pwdEl && pwdEl.closest('.password-wrap');
@@ -1362,7 +1374,7 @@ function switchProfileTab(tab) {
     // 淡入新 tab
     const next = document.getElementById('tab-' + tab);
     next.classList.add('active');
-    setTimeout(() => { next.classList.add('visible'); next.scrollTop = 0; }, 10);
+    setTimeout(() => next.classList.add('visible'), 10);  // 稍微延遲讓 CSS transition 生效
     document.querySelectorAll('#profileNav .nav-btn').forEach((b, i) => {
       b.classList.remove('active');
       if (['edit', 'stats', 'account'][i] === tab) b.classList.add('active');
@@ -1542,27 +1554,16 @@ function updateStatsDisplay() {
   if (nickDisplay) nickDisplay.textContent = state.playerName || '-';
   if (emailDisplay) emailDisplay.textContent = state.email || '-';
 
-  const _colors = ['#ffd700','#c0c0c0','#cd7f32','#7070a0','#7070a0'];
-  const _topEntries = Object.entries(state.topicStats)
-    .map(([topic, val]) => {
-      const total = typeof val === 'object' ? (val.correct||0)+(val.wrong||0) : (val||0);
-      const correct = typeof val === 'object' ? (val.correct||0) : (val||0);
-      return [topic, total, correct];
-    })
-    .filter(([,total]) => total > 0)
-    .sort((a,b) => b[1]-a[1])
-    .slice(0,5);
-  const topTopics = _topEntries.length === 0
-    ? '<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;padding:24px;color:var(--text2);font-size:13px">尚無對戰記錄</div>'
-    : _topEntries.map(([topic, total, correct], i) => {
-        const acc = total > 0 ? Math.round(correct/total*100) : 0;
-        return `<div class="stat-box" style="text-align:center">
-          <div style="font-size:24px;margin-bottom:4px">${topic.split(' ')[0]}</div>
-          <div style="font-size:11px;color:var(--text2);margin-bottom:6px">${topic.includes(' ') ? topic.split(' ').slice(1).join(' ') : topic}</div>
-          <div style="font-size:15px;font-weight:900;color:${_colors[i]}">${total} 題</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">${acc}% 正確</div>
-        </div>`;
-      }).join('');
+  const topTopics = Object.entries(state.topicStats)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,5)
+    .map(([topic,count],i)=>
+      `<div class="stat-box" style="text-align:center">
+        <div style="font-size:24px;margin-bottom:6px">${topic.split(' ')[0]}</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:4px">${topic}</div>
+        <div style="font-size:16px;font-weight:900;color:${['#ffd700','#c0c0c0','#cd7f32','#7070a0','#7070a0'][i]}">${count}</div>
+      </div>`
+    ).join('');
   document.getElementById('topTopics').innerHTML = topTopics;
 }
 
@@ -1585,6 +1586,19 @@ function getPwdVal(id) {
   return pwd ? pwd.value.trim() : '';
 }
 
+function clearPwdField(id) {
+  const vis = document.getElementById(id + 'Visible');
+  const pwd = document.getElementById(id);
+  if (pwd) {
+    pwd.value = '';
+    pwd.style.display = '';
+  }
+  if (vis) {
+    vis.value = '';
+    vis.style.display = 'none';
+  }
+}
+
 function showChangePwdModal() {
   ensureModalsAtBody();
   ['changePwdOld', 'changePwdNew', 'changePwdConfirm'].forEach(id => {
@@ -1594,9 +1608,7 @@ function showChangePwdModal() {
     if (vis) { vis.value = ''; vis.style.display = 'none'; }
   });
   document.getElementById('changePwdError').style.display = 'none';
-  const _cpM = document.getElementById('changePwdModal');
-  _cpM.style.display = 'flex';
-  requestAnimationFrame(() => _cpM.classList.add('modal-open'));
+  document.getElementById('changePwdModal').style.display = 'flex';
   ['changePwdOld', 'changePwdNew', 'changePwdConfirm'].forEach(id => {
     const pwdEl = document.getElementById(id);
     const visEl = document.getElementById(id + 'Visible');
@@ -1632,9 +1644,7 @@ async function handleChangePassword() {
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || '更換失敗'; errEl.style.display = 'block'; return; }
-    const _cpC = document.getElementById('changePwdModal');
-    _cpC.classList.remove('modal-open');
-    setTimeout(() => { _cpC.style.display = 'none'; }, 250);
+    document.getElementById('changePwdModal').style.display = 'none';
     showToast('✅ 密碼已更換成功');
   } catch (err) {
     errEl.textContent = '無法連線到伺服器';
@@ -1649,9 +1659,7 @@ function showDeleteAccountModal() {
   if (pwd) { pwd.value = ''; pwd.style.display = ''; }
   if (vis) { vis.value = ''; vis.style.display = 'none'; }
   document.getElementById('deleteAccountError').style.display = 'none';
-  const _daM = document.getElementById('deleteAccountModal');
-  _daM.style.display = 'flex';
-  requestAnimationFrame(() => _daM.classList.add('modal-open'));
+  document.getElementById('deleteAccountModal').style.display = 'flex';
   const wrap = pwd && pwd.closest('.password-wrap');
   const oldBtn = wrap && wrap.querySelector('.toggle-pwd-btn');
   if (pwd && vis && oldBtn) {
@@ -1681,9 +1689,7 @@ async function handleDeleteAccount() {
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || '刪除失敗'; errEl.style.display = 'block'; return; }
-    const _daC = document.getElementById('deleteAccountModal');
-    _daC.classList.remove('modal-open');
-    setTimeout(() => { _daC.style.display = 'none'; }, 250);
+    document.getElementById('deleteAccountModal').style.display = 'none';
     state.userId = null;
     showToast('帳號已刪除');
     setTimeout(() => showScreen('loginScreen'), 1500);
@@ -1872,7 +1878,7 @@ async function handleRegister() {
   const custom_id = document.getElementById('regIdInput').value.trim();         // 取得玩家 ID
   const nickname = document.getElementById('regNicknameInput').value.trim();    // 取得暱稱
   const email = document.getElementById('regEmailInput').value.trim();          // 取得 email
-  const password = document.getElementById('regPasswordInput').value.trim();    // 取得密碼
+  const password = getPwdVal('regPasswordInput');    // 取得密碼（相容眼睛按鈕）
 
   // 防呆：四個欄位都必填
   if (!custom_id || !nickname || !email || !password) {
@@ -1974,7 +1980,8 @@ async function handleVerify() {
     document.getElementById('regIdInput').value = '';
     document.getElementById('regNicknameInput').value = '';
     document.getElementById('regEmailInput').value = '';
-    document.getElementById('regPasswordInput').value = '';
+    clearPwdField('regPasswordInput');
+    clearPwdField('regPasswordConfirm');
 
     showToast('✅ 帳號開通成功！請登入');
     showScreen('loginScreen');
