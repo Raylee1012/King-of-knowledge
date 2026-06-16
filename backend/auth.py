@@ -90,73 +90,78 @@ def send_email(to_email, subject, html_content, plain_text=None):
         )
 
 def get_email_template(verify_link, code):
-    """產生驗證信的 HTML 模板"""
-    # TODO: 替換 - 等第三組設計好 Email 模板後，替換這裡的 html 內容
+    """產生驗證信的 HTML 模板（星空風格）"""
     return f"""
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#f9f9f9;padding:30px;border-radius:10px;">
-        <div style="background:#4CAF50;padding:20px;border-radius:8px;text-align:center;">
-          <h1 style="color:white;margin:0;font-size:28px;">👑 知識王</h1>
-          <p style="color:white;margin:5px 0 0;">歡迎加入！請完成帳號驗證</p>
-        </div>
-        <div style="background:white;padding:30px;border-radius:8px;margin-top:20px;">
-          <h2 style="color:#333;">方式一：點擊驗證連結</h2>
-          <p style="color:#666;">點擊下方按鈕，一鍵開通你的帳號：</p>
-          <div style="text-align:center;margin:20px 0;">
-            <a href="{verify_link}" 
-               style="background:#4CAF50;color:white;padding:14px 40px;text-decoration:none;border-radius:25px;font-size:16px;font-weight:bold;">
-              ✅ 點我開通帳號
-            </a>
-          </div>
-          <p style="color:#999;font-size:12px;text-align:center;">連結有效期間為 5 分鐘</p>
-          <hr style="border:none;border-top:1px solid #eee;margin:30px 0;"/>
-          <h2 style="color:#333;">方式二：輸入驗證碼</h2>
-          <p style="color:#666;">在遊戲的驗證頁面輸入以下驗證碼：</p>
-          <div style="background:#f0f0f0;padding:20px;border-radius:8px;text-align:center;margin:20px 0;">
-            <span style="font-size:36px;font-weight:bold;color:#4CAF50;letter-spacing:10px;">{code}</span>
-          </div>
-          <p style="color:#999;font-size:12px;text-align:center;">驗證碼有效期間為 5 分鐘，請盡快輸入</p>
-        </div>
-        <div style="text-align:center;margin-top:20px;">
-          <p style="color:#999;font-size:12px;">
-            此信件為系統自動發送，請勿直接回覆。<br/>
-            如果你沒有申請知識王帳號，請忽略此信件。
-          </p>
+    <!DOCTYPE html>
+    <html lang="zh-TW">
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+    <body style="margin:0;padding:0;background:#0a0a1a;font-family:'Helvetica Neue',Arial,sans-serif;">
+      <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-radius:18px;overflow:hidden;">
+          <tr>
+            <td background="https://res.cloudinary.com/dbexzqi55/image/upload/v1781596121/stars_verify_ype9vy.png" bgcolor="#0a0a1a" style="padding:32px 28px;background-color:#0a0a1a;background-image:url('https://res.cloudinary.com/dbexzqi55/image/upload/v1781596121/stars_verify_ype9vy.png');background-size:cover;background-repeat:no-repeat;">
+              <div style="text-align:center;padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid rgba(255,215,0,0.2);">
+                <div style="font-size:32px;font-weight:900;letter-spacing:2px;color:#ffd700;">👑 知識王</div>
+                <div style="margin-top:6px;color:#00d4ff;font-size:12px;letter-spacing:5px;font-weight:700;">KNOWLEDGE KING</div>
+              </div>
+              <h2 style="margin:0 0 8px;color:#fff;font-size:18px;font-weight:900;">🎉 歡迎加入知識王！</h2>
+              <p style="margin:0 0 24px;color:#b0b0d0;font-size:14px;line-height:1.7;">請選擇以下其中一種方式完成帳號驗證，連結與驗證碼皆在 5 分鐘內有效。</p>
+              <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:20px;margin-bottom:16px;">
+                <p style="margin:0 0 4px;color:#ffd700;font-size:11px;font-weight:700;letter-spacing:2px;">方式一</p>
+                <p style="margin:0 0 16px;color:#fff;font-size:15px;font-weight:700;">點擊連結一鍵開通帳號</p>
+                <div style="text-align:center;"><a href="{verify_link}" style="display:inline-block;background:linear-gradient(135deg,#ffd700,#ffaa00);color:#1a0a00;font-size:15px;font-weight:900;padding:13px 34px;border-radius:10px;text-decoration:none;">✅ 點我開通帳號</a></div>
+              </div>
+              <div style="text-align:center;color:#7070a0;font-size:12px;margin:12px 0;">— 或者 —</div>
+              <div style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:12px;padding:20px;">
+                <p style="margin:0 0 4px;color:#00d4ff;font-size:11px;font-weight:700;letter-spacing:2px;">方式二</p>
+                <p style="margin:0 0 16px;color:#fff;font-size:15px;font-weight:700;">在遊戲頁面輸入驗證碼</p>
+                <div style="background:#0d0d24;border:1px solid rgba(0,212,255,0.25);border-radius:10px;padding:18px;text-align:center;">
+                  <span style="font-size:38px;font-weight:900;color:#00d4ff;letter-spacing:10px;font-family:monospace;">{code}</span>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+        <div style="text-align:center;margin-top:22px;">
+          <p style="color:#7070a0;font-size:12px;line-height:1.8;margin:0;">此信件為系統自動發送，請勿直接回覆。<br>如果你沒有申請知識王帳號，請忽略此信件。</p>
         </div>
       </div>
+    </body>
+    </html>
     """
 
 def get_reset_email_template(reset_link):
-    """產生重設密碼信的 HTML 模板"""
-    # TODO: 替換 - 等第三組設計好 Email 模板後，替換這裡的 html 內容
+    """產生重設密碼信的 HTML 模板（星空風格）"""
     return f"""
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#f9f9f9;padding:30px;border-radius:10px;">
-        <div style="background:#4CAF50;padding:20px;border-radius:8px;text-align:center;">
-          <h1 style="color:white;margin:0;font-size:28px;">👑 知識王</h1>
-          <p style="color:white;margin:5px 0 0;">重設您的密碼</p>
-        </div>
-        <div style="background:white;padding:30px;border-radius:8px;margin-top:20px;">
-          <h2 style="color:#333;">重設密碼</h2>
-          <p style="color:#666;">點擊下方按鈕重設您的密碼：</p>
-          <div style="text-align:center;margin:20px 0;">
-            <a href="{reset_link}" 
-               style="background:#4CAF50;color:white;padding:14px 40px;text-decoration:none;border-radius:25px;font-size:16px;font-weight:bold;">
-              🔑 點我重設密碼
-            </a>
-          </div>
-          <p style="color:#999;font-size:12px;text-align:center;">連結有效期間為 5 分鐘</p>
-        </div>
-        <div style="text-align:center;margin-top:20px;">
-          <p style="color:#999;font-size:12px;">
-            此信件為系統自動發送，請勿直接回覆。<br/>
-            如果你沒有申請重設密碼，請忽略此信件。
-          </p>
+    <!DOCTYPE html>
+    <html lang="zh-TW">
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+    <body style="margin:0;padding:0;background:#0a0a1a;font-family:'Helvetica Neue',Arial,sans-serif;">
+      <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-radius:18px;overflow:hidden;">
+          <tr>
+            <td background="https://res.cloudinary.com/dbexzqi55/image/upload/v1781596121/stars_reset_penhwe.png" bgcolor="#0a0a1a" style="padding:32px 28px;background-color:#0a0a1a;background-image:url('https://res.cloudinary.com/dbexzqi55/image/upload/v1781596121/stars_reset_penhwe.png');background-size:cover;background-repeat:no-repeat;">
+              <div style="text-align:center;padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid rgba(255,215,0,0.2);">
+                <div style="font-size:32px;font-weight:900;letter-spacing:2px;color:#ffd700;">👑 知識王</div>
+                <div style="margin-top:6px;color:#00d4ff;font-size:12px;letter-spacing:5px;font-weight:700;">KNOWLEDGE KING</div>
+              </div>
+              <h2 style="margin:0 0 8px;color:#fff;font-size:18px;font-weight:900;">🔑 重設你的密碼</h2>
+              <p style="margin:0 0 24px;color:#b0b0d0;font-size:14px;line-height:1.7;">收到你的密碼重設請求，點擊下方按鈕更新密碼。連結在 5 分鐘內有效。</p>
+              <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:24px;text-align:center;">
+                <a href="{reset_link}" style="display:inline-block;background:linear-gradient(135deg,#ffd700,#ffaa00);color:#1a0a00;font-size:15px;font-weight:900;padding:13px 34px;border-radius:10px;text-decoration:none;">🔑 點我重設密碼</a>
+              </div>
+            </td>
+          </tr>
+        </table>
+        <div style="text-align:center;margin-top:22px;">
+          <p style="color:#7070a0;font-size:12px;line-height:1.8;margin:0;">此信件為系統自動發送，請勿直接回覆。<br>如果你沒有申請重設密碼，請忽略此信件。</p>
         </div>
       </div>
+    </body>
+    </html>
     """
 
-# 註冊 API
-# 路徑：POST /auth/register
-# 傳入：{ custom_id, email, password }
+
 @auth_bp.route('/register', methods=['POST'])  # 定義 POST /register 路由
 def register():
     data = request.get_json()  # 取得前端傳來的 JSON 資料
@@ -164,324 +169,272 @@ def register():
     email = data.get('email')          # 取出 email 欄位
     password = data.get('password')    # 取出 password 欄位
 
-    # 防呆一：三個欄位都必填
     if not custom_id or not email or not password:
-        return jsonify({'error': '請填寫所有欄位'}), 400  # 400 客戶端錯誤：欄位未填寫
+        return jsonify({'error': '請填寫所有欄位'}), 400
 
-    # 防呆二：驗證 Email 格式
-    email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'  # 正規表達式：不含空白和@，接@，不含空白和@，接.，不含空白和@
-    if not re.match(email_regex, email):  # re.match() 測試字串是否符合格式
-        return jsonify({'error': 'Email格式不正確'}), 400  # 400 客戶端錯誤：Email 格式錯誤
+    email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+    if not re.match(email_regex, email):
+        return jsonify({'error': 'Email格式不正確'}), 400
 
-    # 防呆三：ID 只能英文和數字，長度 4-20 字
-    id_regex = r'^[a-zA-Z0-9]{4,20}$'  # 正規表達式：只允許英文大小寫和數字，長度 4 到 20
-    if not re.match(id_regex, custom_id):  # 不符合格式就回傳錯誤
-        return jsonify({'error': 'ID只能使用英文和數字，長度4-20字'}), 400  # 400 客戶端錯誤：ID 格式錯誤
+    id_regex = r'^[a-zA-Z0-9]{4,20}$'
+    if not re.match(id_regex, custom_id):
+        return jsonify({'error': 'ID只能使用英文和數字，長度4-20字'}), 400
 
-    # 防呆四：密碼至少 6 位數
-    if len(password) < 6:  # len() 取字串長度
-        return jsonify({'error': '密碼至少需要6位數'}), 400  # 400 客戶端錯誤：密碼太短
+    if len(password) < 6:
+        return jsonify({'error': '密碼至少需要6位數'}), 400
 
-    # 用 Supabase Auth 建立帳號，密碼會自動加密（hash）後存入
     try:
         auth_response = supabase.auth.sign_up({'email': email, 'password': password})
-        if auth_response.user is None:  # 如果 user 是 None 代表建立失敗
-            return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400  # 400 客戶端錯誤：Email 已存在
+        if auth_response.user is None:
+            return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400
     except Exception:
-        return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400  # 400 客戶端錯誤：註冊失敗
+        return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400
 
-    user_id = auth_response.user.id  # 取得 Supabase Auth 產生的 user id
+    user_id = auth_response.user.id
 
-    # 產生驗證 token
-    expire_at = int(time.time() * 1000) + 5 * 60 * 1000  # 現在時間（毫秒）+ 5 分鐘
-    raw_token = secrets.token_hex(32)  # 產生 64 字元隨機亂碼
-    token = f'{raw_token}.{expire_at}'  # 組合成 token，用 . 分隔
+    expire_at = int(time.time() * 1000) + 5 * 60 * 1000
+    raw_token = secrets.token_hex(32)
+    token = f'{raw_token}.{expire_at}'
 
-    # 把玩家資料存進 users 資料表
     supabase.table('users').insert({
-        'id': user_id,           # 用 Supabase Auth 產生的同一個 id
-        'custom_id': custom_id,  # 玩家自訂 ID
-        'email': email,          # 玩家 email
-        'is_verified': False,    # 預設尚未驗證
-        'verify_token': token,   # 存入驗證 token
-        'coins': 500             # 新玩家初始金幣
+        'id': user_id,
+        'custom_id': custom_id,
+        'email': email,
+        'is_verified': False,
+        'verify_token': token,
+        'coins': 500
     }).execute()
 
-    # 產生 6 位數驗證碼
-    code = random.randint(100000, 999999)  # 產生 100000 到 999999 之間的隨機整數
-    verification_codes[email] = {  # 存入暫存字典
-        'code': code,  # 驗證碼
-        'expire_at': int(time.time() * 1000) + 5 * 60 * 1000  # 5 分鐘後過期
+    code = random.randint(100000, 999999)
+    verification_codes[email] = {
+        'code': code,
+        'expire_at': int(time.time() * 1000) + 5 * 60 * 1000
     }
 
-    # 組合驗證連結
     verify_link = f'{os.environ.get("BACKEND_URL")}/auth/verify-link?token={token}'
 
-    # 寄驗證信
-    send_email(email, '知識王 帳號驗證', get_email_template(verify_link, code), f'歡迎加入知識王！\n\n請點擊以下連結開通帳號：{verify_link}\n\n或在遊戲頁面輸入驗證碼：{code}\n\n連結 5 分鐘內有效。')
+    send_email(
+        email,
+        '知識王 帳號驗證',
+        get_email_template(verify_link, code),
+        '歡迎加入知識王！請查看 HTML 版本完成帳號驗證。驗證碼：' + str(code)
+    )
 
-    return jsonify({'message': '註冊成功，請查收驗證信'}), 200  # 200 成功
+    return jsonify({'message': '註冊成功，請查收驗證信'}), 200
 
-# 驗證碼確認 API
-# 路徑：POST /auth/verify
-# 傳入：{ email, code }
-@auth_bp.route('/verify', methods=['POST'])  # 定義 POST /verify 路由
+
+@auth_bp.route('/verify', methods=['POST'])
 def verify():
-    data = request.get_json()  # 取得前端傳來的 JSON 資料
-    email = data.get('email')  # 取出 email 欄位
-    code = data.get('code')    # 取出 code 欄位
+    data = request.get_json()
+    email = data.get('email')
+    code = data.get('code')
 
-    # 防呆：兩個欄位都必填
     if not email or not code:
-        return jsonify({'error': '請填寫所有欄位'}), 400  # 400 客戶端錯誤：欄位未填寫
+        return jsonify({'error': '請填寫所有欄位'}), 400
 
-    record = verification_codes.get(email)  # 取出該 email 的驗證碼記錄
+    record = verification_codes.get(email)
 
-    # 找不到記錄，代表沒有發送過驗證碼或已被刪除
     if not record:
-        return jsonify({'error': '驗證碼不存在'}), 400  # 400 客戶端錯誤：找不到驗證碼
+        return jsonify({'error': '驗證碼不存在'}), 400
 
-    # 現在時間 > 過期時間，代表已過期
     if int(time.time() * 1000) > record['expire_at']:
-        del verification_codes[email]  # 刪除過期記錄，釋放記憶體
-        delete_unverified_account(email)  # 自動刪除未驗證的帳號
-        return jsonify({'error': '驗證碼已過期，請重新註冊'}), 400  # 400 客戶端錯誤：驗證碼過期
+        del verification_codes[email]
+        delete_unverified_account(email)
+        return jsonify({'error': '驗證碼已過期，請重新註冊'}), 400
 
-    # 比對驗證碼，用 str() 把兩邊都轉成字串再比對
     if str(record['code']) != str(code):
-        return jsonify({'error': '驗證碼錯誤'}), 400  # 400 客戶端錯誤：驗證碼不正確
+        return jsonify({'error': '驗證碼錯誤'}), 400
 
-    # 驗證成功，開通帳號並清空 verify_token
     supabase.table('users').update({
-        'is_verified': True,  # 把 is_verified 改成 True
-        'verify_token': None  # 清空 token
-    }).eq('email', email).execute()  # 條件：只更新這個 email 的玩家
+        'is_verified': True,
+        'verify_token': None
+    }).eq('email', email).execute()
 
-    # 查詢玩家的 id，用來確認 Supabase Auth 的 email
     user_response = supabase.table('users').select('id').eq('email', email).single().execute()
-    user_id = user_response.data['id']  # 取得玩家的 id
+    user_id = user_response.data['id']
 
-    # 用 httpx 直接呼叫 Supabase admin API，把 email 標記為已確認
     admin_update_user(user_id, {'email_confirm': True})
 
-    del verification_codes[email]  # 驗證完刪除暫存碼，避免重複使用
+    del verification_codes[email]
 
     return jsonify({
         'message': '驗證成功，帳號已開通',
-        'redirect': f'{os.environ.get("FRONTEND_URL")}/verified'  # 回傳跳轉網址
-    }), 200  # 200 成功
+        'redirect': f'{os.environ.get("FRONTEND_URL")}/verified'
+    }), 200
 
-# 驗證連結 API
-# 路徑：GET /auth/verify-link?token=xxx
-# 玩家點 Email 裡的連結時呼叫，瀏覽器自動帶 token 來
-@auth_bp.route('/verify-link', methods=['GET'])  # 定義 GET /verify-link 路由
+
+@auth_bp.route('/verify-link', methods=['GET'])
 def verify_link():
-    token = request.args.get('token')  # request.args 是 URL 參數，取得 ?token=xxx 的 token
+    token = request.args.get('token')
 
-    # 沒有帶 token，代表連結無效
     if not token:
-        return jsonify({'error': '無效的驗證連結'}), 400  # 400 客戶端錯誤：沒有帶 token
+        return jsonify({'error': '無效的驗證連結'}), 400
 
-    # 拆開 token，用 . 分隔成兩個部分
-    parts = token.split('.')  # 例如：['a3f8c2d1...', '1776856823200']
-    if len(parts) != 2:  # token 格式不對
-        return jsonify({'error': '驗證連結無效'}), 400  # 400 客戶端錯誤：token 格式錯誤
+    parts = token.split('.')
+    if len(parts) != 2:
+        return jsonify({'error': '驗證連結無效'}), 400
 
-    raw_token, expire_at = parts  # 解包成兩個變數
+    raw_token, expire_at = parts
 
-    # 現在時間 > 過期時間，代表已過期
     if int(time.time() * 1000) > int(expire_at):
-        user_response = supabase.table('users').select('email').eq('verify_token', token).execute()  # 查詢對應的玩家
-        if user_response.data:  # 找到玩家才刪除
-            delete_unverified_account(user_response.data[0]['email'])  # 自動刪除未驗證的帳號
-        return jsonify({'error': '驗證連結已過期，請重新註冊'}), 400  # 400 客戶端錯誤：連結過期
+        user_response = supabase.table('users').select('email').eq('verify_token', token).execute()
+        if user_response.data:
+            delete_unverified_account(user_response.data[0]['email'])
+        return jsonify({'error': '驗證連結已過期，請重新註冊'}), 400
 
-    # 用 token 查詢資料庫，找到對應的玩家
     user_response = supabase.table('users').select('id, email, is_verified').eq('verify_token', token).execute()
 
-    # 找不到代表 token 無效或已被清空
     if not user_response.data:
-        return jsonify({'error': '驗證連結無效'}), 400  # 400 客戶端錯誤：token 無效
+        return jsonify({'error': '驗證連結無效'}), 400
 
-    user_data = user_response.data[0]  # 取得第一筆資料
+    user_data = user_response.data[0]
 
-    # 已驗證過，不需要再驗證，直接跳轉登入
     if user_data['is_verified']:
-        return redirect(f'{os.environ.get("FRONTEND_URL")}/login')  # 跳轉到登入頁面
+        return redirect(os.environ.get('FRONTEND_URL', 'http://localhost:5500') + '/index.html')  # 跳轉到前端登入頁面
 
-    # 開通帳號並清空 verify_token
     supabase.table('users').update({
-        'is_verified': True,  # 開通帳號
-        'verify_token': None  # 清空 token 避免重複使用
-    }).eq('id', user_data['id']).execute()  # 條件：只更新這個玩家的資料
+        'is_verified': True,
+        'verify_token': None
+    }).eq('id', user_data['id']).execute()
 
-    # 用 httpx 直接呼叫 Supabase admin API，把 email 標記為已確認
     admin_update_user(user_data['id'], {'email_confirm': True})
 
-    return redirect(f'{os.environ.get("FRONTEND_URL")}/verified')  # 跳轉到驗證成功頁面
+    return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/verified')  # 跳轉到後端驗證成功頁面
 
-# 登入 API
-# 路徑：POST /auth/login
-# 傳入：{ identifier, password }，identifier 可以是 email 或 custom_id
-@auth_bp.route('/login', methods=['POST'])  # 定義 POST /login 路由
+
+@auth_bp.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()  # 取得前端傳來的 JSON 資料
-    identifier = data.get('identifier')  # 取出 identifier 欄位
-    password = data.get('password')      # 取出 password 欄位
+    data = request.get_json()
+    identifier = data.get('identifier')
+    password = data.get('password')
 
-    # 防呆：兩個欄位都必填
     if not identifier or not password:
-        return jsonify({'error': '請填寫所有欄位'}), 400  # 400 客戶端錯誤：欄位未填寫
+        return jsonify({'error': '請填寫所有欄位'}), 400
 
-    email = identifier  # 預設 email 就是 identifier
+    email = identifier
 
-    # email 一定包含 @，custom_id 不包含 @
-    # 如果不包含 @，代表是 custom_id，需要先查詢對應的 email
     if '@' not in identifier:
         user_response = supabase.table('users').select('email').eq('custom_id', identifier).execute()
-        if not user_response.data:  # 找不到玩家
-            return jsonify({'error': '找不到使用者'}), 400  # 400 客戶端錯誤：找不到玩家
-        email = user_response.data[0]['email']  # 取得對應的 email
+        if not user_response.data:
+            return jsonify({'error': '找不到使用者'}), 400
+        email = user_response.data[0]['email']
 
-    # 用 email 和密碼登入 Supabase Auth，密碼錯誤會丟出 exception
     try:
         auth_response = supabase.auth.sign_in_with_password({'email': email, 'password': password})
-        if auth_response.user is None:  # 登入失敗
-            return jsonify({'error': '帳號或密碼錯誤'}), 400  # 400 客戶端錯誤：登入失敗
+        if auth_response.user is None:
+            return jsonify({'error': '帳號或密碼錯誤'}), 400
     except Exception:
-        return jsonify({'error': '帳號或密碼錯誤'}), 400  # 400 客戶端錯誤：密碼錯誤
+        return jsonify({'error': '帳號或密碼錯誤'}), 400
 
     return jsonify({
         'message': '登入成功',
         'user': {
-            'id': auth_response.user.id,                                       # 玩家的 id
-            'email': auth_response.user.email,                                 # 玩家的 email
-            'email_confirmed_at': str(auth_response.user.email_confirmed_at)   # Email 確認時間
+            'id': auth_response.user.id,
+            'email': auth_response.user.email,
+            'email_confirmed_at': str(auth_response.user.email_confirmed_at)
         }
-    }), 200  # 200 成功，回傳玩家資料
+    }), 200
 
-# 忘記密碼 API
-# 路徑：POST /auth/forgot-password
-# 傳入：{ email }
-@auth_bp.route('/forgot-password', methods=['POST'])  # 定義 POST /forgot-password 路由
+
+@auth_bp.route('/forgot-password', methods=['POST'])
 def forgot_password():
-    data = request.get_json()  # 取得前端傳來的 JSON 資料
-    email = data.get('email')  # 取出 email 欄位
+    data = request.get_json()
+    email = data.get('email')
 
-    # 防呆：email 必填
     if not email:
-        return jsonify({'error': '請填寫 Email'}), 400  # 400 客戶端錯誤：欄位未填寫
+        return jsonify({'error': '請填寫 Email'}), 400
 
-    # 查詢玩家是否存在
     user_response = supabase.table('users').select('id, email').eq('email', email).execute()
 
-    # 找不到玩家，回傳一樣的訊息，避免被用來查詢哪些 email 已註冊
     if not user_response.data:
-        return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200  # 200 成功但不透漏是否存在
+        return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200
 
-    # 產生重設密碼 token
-    expire_at = int(time.time() * 1000) + 5 * 60 * 1000  # 5 分鐘後過期
-    raw_token = secrets.token_hex(32)  # 產生 64 字元隨機亂碼
-    reset_token = f'{raw_token}.{expire_at}'  # 組合成 token，用 . 分隔
+    expire_at = int(time.time() * 1000) + 5 * 60 * 1000
+    raw_token = secrets.token_hex(32)
+    reset_token = f'{raw_token}.{expire_at}'
 
-    # 把 reset_token 存進資料庫
     supabase.table('users').update({
-        'reset_token': reset_token  # 更新 reset_token 欄位
-    }).eq('email', email).execute()  # 條件：只更新這個 email 的玩家
+        'reset_token': reset_token
+    }).eq('email', email).execute()
 
-    # 組合重設密碼連結
     reset_link = f'{os.environ.get("FRONTEND_URL")}/reset-password?token={reset_token}'
 
-    # 寄重設密碼信
-    send_email(email, '知識王 密碼重設', get_reset_email_template(reset_link), f'你已申請重設知識王密碼。\n\n請點擊以下連結操作：{reset_link}\n\n連結 5 分鐘內有效。如非本人操作請忽略此信。')
+    send_email(
+        email,
+        '知識王 密碼重設',
+        get_reset_email_template(reset_link),
+        '你已申請重設知識王密碼，請查看 HTML 版本完成操作。如非本人操作請忽略此信。'
+    )
 
-    return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200  # 200 成功
+    return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200
 
-# 重設密碼 API
-# 路徑：POST /auth/reset-password
-# 傳入：{ token, new_password }
-@auth_bp.route('/reset-password', methods=['POST'])  # 定義 POST /reset-password 路由
+
+@auth_bp.route('/reset-password', methods=['POST'])
 def reset_password():
-    data = request.get_json()  # 取得前端傳來的 JSON 資料
-    token = data.get('token')                # 取出 token 欄位
-    new_password = data.get('new_password')  # 取出 new_password 欄位
+    data = request.get_json()
+    token = data.get('token')
+    new_password = data.get('new_password')
 
-    # 防呆：兩個欄位都必填
     if not token or not new_password:
-        return jsonify({'error': '請填寫所有欄位'}), 400  # 400 客戶端錯誤：欄位未填寫
+        return jsonify({'error': '請填寫所有欄位'}), 400
 
-    # 防呆：新密碼至少 6 位數
     if len(new_password) < 6:
-        return jsonify({'error': '密碼至少需要6位數'}), 400  # 400 客戶端錯誤：密碼太短
+        return jsonify({'error': '密碼至少需要6位數'}), 400
 
-    # 拆開 token，用 . 分隔成兩個部分
-    parts = token.split('.')  # 例如：['a3f8c2d1...', '1776856823200']
-    if len(parts) != 2:  # token 格式不對
-        return jsonify({'error': '重設密碼連結無效'}), 400  # 400 客戶端錯誤：token 格式錯誤
+    parts = token.split('.')
+    if len(parts) != 2:
+        return jsonify({'error': '重設密碼連結無效'}), 400
 
-    raw_token, expire_at = parts  # 解包成兩個變數
+    raw_token, expire_at = parts
 
-    # 檢查 token 是否過期
     if int(time.time() * 1000) > int(expire_at):
-        return jsonify({'error': '重設密碼連結已過期，請重新申請'}), 400  # 400 客戶端錯誤：token 過期
+        return jsonify({'error': '重設密碼連結已過期，請重新申請'}), 400
 
-    # 用 token 查詢資料庫，找到對應的玩家
     user_response = supabase.table('users').select('id, email').eq('reset_token', token).execute()
 
-    # 找不到代表 token 無效或已被清空
     if not user_response.data:
-        return jsonify({'error': '重設密碼連結無效'}), 400  # 400 客戶端錯誤：token 無效
+        return jsonify({'error': '重設密碼連結無效'}), 400
 
-    user_data = user_response.data[0]  # 取得第一筆資料
+    user_data = user_response.data[0]
 
-    # 用 httpx 直接呼叫 Supabase admin API 更新密碼
     admin_update_user(user_data['id'], {'password': new_password})
 
-    # 清空 reset_token，避免同一個連結被重複使用
     supabase.table('users').update({
-        'reset_token': None  # 清空 reset_token
-    }).eq('id', user_data['id']).execute()  # 條件：只更新這個玩家的資料
+        'reset_token': None
+    }).eq('id', user_data['id']).execute()
 
-    return jsonify({'message': '密碼重設成功，請重新登入'}), 200  # 200 成功
+    return jsonify({'message': '密碼重設成功，請重新登入'}), 200
 
-# 修改密碼 API
-# 路徑：POST /auth/change-password
-# 傳入：{ user_id, old_password, new_password }
-@auth_bp.route('/change-password', methods=['POST'])  # 定義 POST /change-password 路由
+
+@auth_bp.route('/change-password', methods=['POST'])
 def change_password():
-    data = request.get_json()  # 取得前端傳來的 JSON 資料
-    user_id = data.get('user_id')            # 取出 user_id 欄位
-    old_password = data.get('old_password')  # 取出 old_password 欄位
-    new_password = data.get('new_password')  # 取出 new_password 欄位
+    data = request.get_json()
+    user_id = data.get('user_id')
+    old_password = data.get('old_password')
+    new_password = data.get('new_password')
 
-    # 防呆：三個欄位都必填
     if not user_id or not old_password or not new_password:
-        return jsonify({'error': '請填寫所有欄位'}), 400  # 400 客戶端錯誤：欄位未填寫
+        return jsonify({'error': '請填寫所有欄位'}), 400
 
-    # 防呆：新密碼至少 6 位數
     if len(new_password) < 6:
-        return jsonify({'error': '新密碼至少需要6位數'}), 400  # 400 客戶端錯誤：密碼太短
+        return jsonify({'error': '新密碼至少需要6位數'}), 400
 
-    # 防呆：新密碼不能和舊密碼一樣
     if old_password == new_password:
-        return jsonify({'error': '新密碼不能和舊密碼相同'}), 400  # 400 客戶端錯誤：密碼相同
+        return jsonify({'error': '新密碼不能和舊密碼相同'}), 400
 
-    # 查詢玩家的 email，用來驗證舊密碼
     user_response = supabase.table('users').select('email').eq('id', user_id).execute()
-    if not user_response.data:  # 找不到玩家
-        return jsonify({'error': '找不到使用者'}), 400  # 400 客戶端錯誤：找不到玩家
+    if not user_response.data:
+        return jsonify({'error': '找不到使用者'}), 400
 
-    email = user_response.data[0]['email']  # 取得玩家的 email
+    email = user_response.data[0]['email']
 
-    # 用舊密碼嘗試登入，驗證舊密碼是否正確
     try:
         auth_response = supabase.auth.sign_in_with_password({'email': email, 'password': old_password})
-        if auth_response.user is None:  # 登入失敗
-            return jsonify({'error': '舊密碼錯誤'}), 400  # 400 客戶端錯誤：舊密碼不正確
+        if auth_response.user is None:
+            return jsonify({'error': '舊密碼錯誤'}), 400
     except Exception:
-        return jsonify({'error': '舊密碼錯誤'}), 400  # 400 客戶端錯誤：舊密碼不正確
+        return jsonify({'error': '舊密碼錯誤'}), 400
 
-    # 用 httpx 直接呼叫 Supabase admin API 更新密碼
     admin_update_user(user_id, {'password': new_password})
 
-    return jsonify({'message': '密碼修改成功'}), 200  # 200 成功
+    return jsonify({'message': '密碼修改成功'}), 200
