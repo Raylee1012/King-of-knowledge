@@ -85,91 +85,62 @@ def send_email(to_email, subject, html_content):
         )
 
 def get_email_template(verify_link, code):
-    """產生驗證信的 HTML 模板（全頁星空風格）"""
+    """產生驗證信的 HTML 模板（GitHub SVG 星空背景）"""
     return f"""
     <!DOCTYPE html>
     <html lang="zh-TW">
     <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
     <body style="margin:0;padding:0;background:#0a0a1a;font-family:'Helvetica Neue',Arial,sans-serif;">
-      <!-- 全頁星星背景 -->
-      <div style="position:relative;min-height:100vh;background:#0a0a1a;">
-        <div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:83%;top:16%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:33%;top:30%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.4);border-radius:50%;left:88%;top:96%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:56%;top:6%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.3);border-radius:50%;left:31%;top:66%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.7);border-radius:50%;left:27%;top:93%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:55%;top:30%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.6);border-radius:50%;left:2%;top:22%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.9);border-radius:50%;left:37%;top:21%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.5);border-radius:50%;left:45%;top:15%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.5);border-radius:50%;left:47%;top:46%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.6);border-radius:50%;left:7%;top:95%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.5);border-radius:50%;left:50%;top:12%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.6);border-radius:50%;left:82%;top:81%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:92%;top:10%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.8);border-radius:50%;left:39%;top:12%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:50%;top:37%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.5);border-radius:50%;left:48%;top:22%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.9);border-radius:50%;left:87%;top:36%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.7);border-radius:50%;left:84%;top:11%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:70%;top:95%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.7);border-radius:50%;left:50%;top:36%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.8);border-radius:50%;left:30%;top:89%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.8);border-radius:50%;left:9%;top:31%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:53%;top:36%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:74%;top:93%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.6);border-radius:50%;left:65%;top:52%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:35%;top:19%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.7);border-radius:50%;left:70%;top:35%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:76%;top:53%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:19%;top:67%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:8%;top:16%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.3);border-radius:50%;left:89%;top:56%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.6);border-radius:50%;left:50%;top:78%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.7);border-radius:50%;left:72%;top:3%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.8);border-radius:50%;left:89%;top:70%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.6);border-radius:50%;left:45%;top:16%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.8);border-radius:50%;left:60%;top:2%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.6);border-radius:50%;left:35%;top:66%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.8);border-radius:50%;left:15%;top:82%;"></div>
-        <!-- 內容區 -->
-        <div style="position:relative;z-index:1;max-width:600px;margin:0 auto;padding:32px 16px;">
-
-          <!-- Header -->
-          <div style="text-align:center;margin-bottom:24px;">
-            <div style="font-size:32px;font-weight:900;letter-spacing:2px;color:#ffd700;font-family:'Helvetica Neue',Arial,sans-serif;">👑 知識王</div>
+      <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
+        <div style="background-color:#0a0a1a;background-image:url('https://raw.githubusercontent.com/Raylee1012/King-of-knowledge/main/stars_verify.svg');background-size:cover;background-repeat:no-repeat;border-radius:18px;padding:32px 28px;">
+          <div style="text-align:center;padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid rgba(255,215,0,0.2);">
+            <div style="font-size:32px;font-weight:900;letter-spacing:2px;color:#ffd700;">👑 知識王</div>
             <div style="margin-top:6px;color:#00d4ff;font-size:12px;letter-spacing:5px;font-weight:700;">KNOWLEDGE KING</div>
           </div>
-
-          <!-- 驗證信內容 -->
-          <div style="background:#1e1e42;border:1px solid rgba(255,215,0,0.25);border-radius:18px;padding:32px 28px;">
-            <h2 style="margin:0 0 8px;color:#fff;font-size:18px;font-weight:900;">🎉 歡迎加入知識王！</h2>
-            <p style="margin:0 0 24px;color:#b0b0d0;font-size:14px;line-height:1.7;">請選擇以下其中一種方式完成帳號驗證，連結與驗證碼皆在 5 分鐘內有效。</p>
-
-            <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:20px;margin-bottom:16px;">
-              <p style="margin:0 0 4px;color:#ffd700;font-size:11px;font-weight:700;letter-spacing:2px;">方式一</p>
-              <p style="margin:0 0 16px;color:#fff;font-size:15px;font-weight:700;">點擊連結一鍵開通帳號</p>
-              <div style="text-align:center;">
-                <a href="{verify_link}" style="display:inline-block;background:linear-gradient(135deg,#ffd700,#ffaa00);color:#1a0a00;font-size:15px;font-weight:900;padding:13px 34px;border-radius:10px;text-decoration:none;">✅ 點我開通帳號</a>
-              </div>
-            </div>
-
-            <div style="text-align:center;color:#7070a0;font-size:12px;margin:12px 0;">— 或者 —</div>
-
-            <div style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:12px;padding:20px;">
-              <p style="margin:0 0 4px;color:#00d4ff;font-size:11px;font-weight:700;letter-spacing:2px;">方式二</p>
-              <p style="margin:0 0 16px;color:#fff;font-size:15px;font-weight:700;">在遊戲頁面輸入驗證碼</p>
-              <div style="background:#0d0d24;border:1px solid rgba(0,212,255,0.25);border-radius:10px;padding:18px;text-align:center;">
-                <span style="font-size:38px;font-weight:900;color:#00d4ff;letter-spacing:10px;font-family:monospace;">{code}</span>
-              </div>
+          <h2 style="margin:0 0 8px;color:#fff;font-size:18px;font-weight:900;">🎉 歡迎加入知識王！</h2>
+          <p style="margin:0 0 24px;color:#b0b0d0;font-size:14px;line-height:1.7;">請選擇以下其中一種方式完成帳號驗證，連結與驗證碼皆在 5 分鐘內有效。</p>
+          <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:20px;margin-bottom:16px;">
+            <p style="margin:0 0 4px;color:#ffd700;font-size:11px;font-weight:700;letter-spacing:2px;">方式一</p>
+            <p style="margin:0 0 16px;color:#fff;font-size:15px;font-weight:700;">點擊連結一鍵開通帳號</p>
+            <div style="text-align:center;"><a href="{verify_link}" style="display:inline-block;background:linear-gradient(135deg,#ffd700,#ffaa00);color:#1a0a00;font-size:15px;font-weight:900;padding:13px 34px;border-radius:10px;text-decoration:none;">✅ 點我開通帳號</a></div>
+          </div>
+          <div style="text-align:center;color:#7070a0;font-size:12px;margin:12px 0;">— 或者 —</div>
+          <div style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:12px;padding:20px;">
+            <p style="margin:0 0 4px;color:#00d4ff;font-size:11px;font-weight:700;letter-spacing:2px;">方式二</p>
+            <p style="margin:0 0 16px;color:#fff;font-size:15px;font-weight:700;">在遊戲頁面輸入驗證碼</p>
+            <div style="background:#0d0d24;border:1px solid rgba(0,212,255,0.25);border-radius:10px;padding:18px;text-align:center;">
+              <span style="font-size:38px;font-weight:900;color:#00d4ff;letter-spacing:10px;font-family:monospace;">{code}</span>
             </div>
           </div>
-
-          <!-- Footer -->
-          <div style="text-align:center;margin-top:24px;">
-            <p style="color:#7070a0;font-size:12px;line-height:1.8;margin:0;">此信件為系統自動發送，請勿直接回覆。<br>如果你沒有申請知識王帳號，請忽略此信件。</p>
-          </div>
-
+        </div>
+        <div style="text-align:center;margin-top:22px;">
+          <p style="color:#7070a0;font-size:12px;line-height:1.8;margin:0;">此信件為系統自動發送，請勿直接回覆。<br>如果你沒有申請知識王帳號，請忽略此信件。</p>
         </div>
       </div>
     </body>
     </html>"""
 
 def get_reset_email_template(reset_link):
-    """產生重設密碼信的 HTML 模板（全頁星空風格）"""
+    """產生重設密碼信的 HTML 模板（GitHub SVG 星空背景）"""
     return f"""
     <!DOCTYPE html>
     <html lang="zh-TW">
     <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
     <body style="margin:0;padding:0;background:#0a0a1a;font-family:'Helvetica Neue',Arial,sans-serif;">
-      <!-- 全頁星星背景 -->
-      <div style="position:relative;min-height:100vh;background:#0a0a1a;">
-        <div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:83%;top:16%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:33%;top:30%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.4);border-radius:50%;left:88%;top:96%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:56%;top:6%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.3);border-radius:50%;left:31%;top:66%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.7);border-radius:50%;left:27%;top:93%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:55%;top:30%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.6);border-radius:50%;left:2%;top:22%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.9);border-radius:50%;left:37%;top:21%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.5);border-radius:50%;left:45%;top:15%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.5);border-radius:50%;left:47%;top:46%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.6);border-radius:50%;left:7%;top:95%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.5);border-radius:50%;left:50%;top:12%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.6);border-radius:50%;left:82%;top:81%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:92%;top:10%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.8);border-radius:50%;left:39%;top:12%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:50%;top:37%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.5);border-radius:50%;left:48%;top:22%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.9);border-radius:50%;left:87%;top:36%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.7);border-radius:50%;left:84%;top:11%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:70%;top:95%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.7);border-radius:50%;left:50%;top:36%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.8);border-radius:50%;left:30%;top:89%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.8);border-radius:50%;left:9%;top:31%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:53%;top:36%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:74%;top:93%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.6);border-radius:50%;left:65%;top:52%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:35%;top:19%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.7);border-radius:50%;left:70%;top:35%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:76%;top:53%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.4);border-radius:50%;left:19%;top:67%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.7);border-radius:50%;left:8%;top:16%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.3);border-radius:50%;left:89%;top:56%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.6);border-radius:50%;left:50%;top:78%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.7);border-radius:50%;left:72%;top:3%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.8);border-radius:50%;left:89%;top:70%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.6);border-radius:50%;left:45%;top:16%;"></div><div style="position:absolute;width:2px;height:2px;background:rgba(255,255,255,0.8);border-radius:50%;left:60%;top:2%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.6);border-radius:50%;left:35%;top:66%;"></div><div style="position:absolute;width:1px;height:1px;background:rgba(255,255,255,0.8);border-radius:50%;left:15%;top:82%;"></div>
-        <!-- 內容區 -->
-        <div style="position:relative;z-index:1;max-width:600px;margin:0 auto;padding:32px 16px;">
-
-          <!-- Header -->
-          <div style="text-align:center;margin-bottom:24px;">
-            <div style="font-size:32px;font-weight:900;letter-spacing:2px;color:#ffd700;font-family:'Helvetica Neue',Arial,sans-serif;">👑 知識王</div>
+      <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
+        <div style="background-color:#0a0a1a;background-image:url('https://raw.githubusercontent.com/Raylee1012/King-of-knowledge/main/stars_reset.svg');background-size:cover;background-repeat:no-repeat;border-radius:18px;padding:32px 28px;">
+          <div style="text-align:center;padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid rgba(255,215,0,0.2);">
+            <div style="font-size:32px;font-weight:900;letter-spacing:2px;color:#ffd700;">👑 知識王</div>
             <div style="margin-top:6px;color:#00d4ff;font-size:12px;letter-spacing:5px;font-weight:700;">KNOWLEDGE KING</div>
           </div>
-
-          <!-- 重設密碼內容 -->
-          <div style="background:#1e1e42;border:1px solid rgba(255,215,0,0.25);border-radius:18px;padding:32px 28px;">
-            <h2 style="margin:0 0 8px;color:#fff;font-size:18px;font-weight:900;">🔑 重設你的密碼</h2>
-            <p style="margin:0 0 24px;color:#b0b0d0;font-size:14px;line-height:1.7;">收到你的密碼重設請求，點擊下方按鈕更新密碼。連結在 5 分鐘內有效。</p>
-            <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:24px;text-align:center;">
-              <a href="{reset_link}" style="display:inline-block;background:linear-gradient(135deg,#ffd700,#ffaa00);color:#1a0a00;font-size:15px;font-weight:900;padding:13px 34px;border-radius:10px;text-decoration:none;">🔑 點我重設密碼</a>
-            </div>
+          <h2 style="margin:0 0 8px;color:#fff;font-size:18px;font-weight:900;">🔑 重設你的密碼</h2>
+          <p style="margin:0 0 24px;color:#b0b0d0;font-size:14px;line-height:1.7;">收到你的密碼重設請求，點擊下方按鈕更新密碼。連結在 5 分鐘內有效。</p>
+          <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:24px;text-align:center;">
+            <a href="{reset_link}" style="display:inline-block;background:linear-gradient(135deg,#ffd700,#ffaa00);color:#1a0a00;font-size:15px;font-weight:900;padding:13px 34px;border-radius:10px;text-decoration:none;">🔑 點我重設密碼</a>
           </div>
-
-          <!-- Footer -->
-          <div style="text-align:center;margin-top:24px;">
-            <p style="color:#7070a0;font-size:12px;line-height:1.8;margin:0;">此信件為系統自動發送，請勿直接回覆。<br>如果你沒有申請知識王帳號，請忽略此信件。</p>
-          </div>
-
+        </div>
+        <div style="text-align:center;margin-top:22px;">
+          <p style="color:#7070a0;font-size:12px;line-height:1.8;margin:0;">此信件為系統自動發送，請勿直接回覆。<br>如果你沒有申請重設密碼，請忽略此信件。</p>
         </div>
       </div>
     </body>
@@ -325,7 +296,7 @@ def verify_link():
 
     # 已驗證過，不需要再驗證，直接跳轉登入
     if user_data['is_verified']:
-        return redirect(os.environ.get('FRONTEND_URL', 'http://localhost:5500') + '/index.html')  # 跳轉到前端登入頁面
+        return redirect(os.environ.get('FRONTEND_URL', 'http://localhost:5500') + '/index.html')
 
     # 開通帳號並清空 verify_token
     supabase.table('users').update({
@@ -336,7 +307,7 @@ def verify_link():
     # 用 httpx 直接呼叫 Supabase admin API，把 email 標記為已確認
     admin_update_user(user_data['id'], {'email_confirm': True})
 
-    return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/verified')  # 跳轉到後端驗證成功頁面
+    return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/verified')
 
 # 登入 API
 # 路徑：POST /auth/login
