@@ -63,13 +63,18 @@ def delete_unverified_account(email):
     # 刪除 Supabase Auth 的帳號
     admin_delete_user(user_id)
 
-def send_email(to_email, subject, html_content):
+def send_email(to_email, subject, html_content, plain_text=None):
     """寄送 Email 的函式，使用 Gmail SMTP"""
+    import uuid
     msg = MIMEMultipart('alternative')  # 建立多部分 Email 物件
     msg['Subject'] = subject  # 設定信件主旨
     msg['From'] = f'知識王 <{os.environ.get("GMAIL_USER")}>'  # 設定寄件人
     msg['To'] = to_email  # 設定收件人
+    msg['Message-ID'] = f'<{uuid.uuid4()}@kingofknowledge>'  # 唯一訊息 ID，降低垃圾信機率
 
+    # 純文字版本（垃圾信過濾器偏好有純文字版本的信件）
+    text = plain_text or '請使用支援 HTML 的郵件客戶端查看此信件。'
+    msg.attach(MIMEText(text, 'plain', 'utf-8'))  # 先附加純文字版本
     part = MIMEText(html_content, 'html', 'utf-8')  # 建立 HTML 格式的信件內容
     msg.attach(part)  # 把 HTML 內容附加到信件
 
@@ -85,75 +90,73 @@ def send_email(to_email, subject, html_content):
         )
 
 def get_email_template(verify_link, code):
-    """產生驗證信的 HTML 模板（PNG 星空背景）"""
+    """產生驗證信的 HTML 模板"""
+    # TODO: 替換 - 等第三組設計好 Email 模板後，替換這裡的 html 內容
     return f"""
-    <!DOCTYPE html>
-    <html lang="zh-TW">
-    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-    <body style="margin:0;padding:0;background:#0a0a1a;font-family:'Helvetica Neue',Arial,sans-serif;">
-      <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-radius:18px;overflow:hidden;">
-          <tr>
-            <td background="https://raw.githubusercontent.com/Raylee1012/King-of-knowledge/main/stars_verify.png" bgcolor="#0a0a1a" style="padding:32px 28px;background-color:#0a0a1a;background-image:url('https://raw.githubusercontent.com/Raylee1012/King-of-knowledge/main/stars_verify.png');background-size:cover;background-repeat:no-repeat;">
-              <div style="text-align:center;padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid rgba(255,215,0,0.2);">
-                <div style="font-size:32px;font-weight:900;letter-spacing:2px;color:#ffd700;">👑 知識王</div>
-                <div style="margin-top:6px;color:#00d4ff;font-size:12px;letter-spacing:5px;font-weight:700;">KNOWLEDGE KING</div>
-              </div>
-              <h2 style="margin:0 0 8px;color:#fff;font-size:18px;font-weight:900;">🎉 歡迎加入知識王！</h2>
-              <p style="margin:0 0 24px;color:#b0b0d0;font-size:14px;line-height:1.7;">請選擇以下其中一種方式完成帳號驗證，連結與驗證碼皆在 5 分鐘內有效。</p>
-              <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:20px;margin-bottom:16px;">
-                <p style="margin:0 0 4px;color:#ffd700;font-size:11px;font-weight:700;letter-spacing:2px;">方式一</p>
-                <p style="margin:0 0 16px;color:#fff;font-size:15px;font-weight:700;">點擊連結一鍵開通帳號</p>
-                <div style="text-align:center;"><a href="{verify_link}" style="display:inline-block;background:linear-gradient(135deg,#ffd700,#ffaa00);color:#1a0a00;font-size:15px;font-weight:900;padding:13px 34px;border-radius:10px;text-decoration:none;">✅ 點我開通帳號</a></div>
-              </div>
-              <div style="text-align:center;color:#7070a0;font-size:12px;margin:12px 0;">— 或者 —</div>
-              <div style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:12px;padding:20px;">
-                <p style="margin:0 0 4px;color:#00d4ff;font-size:11px;font-weight:700;letter-spacing:2px;">方式二</p>
-                <p style="margin:0 0 16px;color:#fff;font-size:15px;font-weight:700;">在遊戲頁面輸入驗證碼</p>
-                <div style="background:#0d0d24;border:1px solid rgba(0,212,255,0.25);border-radius:10px;padding:18px;text-align:center;">
-                  <span style="font-size:38px;font-weight:900;color:#00d4ff;letter-spacing:10px;font-family:monospace;">{code}</span>
-                </div>
-              </div>
-            </td>
-          </tr>
-        </table>
-        <div style="text-align:center;margin-top:22px;">
-          <p style="color:#7070a0;font-size:12px;line-height:1.8;margin:0;">此信件為系統自動發送，請勿直接回覆。<br>如果你沒有申請知識王帳號，請忽略此信件。</p>
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#f9f9f9;padding:30px;border-radius:10px;">
+        <div style="background:#4CAF50;padding:20px;border-radius:8px;text-align:center;">
+          <h1 style="color:white;margin:0;font-size:28px;">👑 知識王</h1>
+          <p style="color:white;margin:5px 0 0;">歡迎加入！請完成帳號驗證</p>
+        </div>
+        <div style="background:white;padding:30px;border-radius:8px;margin-top:20px;">
+          <h2 style="color:#333;">方式一：點擊驗證連結</h2>
+          <p style="color:#666;">點擊下方按鈕，一鍵開通你的帳號：</p>
+          <div style="text-align:center;margin:20px 0;">
+            <a href="{verify_link}" 
+               style="background:#4CAF50;color:white;padding:14px 40px;text-decoration:none;border-radius:25px;font-size:16px;font-weight:bold;">
+              ✅ 點我開通帳號
+            </a>
+          </div>
+          <p style="color:#999;font-size:12px;text-align:center;">連結有效期間為 5 分鐘</p>
+          <hr style="border:none;border-top:1px solid #eee;margin:30px 0;"/>
+          <h2 style="color:#333;">方式二：輸入驗證碼</h2>
+          <p style="color:#666;">在遊戲的驗證頁面輸入以下驗證碼：</p>
+          <div style="background:#f0f0f0;padding:20px;border-radius:8px;text-align:center;margin:20px 0;">
+            <span style="font-size:36px;font-weight:bold;color:#4CAF50;letter-spacing:10px;">{code}</span>
+          </div>
+          <p style="color:#999;font-size:12px;text-align:center;">驗證碼有效期間為 5 分鐘，請盡快輸入</p>
+        </div>
+        <div style="text-align:center;margin-top:20px;">
+          <p style="color:#999;font-size:12px;">
+            此信件為系統自動發送，請勿直接回覆。<br/>
+            如果你沒有申請知識王帳號，請忽略此信件。
+          </p>
         </div>
       </div>
-    </body>
-    </html>"""
+    """
 
 def get_reset_email_template(reset_link):
-    """產生重設密碼信的 HTML 模板（PNG 星空背景）"""
+    """產生重設密碼信的 HTML 模板"""
+    # TODO: 替換 - 等第三組設計好 Email 模板後，替換這裡的 html 內容
     return f"""
-    <!DOCTYPE html>
-    <html lang="zh-TW">
-    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-    <body style="margin:0;padding:0;background:#0a0a1a;font-family:'Helvetica Neue',Arial,sans-serif;">
-      <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-radius:18px;overflow:hidden;">
-          <tr>
-            <td background="https://raw.githubusercontent.com/Raylee1012/King-of-knowledge/main/stars_reset.png" bgcolor="#0a0a1a" style="padding:32px 28px;background-color:#0a0a1a;background-image:url('https://raw.githubusercontent.com/Raylee1012/King-of-knowledge/main/stars_reset.png');background-size:cover;background-repeat:no-repeat;">
-              <div style="text-align:center;padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid rgba(255,215,0,0.2);">
-                <div style="font-size:32px;font-weight:900;letter-spacing:2px;color:#ffd700;">👑 知識王</div>
-                <div style="margin-top:6px;color:#00d4ff;font-size:12px;letter-spacing:5px;font-weight:700;">KNOWLEDGE KING</div>
-              </div>
-              <h2 style="margin:0 0 8px;color:#fff;font-size:18px;font-weight:900;">🔑 重設你的密碼</h2>
-              <p style="margin:0 0 24px;color:#b0b0d0;font-size:14px;line-height:1.7;">收到你的密碼重設請求，點擊下方按鈕更新密碼。連結在 5 分鐘內有效。</p>
-              <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:24px;text-align:center;">
-                <a href="{reset_link}" style="display:inline-block;background:linear-gradient(135deg,#ffd700,#ffaa00);color:#1a0a00;font-size:15px;font-weight:900;padding:13px 34px;border-radius:10px;text-decoration:none;">🔑 點我重設密碼</a>
-              </div>
-            </td>
-          </tr>
-        </table>
-        <div style="text-align:center;margin-top:22px;">
-          <p style="color:#7070a0;font-size:12px;line-height:1.8;margin:0;">此信件為系統自動發送，請勿直接回覆。<br>如果你沒有申請重設密碼，請忽略此信件。</p>
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#f9f9f9;padding:30px;border-radius:10px;">
+        <div style="background:#4CAF50;padding:20px;border-radius:8px;text-align:center;">
+          <h1 style="color:white;margin:0;font-size:28px;">👑 知識王</h1>
+          <p style="color:white;margin:5px 0 0;">重設您的密碼</p>
+        </div>
+        <div style="background:white;padding:30px;border-radius:8px;margin-top:20px;">
+          <h2 style="color:#333;">重設密碼</h2>
+          <p style="color:#666;">點擊下方按鈕重設您的密碼：</p>
+          <div style="text-align:center;margin:20px 0;">
+            <a href="{reset_link}" 
+               style="background:#4CAF50;color:white;padding:14px 40px;text-decoration:none;border-radius:25px;font-size:16px;font-weight:bold;">
+              🔑 點我重設密碼
+            </a>
+          </div>
+          <p style="color:#999;font-size:12px;text-align:center;">連結有效期間為 5 分鐘</p>
+        </div>
+        <div style="text-align:center;margin-top:20px;">
+          <p style="color:#999;font-size:12px;">
+            此信件為系統自動發送，請勿直接回覆。<br/>
+            如果你沒有申請重設密碼，請忽略此信件。
+          </p>
         </div>
       </div>
-    </body>
-    </html>"""
+    """
 
+# 註冊 API
+# 路徑：POST /auth/register
+# 傳入：{ custom_id, email, password }
 @auth_bp.route('/register', methods=['POST'])  # 定義 POST /register 路由
 def register():
     data = request.get_json()  # 取得前端傳來的 JSON 資料
@@ -215,7 +218,7 @@ def register():
     verify_link = f'{os.environ.get("BACKEND_URL")}/auth/verify-link?token={token}'
 
     # 寄驗證信
-    send_email(email, '知識王 - 帳號驗證', get_email_template(verify_link, code))
+    send_email(email, '知識王 帳號驗證', get_email_template(verify_link, code), f'歡迎加入知識王！\n\n請點擊以下連結開通帳號：{verify_link}\n\n或在遊戲頁面輸入驗證碼：{code}\n\n連結 5 分鐘內有效。')
 
     return jsonify({'message': '註冊成功，請查收驗證信'}), 200  # 200 成功
 
@@ -304,7 +307,7 @@ def verify_link():
 
     # 已驗證過，不需要再驗證，直接跳轉登入
     if user_data['is_verified']:
-        return redirect(os.environ.get('FRONTEND_URL', 'http://localhost:5500') + '/index.html')
+        return redirect(f'{os.environ.get("FRONTEND_URL")}/login')  # 跳轉到登入頁面
 
     # 開通帳號並清空 verify_token
     supabase.table('users').update({
@@ -315,7 +318,7 @@ def verify_link():
     # 用 httpx 直接呼叫 Supabase admin API，把 email 標記為已確認
     admin_update_user(user_data['id'], {'email_confirm': True})
 
-    return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/verified')
+    return redirect(f'{os.environ.get("FRONTEND_URL")}/verified')  # 跳轉到驗證成功頁面
 
 # 登入 API
 # 路徑：POST /auth/login
@@ -390,7 +393,7 @@ def forgot_password():
     reset_link = f'{os.environ.get("FRONTEND_URL")}/reset-password?token={reset_token}'
 
     # 寄重設密碼信
-    send_email(email, '知識王 - 重設密碼', get_reset_email_template(reset_link))
+    send_email(email, '知識王 密碼重設', get_reset_email_template(reset_link), f'你已申請重設知識王密碼。\n\n請點擊以下連結操作：{reset_link}\n\n連結 5 分鐘內有效。如非本人操作請忽略此信。')
 
     return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200  # 200 成功
 
