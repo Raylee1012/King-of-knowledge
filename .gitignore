@@ -20,6 +20,7 @@ package-lock.json
 backend/index.js
 backend/auth.js
 backend/user.js
+backend/env
 
 # Windows 系統檔案
 Thumbs.db

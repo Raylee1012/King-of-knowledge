@@ -161,9 +161,17 @@ let battleWs = null;       // 對戰 WebSocket 連線
 let battleStartTime = 0;   // 題目開始時間，用來計算作答秒數
 let currentBattleMode = null;  // 記錄當前對戰模式（'bot', 'queue', 'create_room', 'join_room'）
 let currentRoomId = null;   // 記錄當前房間 ID
+let battleIntentionalClose = false; // 是否為故意關閉連線
+let battleSuppressErrorUntil = 0; // 抑制錯誤提示的時間戳
+
+function suppressBattleError() {
+  battleIntentionalClose = true;
+  battleSuppressErrorUntil = Date.now() + 3000;
+}
 
 function startBattle(mode = 'bot') {
   currentBattleMode = mode;
+  battleIntentionalClose = false;
   
   // 重置對戰資料
   const bd = state.battleData;
@@ -177,6 +185,7 @@ function startBattle(mode = 'bot') {
 
   // 關閉舊的 WebSocket 連線
   if (battleWs) {
+    battleIntentionalClose = true;
     battleWs.close();
     battleWs = null;
   }
@@ -203,17 +212,23 @@ function startBattle(mode = 'bot') {
   };
 
   battleWs.onerror = (err) => {
-    console.error('WebSocket 錯誤:', err);
-    // 延遲 1.5 秒再顯示錯誤，避免連線中就跳出提示
     setTimeout(() => {
-      if (!battleWs || battleWs.readyState !== WebSocket.OPEN) {
+      if (Date.now() < battleSuppressErrorUntil) return;
+      if (!battleIntentionalClose && (!battleWs || battleWs.readyState !== WebSocket.OPEN)) {
+        console.error('WebSocket 錯誤:', err);
         showToast('連線失敗，請確認對戰伺服器是否啟動');
       }
     }, 1500);
   };
 
-  battleWs.onclose = () => {
-    console.log('WebSocket 已關閉');
+  battleWs.onclose = (event) => {
+    console.log('WebSocket 已關閉', event.code, event.reason);
+    if (Date.now() >= battleSuppressErrorUntil) {
+      if (!battleIntentionalClose && event.code !== 1000) {
+        showToast('連線失敗，請確認對戰伺服器是否啟動');
+      }
+    }
+    battleIntentionalClose = false;
   };
 
   showScreen('battleScreen');
@@ -237,9 +252,14 @@ function requestQuitBattle() {
     if (!confirm('你是否確定要退出對戰？')) return;
   }
   if (battleWs && battleWs.readyState === WebSocket.OPEN) {
+    suppressBattleError();
     battleWs.send(JSON.stringify({ type: 'quit_match' }));
     battleWs.close();
     battleWs = null;
+  }
+  if (currentBattleMode === 'bot') {
+    showScreen('battleModeScreen');
+    return;
   }
   endBattle(false);
 }
@@ -409,6 +429,7 @@ function handleBattleMessage(msg) {
   if (msg.type === 'opponent_disconnected') {
     // 對手斷線
     showToast('對手已斷線，本局結束');
+    suppressBattleError();
     endBattle(true);
     return;
   }
@@ -417,6 +438,7 @@ function handleBattleMessage(msg) {
     // 遊戲結束
     const bd = state.battleData;
     const won = msg.winner === bd.playerIndex;
+    suppressBattleError();
     endBattle(won, msg.scores[bd.playerIndex], msg.scores[1 - bd.playerIndex]);
     return;
   }
@@ -524,12 +546,14 @@ async function endBattle(won, playerScore, oppScore) {
 
   // 關閉 WebSocket 連線
   if (battleWs) {
+    suppressBattleError();
     battleWs.close();
     battleWs = null;
   }
 
   const acc = bd.total > 0 ? Math.round(bd.correct / bd.total * 100) : 0;  // 計算準確率
 
+  let xpGain = 0;
   // 呼叫後端更新統計資料
   try {
     const res = await fetch(`${API_BASE}/user/update-stats`, {
@@ -541,7 +565,8 @@ async function endBattle(won, playerScore, oppScore) {
         score: finalPlayerScore,  // 本場得分
         correct: bd.correct,      // 答對題數
         total: bd.total,          // 總題數
-        opp_correct: bd.oppCorrect || 0
+        opp_correct: bd.oppCorrect || 0,
+        mode: currentBattleMode
       })
     });
     const data = await res.json();
@@ -553,6 +578,7 @@ async function endBattle(won, playerScore, oppScore) {
       state.xpMax = data.xp_max;         // 更新 XP 上限
       state.wins = data.wins;            // 更新勝場
       state.losses = data.losses;        // 更新敗場
+      xpGain = data.xp_gain !== undefined ? data.xp_gain : xpGain;
       if (data.leveled_up) showToast('🎉 升級了！Lv.' + data.level);  // 升級提示
       updatePlayerBar();  // 更新玩家列
     }
@@ -561,7 +587,9 @@ async function endBattle(won, playerScore, oppScore) {
   }
 
   // 顯示結果畫面
-  const coinDelta = finalWon ? 100 + 20 * bd.correct : -(50 + 20 * (bd.oppCorrect || 0));
+  const coinDelta = currentBattleMode === 'bot'
+    ? (finalWon ? 100 + 20 * bd.correct : 0)
+    : (finalWon ? 100 + 20 * bd.correct : -(50 + 20 * (bd.oppCorrect || 0)));
   document.getElementById('resultIcon').textContent = finalWon ? '🏆' : '💀';
   document.getElementById('resultTitle').className = 'result-title ' + (finalWon ? 'result-win' : 'result-lose');
   document.getElementById('resultTitle').textContent = finalWon ? '勝利！' : '敗北';
@@ -570,6 +598,7 @@ async function endBattle(won, playerScore, oppScore) {
   document.getElementById('statCorrect').textContent = `${bd.correct}/${bd.total}`;
   document.getElementById('statAccuracy').textContent = acc + '%';
   document.getElementById('statCoinsEarned').textContent = (coinDelta >= 0 ? '+' : '') + coinDelta;
+  document.getElementById('statXpEarned').textContent = (xpGain >= 0 ? '+' : '') + xpGain;
   showScreen('resultScreen');
 }
 
