@@ -101,7 +101,7 @@ function showScreen(id) {
       if(id==='rankScreen') renderRank();
       if(id==='profileScreen') { switchProfileTab('edit'); updateProfileEditUI(); updateStatsDisplay(); }
       if(id==='adminScreen') { switchAdminTab('generate'); initAdminScreen(); }
-      if(id==='registerScreen' && window.initPwdToggle) window.initPwdToggle('regPasswordConfirm');  // 補初始化確認密碼眼睛
+      if(id==='registerScreen') initPwdToggle('regPasswordConfirm');  // 補初始化確認密碼眼睛
     }, 350);  // 等淡出完成後再切換
   } else {
     // 第一次載入沒有 active 頁面
@@ -1263,22 +1263,11 @@ createStars();
     const wrap = pwdEl && pwdEl.closest('.password-wrap');
     const btn = wrap && wrap.querySelector('.toggle-pwd-btn');
     if (!pwdEl || !visEl || !btn) return;
-    if (btn.dataset.pwdBound === '1') return;
+    if (btn.dataset.pwdBound === '1') return;  // 防止重複綁定
     btn.dataset.pwdBound = '1';
     btn.classList.add('active');
-    const show = (e) => {
-      e.preventDefault();
-      visEl.value = pwdEl.value;
-      pwdEl.style.display = 'none';
-      visEl.style.display = '';
-      btn.classList.remove('active');
-    };
-    const hide = () => {
-      pwdEl.value = visEl.value;
-      visEl.style.display = 'none';
-      pwdEl.style.display = '';
-      btn.classList.add('active');
-    };
+    const show = (e) => { e.preventDefault(); visEl.value = pwdEl.value; pwdEl.style.display = 'none'; visEl.style.display = ''; btn.classList.remove('active'); };
+    const hide = () => { if (visEl.style.display !== 'none') pwdEl.value = visEl.value; visEl.style.display = 'none'; pwdEl.style.display = ''; btn.classList.add('active'); };
     btn.addEventListener('mousedown', show);
     btn.addEventListener('mouseup', hide);
     btn.addEventListener('mouseleave', hide);
@@ -1286,7 +1275,7 @@ createStars();
     btn.addEventListener('touchend', hide);
   }
 
-  window.initPwdToggle = initPwdToggle;
+  window.initPwdToggle = initPwdToggle;  // 暴露給 showScreen 呼叫
 
   ['passwordInput', 'regPasswordInput'].forEach(id => {
     const pwdEl = document.getElementById(id);
@@ -1584,19 +1573,6 @@ function getPwdVal(id) {
   const pwd = document.getElementById(id);
   if (vis && vis.style.display !== 'none') return vis.value.trim();
   return pwd ? pwd.value.trim() : '';
-}
-
-function clearPwdField(id) {
-  const vis = document.getElementById(id + 'Visible');
-  const pwd = document.getElementById(id);
-  if (pwd) {
-    pwd.value = '';
-    pwd.style.display = '';
-  }
-  if (vis) {
-    vis.value = '';
-    vis.style.display = 'none';
-  }
 }
 
 function showChangePwdModal() {
