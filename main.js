@@ -102,6 +102,10 @@ function showScreen(id) {
       if(id==='profileScreen') { switchProfileTab('edit'); updateProfileEditUI(); updateStatsDisplay(); }
       if(id==='adminScreen') { switchAdminTab('generate'); initAdminScreen(); }
       if(id==='registerScreen') initPwdToggle('regPasswordConfirm');  // 補初始化確認密碼眼睛
+      if(id==='verifyScreen') {
+        clearVerifyCodeInputs();
+        setTimeout(() => focusVerifyCodeInput(0), 60);
+      }
     }, 350);  // 等淡出完成後再切換
   } else {
     // 第一次載入沒有 active 頁面
@@ -1842,6 +1846,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Enter') handleLogin();
     });
   }
+  initVerifyCodeInputs();
 });
 
 // ─── REGISTER & VERIFY ───────────────────────────────────
@@ -1900,11 +1905,14 @@ async function handleRegister() {
 }
 
 async function handleVerify() {
-  const code = document.getElementById('verifyCodeInput').value.trim(); // 取得驗證碼
+  const inputs = getVerifyCodeInputs();
+  const code = getVerifyCodeValue(); // 取得驗證碼
 
   // 防呆：驗證碼必填
-  if (!code) {
-    showVerifyError('請輸入驗證碼');
+  if (inputs.length !== 6 || code.length !== 6 || inputs.some(input => !input.value.trim())) {
+    showVerifyError('請輸入完整驗證碼');
+    const firstEmptyIndex = inputs.findIndex(input => !input.value.trim());
+    focusVerifyCodeInput(firstEmptyIndex >= 0 ? firstEmptyIndex : 0);
     return;
   }
 
@@ -1952,7 +1960,7 @@ async function handleVerify() {
     pendingVerifyNickname = '';
     pendingVerifyPassword = '';
     pendingVerifyId = '';
-    document.getElementById('verifyCodeInput').value = '';
+    clearVerifyCodeInputs();
     document.getElementById('regIdInput').value = '';
     document.getElementById('regNicknameInput').value = '';
     document.getElementById('regEmailInput').value = '';
@@ -1984,6 +1992,103 @@ function showVerifyError(msg) {
     errEl.textContent = msg;
     errEl.style.display = 'block';
   }
+}
+
+function getVerifyCodeInputs() {
+  return Array.from(document.querySelectorAll('.verify-code-input'));
+}
+
+function getVerifyCodeValue() {
+  return getVerifyCodeInputs().map(input => input.value.trim()).join('');
+}
+
+function clearVerifyCodeInputs() {
+  getVerifyCodeInputs().forEach(input => {
+    input.value = '';
+  });
+}
+
+function focusVerifyCodeInput(index = 0) {
+  const inputs = getVerifyCodeInputs();
+  const target = inputs[index];
+  if (target) {
+    target.focus();
+    if (typeof target.select === 'function') target.select();
+  }
+}
+
+function initVerifyCodeInputs() {
+  const inputs = getVerifyCodeInputs();
+  if (!inputs.length || window.__verifyCodeInputsReady) return;
+  window.__verifyCodeInputsReady = true;
+
+  const fillFromText = (startIndex, text) => {
+    const digits = text.replace(/\D/g, '').split('').slice(0, inputs.length - startIndex);
+    digits.forEach((digit, offset) => {
+      const target = inputs[startIndex + offset];
+      if (target) target.value = digit;
+    });
+    const nextIndex = startIndex + digits.length;
+    if (nextIndex < inputs.length) {
+      focusVerifyCodeInput(nextIndex);
+    } else if (inputs.length) {
+      inputs[inputs.length - 1].blur();
+    }
+  };
+
+  inputs.forEach((input, index) => {
+    input.addEventListener('input', (event) => {
+      const raw = event.target.value;
+      if (!raw) return;
+
+      const sanitized = raw.replace(/\D/g, '');
+      if (sanitized !== raw) {
+        event.target.value = sanitized;
+      }
+
+      if (event.target.value.length > 1) {
+        event.target.value = '';
+        fillFromText(index, raw);
+        return;
+      }
+
+      if (event.target.value && index < inputs.length - 1) {
+        focusVerifyCodeInput(index + 1);
+      }
+    });
+
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Backspace' && !input.value && index > 0) {
+        event.preventDefault();
+        inputs[index - 1].value = '';
+        focusVerifyCodeInput(index - 1);
+        return;
+      }
+
+      if (event.key === 'ArrowLeft' && index > 0) {
+        event.preventDefault();
+        focusVerifyCodeInput(index - 1);
+        return;
+      }
+
+      if (event.key === 'ArrowRight' && index < inputs.length - 1) {
+        event.preventDefault();
+        focusVerifyCodeInput(index + 1);
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        handleVerify();
+      }
+    });
+
+    input.addEventListener('paste', (event) => {
+      event.preventDefault();
+      const pastedText = (event.clipboardData || window.clipboardData).getData('text');
+      if (pastedText) fillFromText(index, pastedText);
+    });
+  });
 }
 
 // ─── 題庫管理（管理員專用）────────────────────────────────
