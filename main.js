@@ -1235,6 +1235,16 @@ function buyItem(tab, id) {
   showToast(`🎉 購買成功！請到「個人設定」裝備`);
 }
 
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('closing');
+  setTimeout(() => {
+    el.classList.remove('closing');
+    el.style.display = 'none';
+  }, 260);
+}
+
 function showToast(msg) {
   document.querySelectorAll('.toast').forEach(t=>t.remove());
   const t = document.createElement('div');
@@ -1677,7 +1687,7 @@ async function handleChangePassword() {
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || '更換失敗'; errEl.style.display = 'block'; return; }
-    document.getElementById('changePwdModal').style.display = 'none';
+    closeModal('changePwdModal');
     showToast('✅ 密碼已更換成功');
   } catch (err) {
     errEl.textContent = '無法連線到伺服器';
@@ -1722,7 +1732,7 @@ async function handleDeleteAccount() {
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || '刪除失敗'; errEl.style.display = 'block'; return; }
-    document.getElementById('deleteAccountModal').style.display = 'none';
+    closeModal('deleteAccountModal');
     state.userId = null;
     showToast('帳號已刪除');
     setTimeout(() => showScreen('loginScreen'), 1500);

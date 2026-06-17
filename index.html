@@ -821,58 +821,78 @@
 
 
 <!-- 更換密碼 Modal -->
-<div id="changePwdModal" class="admin-modal-overlay" style="display:none">
-  <div class="card admin-modal-card">
-    <div class="card-section-title">🔄 更換密碼</div>
-    <div class="auth-field">
-      <label class="auth-label">目前密碼</label>
-      <div class="password-wrap">
-        <input type="password" id="changePwdOld" class="auth-input" placeholder="請輸入目前密碼" autocomplete="off" aria-label="目前密碼">
-        <input type="text" id="changePwdOldVisible" class="auth-input" placeholder="請輸入目前密碼" autocomplete="off" readonly style="display:none" aria-label="目前密碼（顯示）">
-        <button type="button" class="toggle-pwd-btn active">👁</button>
-      </div>
+<div id="changePwdModal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header modal-header-gold">
+      <button class="modal-close-btn" onclick="closeModal('changePwdModal')">✕</button>
+      <div class="modal-header-icon">🔐</div>
+      <div class="modal-header-title">更換密碼</div>
+      <div class="modal-header-sub">請填寫以下欄位以完成密碼更換</div>
     </div>
-    <div class="auth-field">
-      <label class="auth-label">新密碼（至少 6 位）</label>
-      <div class="password-wrap">
-        <input type="password" id="changePwdNew" class="auth-input" placeholder="請輸入新密碼" autocomplete="off">
-        <input type="text" id="changePwdNewVisible" class="auth-input" placeholder="請輸入新密碼" autocomplete="off" readonly style="display:none">
-        <button type="button" class="toggle-pwd-btn active">👁</button>
+    <div class="modal-body">
+      <div class="auth-field">
+        <label class="auth-label">目前密碼</label>
+        <div class="password-wrap">
+          <input type="password" id="changePwdOld" class="auth-input" placeholder="請輸入目前密碼" autocomplete="off" aria-label="目前密碼">
+          <input type="text" id="changePwdOldVisible" class="auth-input" placeholder="請輸入目前密碼" autocomplete="off" readonly style="display:none" aria-label="目前密碼（顯示）">
+          <button type="button" class="toggle-pwd-btn active">👁</button>
+        </div>
       </div>
-    </div>
-    <div class="auth-field">
-      <label class="auth-label">確認新密碼</label>
-      <div class="password-wrap">
-        <input type="password" id="changePwdConfirm" class="auth-input" placeholder="請再輸入一次新密碼" autocomplete="off">
-        <input type="text" id="changePwdConfirmVisible" class="auth-input" placeholder="請再輸入一次新密碼" autocomplete="off" readonly style="display:none">
-        <button type="button" class="toggle-pwd-btn active">👁</button>
+      <div class="auth-field">
+        <label class="auth-label">新密碼（至少 6 位）</label>
+        <div class="password-wrap">
+          <input type="password" id="changePwdNew" class="auth-input" placeholder="請輸入新密碼" autocomplete="off">
+          <input type="text" id="changePwdNewVisible" class="auth-input" placeholder="請輸入新密碼" autocomplete="off" readonly style="display:none">
+          <button type="button" class="toggle-pwd-btn active">👁</button>
+        </div>
       </div>
+      <div class="auth-field">
+        <label class="auth-label">確認新密碼</label>
+        <div class="password-wrap">
+          <input type="password" id="changePwdConfirm" class="auth-input" placeholder="請再輸入一次新密碼" autocomplete="off">
+          <input type="text" id="changePwdConfirmVisible" class="auth-input" placeholder="請再輸入一次新密碼" autocomplete="off" readonly style="display:none">
+          <button type="button" class="toggle-pwd-btn active">👁</button>
+        </div>
+      </div>
+      <div id="changePwdError" class="auth-error"></div>
     </div>
-    <div id="changePwdError" class="auth-error"></div>
-    <div class="admin-modal-actions">
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-flex" onclick="closeModal('changePwdModal')">取消</button>
       <button class="btn btn-gold btn-flex" onclick="handleChangePassword()">✅ 確認更換</button>
-      <button class="btn btn-outline btn-flex" onclick="document.getElementById('changePwdModal').style.display='none'">✕ 取消</button>
     </div>
   </div>
 </div>
 
 <!-- 刪除帳號 Modal -->
-<div id="deleteAccountModal" class="admin-modal-overlay" style="display:none">
-  <div class="card admin-modal-card">
-    <div class="card-section-title card-section-title-danger">🗑️ 刪除帳號</div>
-    <p class="delete-account-desc">刪除後無法復原，所有資料將永久消失。</p>
-    <div class="auth-field">
-      <label class="auth-label">輸入密碼確認</label>
-      <div class="password-wrap">
-        <input type="password" id="deleteAccountPwd" class="auth-input" placeholder="請輸入密碼" autocomplete="off">
-        <input type="text" id="deleteAccountPwdVisible" class="auth-input" placeholder="請輸入密碼" autocomplete="off" readonly style="display:none">
-        <button type="button" class="toggle-pwd-btn active">👁</button>
-      </div>
+<div id="deleteAccountModal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header modal-header-danger">
+      <button class="modal-close-btn" onclick="closeModal('deleteAccountModal')">✕</button>
+      <div class="modal-header-icon">⚠️</div>
+      <div class="modal-header-title">刪除帳號</div>
+      <div class="modal-header-sub">此操作無法復原，請謹慎確認</div>
     </div>
-    <div id="deleteAccountError" class="auth-error"></div>
-    <div class="admin-modal-actions">
+    <div class="modal-body">
+      <div class="delete-warning-box">
+        <div class="delete-warning-list">
+          <div class="delete-warning-item">💀 帳號及所有資料將永久刪除</div>
+          <div class="delete-warning-item">🪙 金幣與裝備無法找回</div>
+          <div class="delete-warning-item">📊 戰績紀錄將全數清除</div>
+        </div>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">輸入密碼確認身份</label>
+        <div class="password-wrap">
+          <input type="password" id="deleteAccountPwd" class="auth-input" placeholder="請輸入密碼" autocomplete="off">
+          <input type="text" id="deleteAccountPwdVisible" class="auth-input" placeholder="請輸入密碼" autocomplete="off" readonly style="display:none">
+          <button type="button" class="toggle-pwd-btn active">👁</button>
+        </div>
+      </div>
+      <div id="deleteAccountError" class="auth-error"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-flex" onclick="closeModal('deleteAccountModal')">取消</button>
       <button class="btn btn-danger btn-flex" onclick="handleDeleteAccount()">🗑️ 確認刪除</button>
-      <button class="btn btn-outline btn-flex" onclick="document.getElementById('deleteAccountModal').style.display='none'">✕ 取消</button>
     </div>
   </div>
 </div>
