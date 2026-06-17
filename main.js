@@ -1940,7 +1940,7 @@ async function handleRegister() {
     const res = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ custom_id, email, password })
+      body: JSON.stringify({ custom_id, nickname, email, password })
     });
 
     const data = await res.json();

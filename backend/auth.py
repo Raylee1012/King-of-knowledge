@@ -166,10 +166,11 @@ def get_reset_email_template(reset_link):
 def register():
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     custom_id = data.get('custom_id')  # 取出 custom_id 欄位
+    nickname = data.get('nickname')    # 取出 nickname 欄位
     email = data.get('email')          # 取出 email 欄位
     password = data.get('password')    # 取出 password 欄位
 
-    if not custom_id or not email or not password:
+    if not custom_id or not nickname or not email or not password:
         return jsonify({'error': '請填寫所有欄位'}), 400
 
     email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
@@ -196,14 +197,19 @@ def register():
     raw_token = secrets.token_hex(32)
     token = f'{raw_token}.{expire_at}'
 
-    supabase.table('users').insert({
-        'id': user_id,
-        'custom_id': custom_id,
-        'email': email,
-        'is_verified': False,
-        'verify_token': token,
-        'coins': 500
-    }).execute()
+    try:
+        supabase.table('users').insert({
+            'id': user_id,
+            'custom_id': custom_id,
+            'nickname': nickname,
+            'email': email,
+            'is_verified': False,
+            'verify_token': token,
+            'coins': 500
+        }).execute()
+    except Exception:
+        admin_delete_user(user_id)
+        return jsonify({'error': '帳號 ID 已存在，請換一個'}), 400
 
     code = random.randint(100000, 999999)
     verification_codes[email] = {
