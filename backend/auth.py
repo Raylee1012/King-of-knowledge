@@ -73,7 +73,7 @@ def send_email(to_email, subject, html_content, plain_text=None):
     msg['Message-ID'] = f'<{uuid.uuid4()}@kingofknowledge>'  # 唯一訊息 ID，降低垃圾信機率
 
     # 純文字版本（垃圾信過濾器偏好有純文字版本的信件）
-    text = plain_text or '請使用支援 HTML 的郵件客戶端查看此信件。'
+    text = plain_text or '請使用支援圖文格式的郵件客戶端查看此信件。'
     msg.attach(MIMEText(text, 'plain', 'utf-8'))  # 先附加純文字版本
     part = MIMEText(html_content, 'html', 'utf-8')  # 建立 HTML 格式的信件內容
     msg.attach(part)  # 把 HTML 內容附加到信件
@@ -213,12 +213,18 @@ def register():
 
     verify_link = f'{os.environ.get("BACKEND_URL")}/auth/verify-link?token={token}'
 
-    send_email(
-        email,
-        '知識王 帳號驗證',
-        get_email_template(verify_link, code),
-        '歡迎加入知識王！請查看 HTML 版本完成帳號驗證。驗證碼：' + str(code)
-    )
+    try:
+        send_email(
+            email,
+            '知識王 帳號驗證',
+            get_email_template(verify_link, code),
+            '歡迎加入知識王！你的驗證碼是：' + str(code) + '，請在 5 分鐘內完成驗證。'
+        )
+    except Exception:
+        delete_unverified_account(email)
+        if email in verification_codes:
+            del verification_codes[email]
+        return jsonify({'error': '驗證信寄送失敗'}), 400
 
     return jsonify({'message': '註冊成功，請查收驗證信'}), 200
 
@@ -245,21 +251,29 @@ def verify():
     if str(record['code']) != str(code):
         return jsonify({'error': '驗證碼錯誤'}), 400
 
-    supabase.table('users').update({
-        'is_verified': True,
-        'verify_token': None
-    }).eq('email', email).execute()
-
-    user_response = supabase.table('users').select('id').eq('email', email).single().execute()
+    user_response = supabase.table('users').select('id, is_verified').eq('email', email).single().execute()
     user_id = user_response.data['id']
-
-    admin_update_user(user_id, {'email_confirm': True})
+    already_verified = user_response.data['is_verified']
 
     del verification_codes[email]
 
+    if already_verified:
+        return jsonify({
+            'message': '帳號已驗證過',
+            'already_verified': True,
+            'user_id': user_id
+        }), 200
+
+    supabase.table('users').update({
+        'is_verified': True
+    }).eq('email', email).execute()
+
+    admin_update_user(user_id, {'email_confirm': True})
+
     return jsonify({
         'message': '驗證成功，帳號已開通',
-        'redirect': f'{os.environ.get("FRONTEND_URL")}/verified'
+        'already_verified': False,
+        'user_id': user_id
     }), 200
 
 
@@ -276,21 +290,23 @@ def verify_link():
 
     raw_token, expire_at = parts
 
-    if int(time.time() * 1000) > int(expire_at):
-        user_response = supabase.table('users').select('email').eq('verify_token', token).execute()
-        if user_response.data:
-            delete_unverified_account(user_response.data[0]['email'])
-        return jsonify({'error': '驗證連結已過期，請重新註冊'}), 400
-
+    # 先查使用者（不論是否過期），讓後續邏輯可以判斷 is_verified
     user_response = supabase.table('users').select('id, email, is_verified').eq('verify_token', token).execute()
+    user_data = user_response.data[0] if user_response.data else None
 
-    if not user_response.data:
+    # 已驗證過：不管連結有沒有過期，都直接導向「已驗證」頁
+    if user_data and user_data['is_verified']:
+        return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/already-verified')
+
+    # 連結過期：只在帳號尚未驗證時才刪除
+    if int(time.time() * 1000) > int(expire_at):
+        if user_data:
+            delete_unverified_account(user_data['email'])
+        return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/verify-expired')
+
+    # 找不到對應帳號
+    if not user_data:
         return jsonify({'error': '驗證連結無效'}), 400
-
-    user_data = user_response.data[0]
-
-    if user_data['is_verified']:
-        return redirect(os.environ.get('FRONTEND_URL', 'http://localhost:5500') + '/index.html')  # 跳轉到前端登入頁面
 
     supabase.table('users').update({
         'is_verified': True,
@@ -339,10 +355,19 @@ def login():
 @auth_bp.route('/forgot-password', methods=['POST'])
 def forgot_password():
     data = request.get_json()
-    email = data.get('email')
+    identifier = data.get('identifier')
 
-    if not email:
-        return jsonify({'error': '請填寫 Email'}), 400
+    if not identifier:
+        return jsonify({'error': '請填寫帳號或信箱'}), 400
+
+    # 判斷是 custom_id 還是 email
+    if '@' not in identifier:
+        id_res = supabase.table('users').select('email').eq('custom_id', identifier).execute()
+        if not id_res.data:
+            return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200
+        email = id_res.data[0]['email']
+    else:
+        email = identifier
 
     user_response = supabase.table('users').select('id, email').eq('email', email).execute()
 

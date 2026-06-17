@@ -87,6 +87,23 @@ function showScreen(id) {
   const current = document.querySelector('.screen.active');
   if (current) {
     current.classList.remove('visible');  // 淡出目前頁面
+    if (current.id === 'registerScreen') {
+      ['regIdInput', 'regNicknameInput', 'regEmailInput',
+       'regPasswordInput', 'regPasswordInputVisible',
+       'regPasswordConfirm', 'regPasswordConfirmVisible'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      const errEl = document.getElementById('registerError');
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+    }
+    if (current.id === 'forgotScreen') {
+      document.getElementById('forgotEmailInput').value = '';
+      const errEl = document.getElementById('forgotError');
+      const sucEl = document.getElementById('forgotSuccess');
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+      if (sucEl) { sucEl.textContent = ''; sucEl.style.display = 'none'; }
+    }
     setTimeout(() => {
       document.querySelectorAll('.screen').forEach(s => {
         s.classList.remove('active');
@@ -101,7 +118,14 @@ function showScreen(id) {
       if(id==='rankScreen') renderRank();
       if(id==='profileScreen') { switchProfileTab('edit'); updateProfileEditUI(); updateStatsDisplay(); }
       if(id==='adminScreen') { switchAdminTab('generate'); initAdminScreen(); }
-      if(id==='registerScreen') initPwdToggle('regPasswordConfirm');  // 補初始化確認密碼眼睛
+      if(id==='registerScreen') initPwdToggle('regPasswordConfirm');
+      if(id==='forgotScreen') {
+        document.getElementById('forgotEmailInput').value = '';
+        const fe = document.getElementById('forgotError');
+        const fs = document.getElementById('forgotSuccess');
+        if (fe) { fe.textContent = ''; fe.style.display = 'none'; }
+        if (fs) { fs.textContent = ''; fs.style.display = 'none'; }
+      }
       if(id==='verifyScreen') {
         clearVerifyCodeInputs();
         setTimeout(() => focusVerifyCodeInput(0), 60);
@@ -1721,19 +1745,19 @@ function logout() {
 // ─── LOGIN ───────────────────────────────────────────────
 // 忘記密碼：寄送重設連結
 async function handleForgotPassword() {
-  const email = document.getElementById('forgotEmailInput').value.trim();
+  const identifier = document.getElementById('forgotEmailInput').value.trim();
   const errEl = document.getElementById('forgotError');
   const sucEl = document.getElementById('forgotSuccess');
   errEl.style.display = 'none';
   sucEl.style.display = 'none';
 
-  if (!email) { errEl.textContent = '請輸入信箱'; errEl.style.display = 'block'; return; }
+  if (!identifier) { errEl.textContent = '請輸入帳號或信箱'; errEl.style.display = 'block'; return; }
 
   try {
     const res = await fetch(`${API_BASE}/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ identifier })
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || '寄送失敗，請再試一次'; errEl.style.display = 'block'; return; }
@@ -1961,43 +1985,15 @@ async function handleVerify() {
     const data = await res.json();
 
     if (!res.ok) {
-      // 驗證失敗，顯示錯誤訊息
-      showVerifyError(data.error || '驗證失敗，請再試一次');
+      if (data.error && data.error.includes('過期')) {
+        showVerifiedScreen('expired');
+      } else {
+        showVerifyError(data.error || '驗證失敗，請再試一次');
+      }
       return;
     }
 
-    // 驗證成功，自動登入拿到 user_id
-    const loginRes = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier: pendingVerifyId, password: pendingVerifyPassword })
-    });
-
-    const loginData = await loginRes.json();
-
-    if (loginRes.ok && loginData.user) {
-      // 自動登入成功，設定暱稱
-      await fetch(`${API_BASE}/user/nickname`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: loginData.user.id, new_nickname: pendingVerifyNickname })
-      });
-    }
-
-    // 清空暫存資料和輸入欄位
-    pendingVerifyEmail = '';
-    pendingVerifyNickname = '';
-    pendingVerifyPassword = '';
-    pendingVerifyId = '';
-    clearVerifyCodeInputs();
-    document.getElementById('regIdInput').value = '';
-    document.getElementById('regNicknameInput').value = '';
-    document.getElementById('regEmailInput').value = '';
-    clearPwdField('regPasswordInput');
-    clearPwdField('regPasswordConfirm');
-
-    showToast('✅ 帳號開通成功！請登入');
-    showScreen('loginScreen');
+    showVerifiedScreen(data.already_verified ? 'already' : 'success');
 
   } catch (err) {
     showVerifyError('無法連線到伺服器，請確認後端是否已啟動');
@@ -2005,6 +2001,67 @@ async function handleVerify() {
     btn.textContent = '確認驗證';
     btn.disabled = false;
   }
+}
+
+let verifiedCountdownTimer = null;
+
+function showVerifiedScreen(type) {
+  const iconEl  = document.querySelector('#verifiedScreen .verified-icon');
+  const titleEl = document.querySelector('#verifiedScreen .verified-title');
+  const descEl  = document.querySelector('#verifiedScreen .verified-desc');
+  const barEl   = document.querySelector('#verifiedScreen .verified-progress-bar');
+  const btnEl   = document.querySelector('#verifiedScreen .btn-gold');
+
+  if (type === 'already') {
+    if (iconEl)  iconEl.textContent = '✅';
+    if (titleEl) titleEl.textContent = '你已經開通過囉！';
+    if (descEl)  descEl.innerHTML = '此帳號已完成驗證<br>即將跳轉到登入頁面';
+    if (barEl)   { barEl.style.background = 'linear-gradient(90deg,#ffd700,#ff6b35)'; }
+    if (btnEl)   btnEl.textContent = '立即前往登入';
+  } else if (type === 'expired') {
+    if (iconEl)  iconEl.textContent = '⏰';
+    if (titleEl) titleEl.textContent = '驗證碼過期啦！';
+    if (descEl)  descEl.innerHTML = '這組驗證碼已經失效了<br>請重新註冊再試一次';
+    if (barEl)   { barEl.style.background = 'linear-gradient(90deg,#ff6b6b,#ff9a3c)'; }
+    if (btnEl)   btnEl.textContent = '立即前往註冊';
+  } else {
+    if (iconEl)  iconEl.textContent = '🎉';
+    if (titleEl) titleEl.textContent = '帳號開通成功囉！';
+    if (descEl)  descEl.innerHTML = '歡迎加入知識王戰場<br>即將跳轉到登入頁面';
+    if (barEl)   { barEl.style.background = 'linear-gradient(90deg,#ffd700,#ff6b35)'; }
+    if (btnEl)   btnEl.textContent = '立即前往登入';
+  }
+  showScreen('verifiedScreen');
+  startVerifiedCountdown(type === 'expired' ? 'registerScreen' : 'loginScreen');
+}
+
+let verifiedCountdownTarget = 'loginScreen';
+
+function startVerifiedCountdown(target = 'loginScreen') {
+  verifiedCountdownTarget = target;
+  if (verifiedCountdownTimer) clearInterval(verifiedCountdownTimer);
+  let sec = 5;
+  const countdownEl = document.getElementById('verifiedCountdown');
+  const barEl = document.getElementById('verifiedProgressBar');
+  if (barEl) {
+    barEl.classList.remove('running');
+    void barEl.offsetWidth;
+    barEl.classList.add('running');
+  }
+  if (countdownEl) countdownEl.textContent = `${sec} 秒後自動跳轉...`;
+  verifiedCountdownTimer = setInterval(() => {
+    sec--;
+    if (countdownEl) countdownEl.textContent = `${sec} 秒後自動跳轉...`;
+    if (sec <= 0) {
+      clearInterval(verifiedCountdownTimer);
+      goToLogin();
+    }
+  }, 1000);
+}
+
+function goToLogin() {
+  if (verifiedCountdownTimer) { clearInterval(verifiedCountdownTimer); verifiedCountdownTimer = null; }
+  showScreen(verifiedCountdownTarget);
 }
 
 function showRegisterError(msg) {
