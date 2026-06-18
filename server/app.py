@@ -6,6 +6,7 @@ import string  # 用於定義隨機字符集
 import sys  # 用於修改 Python 路徑
 from dotenv import load_dotenv  # 用於載入 .env 環境變數
 from flask import Flask, jsonify  # Flask 網頁框架和 JSON 響應
+from flask_cors import CORS  # CORS 支援
 from flask_sock import Sock  # WebSocket 支援
 
 BASE_DIR = os.path.dirname(__file__)  # 取得當前文件目錄
@@ -21,6 +22,16 @@ from match_manager import MatchManager  # 導入配對管理器
 PORT = int(os.getenv('PORT', 4000))  # 從環境變數取得埠號，預設 4000
 
 app = Flask(__name__, static_folder='../client', static_url_path='')  # 建立 Flask 應用，靜態文件位置為 client 資料夾
+
+# 配置 CORS
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:3000", "http://localhost"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"],
+    }
+})
+
 sock = Sock(app)  # 為 Flask 應用添加 WebSocket 支援
 
 match_manager = MatchManager()  # 建立配對管理器實例

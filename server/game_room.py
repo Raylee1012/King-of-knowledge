@@ -23,6 +23,8 @@ class GameRoom:  # 遊戲房間類別
         self.current_q = 0  # 當前題目索引
         self.question_timer = None  # 題目計時器
         self.ended = False  # 遊戲是否已結束
+        # 初始化題目分類統計，格式：{ 'category': { 'correct': 0, 'wrong': 0 } }
+        self.topic_stats = [{}, {}]  # 兩位玩家各自的題目分類統計
 
     def start(self):  # 啟動遊戲函式
         for i, p in enumerate(self.players):  # 遍歷兩位玩家
@@ -151,6 +153,7 @@ class GameRoom:  # 遊戲房間類別
         if self.ended:  # 若遊戲已結束
             return  # 函式結束
         q = self.questions[self.current_q]  # 取得當前題目
+        category = q.get('category', '一般')  # 取得題目分類
         results = []  # 儲存結算結果
         for i in range(2):  # 遍歷兩位玩家
             ans = self.answers[i]  # 取得玩家的答案
@@ -159,6 +162,15 @@ class GameRoom:  # 遊戲房間類別
             correct = answer_idx == q['ans']  # 判斷答案是否正確
             gained = self.calc_score(used_sec) if correct else 0  # 計算得分，錯誤則為 0
             self.scores[i] += gained  # 累加玩家分數
+            
+            # 更新題目分類統計
+            if category not in self.topic_stats[i]:
+                self.topic_stats[i][category] = {'correct': 0, 'wrong': 0}
+            if correct:
+                self.topic_stats[i][category]['correct'] += 1
+            else:
+                self.topic_stats[i][category]['wrong'] += 1
+            
             results.append({  # 添加結果到列表
                 'playerIndex': i,  # 玩家索引
                 'answerIdx': answer_idx,  # 玩家答案
@@ -201,6 +213,7 @@ class GameRoom:  # 遊戲房間類別
             'scores': list(self.scores),  # 最終分數
             'winner': winner,  # 勝者（0、1 或 None）
             'playerNames': [p.player_name for p in self.players],  # 玩家名稱
+            'topicStats': self.topic_stats,  # 題目分類統計（兩位玩家的統計）
         })
         self.on_end()  # 呼叫遊戲結束回調函式
         print(f"[GameRoom {self.room_id}] 結束. 分數: {self.scores[0]} vs {self.scores[1]}")  # 列印遊戲結束訊息

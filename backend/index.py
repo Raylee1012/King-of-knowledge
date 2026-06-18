@@ -9,7 +9,16 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)
 app = Flask(__name__)  # 建立 Flask 伺服器實體，__name__ 是目前模組的名稱
 app.config['JSON_AS_ASCII'] = False  # 讓 JSON 回傳時不轉義中文字元，保持原本的中文
 app.json.ensure_ascii = False  # 新版 Flask 需要這行才能正確顯示中文
-CORS(app)  # 允許所有來源的跨域請求
+
+# 配置 CORS：允許來自前端的跨域請求
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:3000", "http://localhost"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
 from auth import auth_bp  # 從 auth.py 載入 auth_bp 藍圖（Blueprint）
 app.register_blueprint(auth_bp, url_prefix='/auth')  # 把 auth_bp 掛載到 /auth 路徑，所有 auth.py 的路由前面都會加上 /auth

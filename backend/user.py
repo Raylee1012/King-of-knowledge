@@ -40,7 +40,7 @@ def admin_delete_user(user_id):
 def get_profile(user_id):
     # 查詢玩家資料
     user_response = supabase.table('users').select(
-        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect'
+        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect, topic_stats'
     ).eq('id', user_id).execute()  # 條件：找這個 id 的玩家
 
     # 找不到玩家
@@ -81,9 +81,8 @@ def get_profile(user_id):
         'owned_frames': user_data.get('owned_frames') or ['frame-none'],   # 已擁有的頭像框
         'owned_tags': user_data.get('owned_tags') or ['tag-rookie'],       # 已擁有的稱號
         'owned_effects': user_data.get('owned_effects') or [],             # 已擁有的特效
-        'active_effect': user_data.get('active_effect'),                      # 目前裝備的特效
-        'topic_stats': user_data.get('topic_stats') or {},                     # 主題統計
-        'active_effect': user_data.get('active_effect'),                      # 目前裝備的特效
+        'active_effect': user_data.get('active_effect'),                   # 目前裝備的特效
+        'topic_stats': user_data.get('topic_stats') or {},                 # 主題統計
     }), 200  # 200 成功
 
 # 修改暱稱 API
@@ -259,92 +258,167 @@ def buy_item():
 # 傳入：{ user_id, won, score, correct, total, opp_correct }
 @user_bp.route('/update-stats', methods=['POST'])
 def update_stats():
-    data = request.get_json()  # 取得前端傳來的 JSON 資料
-    user_id = data.get('user_id')  # 取出 user_id 欄位
-    won = data.get('won') is True  # 取出勝負
-    score = int(data.get('score', 0))  # 本場得分
-    correct = int(data.get('correct', 0))  # 本場答對題數
-    total = int(data.get('total', 0))  # 本場答題數
-    opp_correct = int(data.get('opp_correct', 0))  # 對手答對題數
+    try:
+        data = request.get_json()  # 取得前端傳來的 JSON 資料
+        if not data:
+            print("[update_stats] 錯誤：無法解析 JSON")
+            return jsonify({'error': '無效的 JSON 數據'}), 400
+        
+        user_id = data.get('user_id')  # 取出 user_id 欄位
+        won = data.get('won') is True  # 取出勝負
+        score = int(data.get('score', 0))  # 本場得分
+        correct = int(data.get('correct', 0))  # 本場答對題數
+        total = int(data.get('total', 0))  # 本場答題數
+        opp_correct = int(data.get('opp_correct', 0))  # 對手答對題數
 
-    # 防呆：必要欄位都必填
-    if not user_id:
-        return jsonify({'error': '缺少 user_id'}), 400
+        # 防呆：必要欄位都必填
+        if not user_id:
+            print("[update_stats] 錯誤：缺少 user_id")
+            return jsonify({'error': '缺少 user_id'}), 400
 
-    # 查詢玩家目前資料
-    user_response = supabase.table('users').select(
-        'coins, xp, xp_max, level, wins, losses, total_answered, avg_accuracy, total_score'
-    ).eq('id', user_id).execute()
+        print(f"[update_stats] 開始處理: user_id={user_id}, won={won}, correct={correct}, total={total}")
 
-    if not user_response.data:
-        return jsonify({'error': '找不到使用者'}), 400
+        # 查詢玩家目前資料
+        user_response = supabase.table('users').select(
+            'coins, xp, xp_max, level, wins, losses, total_answered, avg_accuracy, total_score, topic_stats'
+        ).eq('id', user_id).execute()
 
-    user_data = user_response.data[0]
-    coins = int(user_data.get('coins', 0) or 0)
-    xp = int(user_data.get('xp', 0) or 0)
-    xp_max = int(user_data.get('xp_max', 1000) or 1000)
-    level = int(user_data.get('level', 1) or 1)
-    wins = int(user_data.get('wins', 0) or 0)
-    losses = int(user_data.get('losses', 0) or 0)
-    total_answered = int(user_data.get('total_answered', 0) or 0)
-    avg_accuracy = float(user_data.get('avg_accuracy', 0) or 0)
-    total_score = int(user_data.get('total_score', 0) or 0)
+        if not user_response.data:
+            print(f"[update_stats] 錯誤：找不到 user_id={user_id} 的使用者")
+            return jsonify({'error': '找不到使用者'}), 400
 
-    mode = str(data.get('mode') or '').lower()
+        user_data = user_response.data[0]
+        coins = int(user_data.get('coins', 0) or 0)
+        xp = int(user_data.get('xp', 0) or 0)
+        xp_max = int(user_data.get('xp_max', 1000) or 1000)
+        level = int(user_data.get('level', 1) or 1)
+        wins = int(user_data.get('wins', 0) or 0)
+        losses = int(user_data.get('losses', 0) or 0)
+        total_answered = int(user_data.get('total_answered', 0) or 0)
+        avg_accuracy = float(user_data.get('avg_accuracy', 0) or 0)
+        total_score = int(user_data.get('total_score', 0) or 0)
 
-    if won:
-        coin_delta = 100 + 20 * correct
-        xp_gain = 20 + (3 * correct if mode == 'bot' else 5 * correct)
-        wins += 1
-    else:
-        coin_delta = 0 if mode == 'bot' else -(50 + 20 * opp_correct)
-        xp_gain = correct if mode == 'bot' else 3 * correct
-        losses += 1
+        mode = str(data.get('mode') or '').lower()
+        
+        # 初始化 xp_gain 為 0（備用值）
+        xp_gain = 0
+        coin_delta = 0
 
-    coins = max(0, coins + coin_delta)
-    xp += xp_gain
-    leveled_up = False
-    while xp >= xp_max:
-        xp -= xp_max
-        level += 1
-        xp_max += 500
-        leveled_up = True
+        # 判斷是否為房號配對模式（不計錢但計 XP）
+        is_room_match = mode in ['create_room', 'join_room']
 
-    new_total_answered = total_answered + total
-    if new_total_answered > 0:
-        accuracy = round((avg_accuracy * total_answered + (100.0 * correct)) / new_total_answered, 2)
-    else:
-        accuracy = 0
-    total_score += score
+        print(f"[update_stats] mode={mode}, won={won}, correct={correct}, total={total}, is_room_match={is_room_match}")
 
-    update_data = {
-        'coins': coins,
-        'xp': xp,
-        'xp_max': xp_max,
-        'level': level,
-        'wins': wins,
-        'losses': losses,
-        'total_answered': new_total_answered,
-        'avg_accuracy': accuracy,
-        'total_score': total_score
-    }
-    supabase.table('users').update(update_data).eq('id', user_id).execute()
+        if won:
+            # 房號配對不給錢，其他模式按原邏輯計算
+            if is_room_match:
+                coin_delta = 0  # 房號配對不計金幣
+            else:
+                coin_delta = 100 + 20 * correct
+            xp_gain = int(20 + (3 * correct if mode == 'bot' else 5 * correct))
+            wins += 1
+        else:
+            # 房號配對不計錢，其他模式按原邏輯計算
+            if is_room_match:
+                coin_delta = 0  # 房號配對不計金幣
+            else:
+                coin_delta = 0 if mode == 'bot' else -(50 + 20 * opp_correct)
+            # 失敗時：至少給予基礎 XP，鼓勵繼續遊戲
+            if mode == 'bot':
+                xp_gain = int(max(3, correct))  # bot 失敗最少 3 XP
+            else:
+                xp_gain = int(max(5, 3 * correct))  # queue/room 失敗最少 5 XP
+            losses += 1
 
-    return jsonify({
-        'message': '更新成功',
-        'coins': coins,
-        'xp': xp,
-        'xp_max': xp_max,
-        'level': level,
-        'wins': wins,
-        'losses': losses,
-        'total_answered': new_total_answered,
-        'avg_accuracy': accuracy,
-        'total_score': total_score,
-        'coin_delta': coin_delta,
-        'xp_gain': xp_gain,
-        'leveled_up': leveled_up
-    }), 200  # 200 成功
+        coins = max(0, coins + coin_delta)
+        xp += xp_gain
+        leveled_up = False
+        while xp >= xp_max:
+            xp -= xp_max
+            level += 1
+            xp_max += 500
+            leveled_up = True
+
+        print(f"[update_stats] 結算結果: coin_delta={coin_delta}, xp_gain={xp_gain}, 新 coins={coins}, 新 xp={xp}")
+
+        new_total_answered = total_answered + total
+        if new_total_answered > 0:
+            accuracy = round((avg_accuracy * total_answered + (100.0 * correct)) / new_total_answered, 2)
+        else:
+            accuracy = 0
+        total_score += score
+
+        # 處理題目分類統計
+        incoming_topic_stats = data.get('topic_stats', {})
+        if not isinstance(incoming_topic_stats, dict):
+            incoming_topic_stats = {}
+        
+        existing_topic_stats = user_data.get('topic_stats') or {}
+        if not isinstance(existing_topic_stats, dict):
+            existing_topic_stats = {}
+        
+        merged_topic_stats = dict(existing_topic_stats)
+        
+        # 合併新的題目統計
+        for category, stats in incoming_topic_stats.items():
+            if category not in merged_topic_stats:
+                merged_topic_stats[category] = {'correct': 0, 'wrong': 0}
+            if isinstance(stats, dict):
+                merged_topic_stats[category]['correct'] = merged_topic_stats[category].get('correct', 0) + stats.get('correct', 0)
+                merged_topic_stats[category]['wrong'] = merged_topic_stats[category].get('wrong', 0) + stats.get('wrong', 0)
+
+        print(f"[update_stats] 更新前的 merged_topic_stats: {merged_topic_stats}")
+
+        update_data = {
+            'coins': coins,
+            'xp': xp,
+            'xp_max': xp_max,
+            'level': level,
+            'wins': wins,
+            'losses': losses,
+            'total_answered': new_total_answered,
+            'avg_accuracy': accuracy,
+            'total_score': total_score,
+            'topic_stats': merged_topic_stats
+        }
+        
+        print(f"[update_stats] 更新 users 表: {update_data}")
+        supabase.table('users').update(update_data).eq('id', user_id).execute()
+
+        # 保存對戰記錄到 battle_records
+        print(f"[update_stats] 插入 battle_records")
+        supabase.table('battle_records').insert({
+            'user_id': user_id,
+            'score': score,
+            'correct': correct,
+            'total': total,
+            'won': won
+        }).execute()
+
+        response_data = {
+            'message': '更新成功',
+            'coins': int(coins),
+            'xp': int(xp),
+            'xp_max': int(xp_max),
+            'level': int(level),
+            'wins': int(wins),
+            'losses': int(losses),
+            'total_answered': int(new_total_answered),
+            'avg_accuracy': float(accuracy),
+            'total_score': int(total_score),
+            'coin_delta': int(coin_delta),
+            'xp_gain': int(xp_gain),  # 確保是整數
+            'leveled_up': bool(leveled_up)
+        }
+        print(f"[update_stats] 返回成功: {response_data}")
+        return jsonify(response_data), 200
+        
+    except Exception as err:
+        import traceback
+        error_msg = str(err)
+        traceback.print_exc()
+        print(f"[update_stats] 發生錯誤: {error_msg}")
+        return jsonify({'error': f'更新失敗: {error_msg}'}), 500
 
 # 刪除帳號 API
 # 路徑：DELETE /user/delete
@@ -501,7 +575,7 @@ def update_topic_stats():
 
 # 儲存單場對戰記錄
 # 路徑：POST /user/battle-record
-# 傳入：{ user_id, score, correct, total, won }
+# 傳入：{ user_id, score, correct, total, won, topic_stats }
 @user_bp.route('/battle-record', methods=['POST'])
 def save_battle_record():
     data = request.get_json()
@@ -515,6 +589,7 @@ def save_battle_record():
         'correct': data.get('correct', 0),
         'total': data.get('total', 0),
         'won': data.get('won', False),
+        'topic_stats': data.get('topic_stats', {}),  # 保存題目分類統計
     }).execute()
     return jsonify({'message': '記錄成功'}), 200
 

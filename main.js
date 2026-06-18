@@ -20,7 +20,7 @@ const state = {
   },
   recentScores: [680,520,790,640,720,580,810,670,750,820],
   recentAccuracy: [72,65,83,70,78,62,88,74,80,85],
-  battleData: { round:0, playerScore:0, oppScore:0, correct:0, total:0, timer:null, timerVal:15, combo:0, answering:false },
+  battleData: { round:0, playerScore:0, oppScore:0, correct:0, total:0, timer:null, timerVal:15, combo:0, answering:false, topicStats: {} },
   skills: { used50: false, usedTime: false, usedHint: false },
   totalAnswered: 0,  // 累計答題數，從後端同步
   avgAccuracy: 0,    // 平均準確率，從後端同步
@@ -194,12 +194,18 @@ function suppressBattleError() {
 }
 
 function startBattle(mode = 'bot') {
+  // 隨機對戰前檢查金幣是否足夠（>=0）
+  if (mode === 'queue' && state.coins < 0) {
+    showToast('金幣不足，無法進行隨機對戰！');
+    return;
+  }
+
   currentBattleMode = mode;
   battleIntentionalClose = false;
   
   // 重置對戰資料
   const bd = state.battleData;
-  bd.round = 0; bd.playerScore = 0; bd.oppScore = 0; bd.correct = 0; bd.oppCorrect = 0; bd.total = 0; bd.combo = 0; bd.answering = false;
+  bd.round = 0; bd.playerScore = 0; bd.oppScore = 0; bd.correct = 0; bd.oppCorrect = 0; bd.total = 0; bd.combo = 0; bd.answering = false; bd.topicStats = {};
   if (bd.timer) clearInterval(bd.timer);
   state.skills = { used50: false, usedTime: false, usedHint: false };
   resetSkillBtns();
@@ -261,6 +267,17 @@ function startBattle(mode = 'bot') {
 // 創建戰鬥房間
 function createBattleRoom() {
   startBattle('create_room');
+}
+
+// 加入房間
+function joinBattleRoom() {
+  const roomId = document.getElementById('roomIdInput').value.trim();
+  if (!roomId || roomId.length !== 6 || isNaN(roomId)) {
+    showToast('請輸入有效的房號（6位數字）');
+    return;
+  }
+  currentRoomId = roomId;
+  startBattle('join_room');
 }
 
 // 取消對戰佇列
@@ -462,6 +479,10 @@ function handleBattleMessage(msg) {
     // 遊戲結束
     const bd = state.battleData;
     const won = msg.winner === bd.playerIndex;
+    // 保存當前玩家的題目分類統計
+    if (msg.topicStats && msg.topicStats[bd.playerIndex]) {
+      bd.topicStats = msg.topicStats[bd.playerIndex];
+    }
     suppressBattleError();
     endBattle(won, msg.scores[bd.playerIndex], msg.scores[1 - bd.playerIndex]);
     return;
@@ -580,6 +601,14 @@ async function endBattle(won, playerScore, oppScore) {
   let xpGain = 0;
   // 呼叫後端更新統計資料
   try {
+    console.log('[endBattle] 發送數據到後端:', {  // 調試：列印發送的數據
+      user_id: state.userId,
+      mode: currentBattleMode,
+      won: finalWon,
+      correct: bd.correct,
+      total: bd.total,
+      opp_correct: bd.oppCorrect || 0
+    });
     const res = await fetch(`${API_BASE}/user/update-stats`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -590,11 +619,23 @@ async function endBattle(won, playerScore, oppScore) {
         correct: bd.correct,      // 答對題數
         total: bd.total,          // 總題數
         opp_correct: bd.oppCorrect || 0,
-        mode: currentBattleMode
+        mode: currentBattleMode,
+        topic_stats: bd.topicStats  // 題目分類統計
       })
     });
-    const data = await res.json();
-    if (res.ok) {
+    
+    console.log('[endBattle] 響應狀態:', res.status, res.statusText);
+    
+    let data = null;
+    try {
+      data = await res.json();
+      console.log('[endBattle] 後端返回數據:', data);
+    } catch (parseErr) {
+      console.error('[endBattle] JSON 解析失敗:', parseErr, '響應文本:', await res.text());
+      throw parseErr;
+    }
+    
+    if (res.ok && data) {
       // 更新本地 state
       state.coins = data.coins;          // 更新金幣
       state.level = data.level;          // 更新等級
@@ -602,18 +643,38 @@ async function endBattle(won, playerScore, oppScore) {
       state.xpMax = data.xp_max;         // 更新 XP 上限
       state.wins = data.wins;            // 更新勝場
       state.losses = data.losses;        // 更新敗場
-      xpGain = data.xp_gain !== undefined ? data.xp_gain : xpGain;
+      
+      // 關鍵：確保 xp_gain 被正確提取
+      const receivedXpGain = parseInt(data.xp_gain);
+      xpGain = !isNaN(receivedXpGain) ? receivedXpGain : 0;
+      
+      console.log('[endBattle] xpGain 最終值:', xpGain, '(來自後端:', data.xp_gain, ')');
+      
       if (data.leveled_up) showToast('🎉 升級了！Lv.' + data.level);  // 升級提示
       updatePlayerBar();  // 更新玩家列
+    } else {
+      console.error('[endBattle] 後端返回非 OK 狀態:', res.status, data);
+      // 即使後端失敗，也嘗試設置 xpGain
+      if (data && data.xp_gain !== undefined) {
+        const receivedXpGain = parseInt(data.xp_gain);
+        xpGain = !isNaN(receivedXpGain) ? receivedXpGain : 0;
+        console.log('[endBattle] 從錯誤響應中提取 xp_gain:', xpGain);
+      }
     }
   } catch (err) {
-    console.error('更新統計失敗:', err);
+    console.error('[endBattle] 更新統計失敗:', err);
   }
 
   // 顯示結果畫面
-  const coinDelta = currentBattleMode === 'bot'
-    ? (finalWon ? 100 + 20 * bd.correct : 0)
-    : (finalWon ? 100 + 20 * bd.correct : -(50 + 20 * (bd.oppCorrect || 0)));
+  let coinDelta = 0;
+  if (currentBattleMode === 'bot') {
+    coinDelta = finalWon ? 100 + 20 * bd.correct : 0;
+  } else if (currentBattleMode === 'create_room' || currentBattleMode === 'join_room') {
+    coinDelta = 0;  // 房號配對不計錢
+  } else {
+    // queue 模式
+    coinDelta = finalWon ? 100 + 20 * bd.correct : -(50 + 20 * (bd.oppCorrect || 0));
+  }
   document.getElementById('resultIcon').textContent = finalWon ? '🏆' : '💀';
   document.getElementById('resultTitle').className = 'result-title ' + (finalWon ? 'result-win' : 'result-lose');
   document.getElementById('resultTitle').textContent = finalWon ? '勝利！' : '敗北';
@@ -1395,7 +1456,7 @@ createStars();
       if (val !== pwdEl.value) { pwdEl.value = val; pwdEl.setSelectionRange(pos, pos); }
     });
     pwdEl.addEventListener('keydown', (e) => {
-      if (e.key.length === 1 && !/^[ -~]$/.test(e.key)) e.preventDefault();
+      if (e.key && e.key.length === 1 && !/^[ -~]$/.test(e.key)) e.preventDefault();
     });
   });
 })();
