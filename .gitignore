@@ -32,3 +32,4 @@ desktop.ini
 server/env
 server/__pycache__/
 .vscode/
+.claude/
