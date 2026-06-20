@@ -34,12 +34,12 @@
         <label class="auth-label">密碼</label>
         <div class="password-wrap">
           <input type="password" id="passwordInput" class="auth-input" placeholder="請輸入密碼..." autocomplete="off">
-          <input type="text" id="passwordInputVisible" class="auth-input pwd-visible" placeholder="請輸入密碼..." autocomplete="off" readonly style="display:none">
+          <input type="text" id="passwordInputVisible" class="auth-input pwd-visible" placeholder="請輸入密碼..." autocomplete="off" readonly>
           <button type="button" class="toggle-pwd-btn" onclick="">👁</button>
         </div>
       </div>
       <div id="loginError" class="auth-error"></div>
-      <button class="btn btn-gold" class="btn-full" onclick="handleLogin()">進入競技場</button>
+      <button class="btn btn-gold btn-full" onclick="handleLogin()">進入競技場</button>
       <div class="forgot-pwd-wrap">
         <button onclick="showScreen('forgotScreen')" class="auth-link">忘記密碼？</button>
       </div>
@@ -61,6 +61,10 @@
     
     <div class="card card-glow">
       <h3 class="auth-title">建立帳號</h3>
+      <!-- dummy fields to absorb browser autofill -->
+      <input type="text" class="hidden-fake-input" aria-hidden="true" tabindex="-1" autocomplete="username">
+      <input type="email" class="hidden-fake-input" aria-hidden="true" tabindex="-1" autocomplete="email">
+      <input type="password" class="hidden-fake-input" aria-hidden="true" tabindex="-1" autocomplete="new-password">
       <div class="auth-field">
         <label class="auth-label">玩家 ID（英數 4-20 字）</label>
         <input type="text" id="regIdInput" class="auth-input" placeholder="例如：abc123" autocomplete="off">
@@ -76,22 +80,22 @@
       <div class="auth-field">
         <label class="auth-label">密碼（至少 6 位）</label>
         <div class="password-wrap">
-          <input type="password" id="regPasswordInput" class="auth-input" placeholder="請輸入密碼..." autocomplete="off" aria-label="密碼">
-          <input type="text" id="regPasswordInputVisible" class="auth-input pwd-visible" placeholder="請輸入密碼..." autocomplete="off" readonly style="display:none" aria-label="密碼（顯示）">
+          <input type="password" id="regPasswordInput" class="auth-input" placeholder="請輸入密碼..." autocomplete="new-password" aria-label="密碼">
+          <input type="text" id="regPasswordInputVisible" class="auth-input pwd-visible" placeholder="請輸入密碼..." autocomplete="off" readonly aria-label="密碼（顯示）">
           <button type="button" class="toggle-pwd-btn" onclick="">👁</button>
         </div>
       </div>
       <div class="auth-field">
         <label class="auth-label">確認密碼</label>
         <div class="password-wrap">
-          <input type="password" id="regPasswordConfirm" class="auth-input" placeholder="請再輸入一次密碼..." autocomplete="off" aria-label="確認密碼">
-          <input type="text" id="regPasswordConfirmVisible" class="auth-input pwd-visible" placeholder="請再輸入一次密碼..." autocomplete="off" readonly style="display:none" aria-label="確認密碼（顯示）">
+          <input type="password" id="regPasswordConfirm" class="auth-input" placeholder="請再輸入一次密碼..." autocomplete="new-password" aria-label="確認密碼">
+          <input type="text" id="regPasswordConfirmVisible" class="auth-input pwd-visible" placeholder="請再輸入一次密碼..." autocomplete="off" readonly aria-label="確認密碼（顯示）">
           <button type="button" class="toggle-pwd-btn" onclick="">👁</button>
         </div>
       </div>
       <div id="registerError" class="auth-error"></div>
-      <button class="btn btn-gold" class="btn-full btn-mb" onclick="handleRegister()">建立帳號</button>
-      <button class="btn btn-outline" class="btn-full" onclick="showScreen('loginScreen')">← 返回登入</button>
+      <button class="btn btn-gold btn-full btn-mb" onclick="handleRegister()">建立帳號</button>
+      <button class="btn btn-outline btn-full" onclick="showScreen('loginScreen')">← 返回登入</button>
     </div>
   </div>
 </div>
@@ -104,15 +108,76 @@
     <div class="logo-sub">KNOWLEDGE KING</div>
     <div class="card card-glow">
       <h3 class="auth-title">重設密碼</h3>
-      <p class="verify-email-hint">輸入你的帳號，我們將寄送重設密碼連結</p>
+      <p class="verify-email-hint">輸入帳號 ID 或信箱，我們將寄送重設密碼連結</p>
       <div class="auth-field">
         <label class="auth-label">帳號（ID 或信箱）</label>
-        <input type="text" id="forgotEmailInput" class="auth-input" placeholder="請輸入帳號或信箱..." autocomplete="off" aria-label="重設密碼帳號或信箱">
+        <input type="text" id="forgotEmailInput" class="auth-input" placeholder="請輸入帳號或信箱..." autocomplete="new-password" aria-label="重設密碼帳號或信箱"> <!-- autocomplete="new-password" 可防止 Chrome/Safari 忽略 off 而彈出自動填充 -->
       </div>
       <div id="forgotError" class="auth-error"></div>
-      <div id="forgotSuccess" class="auth-success" style="display:none"></div>
+      <div id="forgotSuccess" class="auth-success"></div>
       <button class="btn btn-gold btn-full btn-mb" onclick="handleForgotPassword()">📧 寄送重設連結</button>
       <button class="btn btn-outline btn-full" onclick="showScreen('loginScreen')">← 返回登入</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESET PASSWORD -->
+<div class="screen" id="resetPasswordScreen">
+  <div class="stars" id="resetStars"></div>
+  <div class="auth-screen">
+    <div class="logo">知識王</div>
+    <div class="logo-sub">KNOWLEDGE KING</div>
+    <div class="card card-glow">
+      <h3 class="auth-title">設定新密碼</h3>
+      <div id="resetAccountInfo" class="reset-account-info"></div>
+      <div class="auth-field">
+        <label class="auth-label">新密碼</label>
+        <div class="password-wrap">
+          <input type="password" id="resetPw1" class="auth-input" placeholder="請輸入新密碼..." autocomplete="new-password">
+          <input type="text" id="resetPw1Visible" class="auth-input pwd-visible" placeholder="請輸入新密碼..." autocomplete="off" readonly>
+          <button type="button" class="toggle-pwd-btn" onclick="">👁</button>
+        </div>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">確認新密碼</label>
+        <div class="password-wrap">
+          <input type="password" id="resetPw2" class="auth-input" placeholder="請再輸入一次..." autocomplete="new-password">
+          <input type="text" id="resetPw2Visible" class="auth-input pwd-visible" placeholder="請再輸入一次..." autocomplete="off" readonly>
+          <button type="button" class="toggle-pwd-btn" onclick="">👁</button>
+        </div>
+      </div>
+      <div id="resetError" class="auth-error"></div>
+      <button class="btn btn-gold btn-full btn-mb" id="resetSubmitBtn" onclick="handleResetPassword()">✅ 確認重設密碼</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESET EXPIRED -->
+<div class="screen" id="resetExpiredScreen">
+  <div class="stars" id="resetExpiredStars"></div>
+  <div class="verified-center">
+    <div class="card card-glow verified-card verified-card-error">
+      <span class="verified-icon">⏰</span>
+      <div class="verified-title verified-title-error">重設連結過期啦！</div>
+      <p class="verified-desc">這個連結已經失效了<br>請重新申請忘記密碼</p>
+      <div class="verified-progress-wrap"><div class="reset-expired-bar" id="resetExpiredBar"></div></div>
+      <p class="verified-countdown" id="resetExpiredCountdown">5 秒後自動跳轉...</p>
+      <button class="btn btn-gold btn-full" onclick="goToForgot()">重新申請</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESET USED -->
+<div class="screen" id="resetUsedScreen">
+  <div class="stars" id="resetUsedStars"></div>
+  <div class="verified-center">
+    <div class="card card-glow verified-card verified-card-used">
+      <span class="verified-icon">🔒</span>
+      <div class="verified-title verified-title-used">連結已使用過了！</div>
+      <p class="verified-desc">此密碼重設連結已失效<br>請使用新密碼登入</p>
+      <div class="verified-progress-wrap"><div class="reset-used-bar" id="resetUsedBar"></div></div>
+      <p class="verified-countdown" id="resetUsedCountdown">5 秒後自動跳轉...</p>
+      <button class="btn btn-gold btn-full" onclick="goToLoginFromUsed()">立即前往登入</button>
     </div>
   </div>
 </div>
@@ -142,8 +207,8 @@
         </div>
       </div>
       <div id="verifyError" class="auth-error"></div>
-      <button class="btn btn-gold" class="btn-full btn-mb" onclick="handleVerify()">確認驗證</button>
-      <button class="btn btn-outline" class="btn-full" onclick="showScreen('loginScreen')">← 返回登入</button>
+      <button class="btn btn-gold btn-full btn-mb" onclick="handleVerify()">確認驗證</button>
+      <button class="btn btn-outline btn-full" onclick="showScreen('loginScreen')">← 返回登入</button>
     </div>
   </div>
 </div>
@@ -203,7 +268,7 @@
       <div class="hero-title">排行榜</div>
       <div class="hero-desc">全球知識戰士排名<br>本週榜首</div>
     </div>
-    <div class="hero-card" id="adminBtn" onclick="showScreen('adminScreen')" style="display:none;">
+    <div class="hero-card" id="adminBtn" onclick="showScreen('adminScreen')">
       <span class="hero-icon">🛠️</span>
       <div class="hero-title">題庫管理</div>
       <div class="hero-desc">管理員專用<br>生成與管理題目</div>
@@ -307,7 +372,7 @@
 <div class="screen" id="battleScreen">
 <div class="content">
   <!-- 等待對手時的加載屏幕 -->
-  <div id="waitingForOpponentScreen" style="display:none; text-align:center; margin-top:100px;">
+  <div id="waitingForOpponentScreen">
     <div class="waiting-spinner"></div>
     <h2 id="waitingTitle">尋找對手中...</h2>
     <p id="waitingSubtext" class="waiting-subtext">已加入配對佇列</p>
@@ -364,7 +429,6 @@
   <div class="skills-bar">
     <button class="skill-btn" id="skill50" onclick="useSkill50()">🎯 50/50 消去兩個錯誤</button>
     <button class="skill-btn" id="skillTime" onclick="useSkillTime()">⏱️ 加時 +10秒</button>
-    <button class="skill-btn" id="skillHint" onclick="useSkillHint()">💡 提示</button>
   </div>
 
   <div class="question-card">
@@ -748,7 +812,7 @@
       </div>
       <div class="admin-log-area" id="adminLogArea"></div>
     </div>
-    <div id="adminResultsSection" class="admin-results-section" style="display:none">
+    <div id="adminResultsSection" class="admin-results-section">
       <div class="admin-stat-grid">
         <div class="card admin-stat-card">
           <div class="admin-stat-val admin-stat-accent" id="adminStatTotal">0</div>
@@ -790,24 +854,24 @@
 </div>
 
 <!-- 編輯題目 Modal -->
-<div id="adminEditModal" class="admin-modal-overlay" style="display:none">
+<div id="adminEditModal" class="admin-modal-overlay">
   <div class="card admin-modal-card">
     <div class="card-section-title">✏️ 編輯題目</div>
     <input type="hidden" id="editQId">
     <div class="auth-field">
-      <label class="auth-label">分類</label>
+      <label class="auth-label" for="editQCat">分類</label>
       <select id="editQCat" class="auth-input"></select>
     </div>
     <div class="auth-field">
-      <label class="auth-label">題目</label>
+      <label class="auth-label" for="editQText">題目</label>
       <textarea id="editQText" class="auth-input admin-textarea" rows="3"></textarea>
     </div>
-    <div class="auth-field"><label class="auth-label">A 選項</label><input id="editQA" class="auth-input"></div>
-    <div class="auth-field"><label class="auth-label">B 選項</label><input id="editQB" class="auth-input"></div>
-    <div class="auth-field"><label class="auth-label">C 選項</label><input id="editQC" class="auth-input"></div>
-    <div class="auth-field"><label class="auth-label">D 選項</label><input id="editQD" class="auth-input"></div>
+    <div class="auth-field"><label class="auth-label" for="editQA">A 選項</label><input id="editQA" class="auth-input"></div>
+    <div class="auth-field"><label class="auth-label" for="editQB">B 選項</label><input id="editQB" class="auth-input"></div>
+    <div class="auth-field"><label class="auth-label" for="editQC">C 選項</label><input id="editQC" class="auth-input"></div>
+    <div class="auth-field"><label class="auth-label" for="editQD">D 選項</label><input id="editQD" class="auth-input"></div>
     <div class="auth-field">
-      <label class="auth-label">正確答案</label>
+      <label class="auth-label" for="editQAns">正確答案</label>
       <select id="editQAns" class="auth-input">
         <option>A</option><option>B</option><option>C</option><option>D</option>
       </select>
@@ -820,8 +884,31 @@
 </div>
 
 
+<!-- 改名卡 Modal -->
+<div id="renameCardModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header modal-header-gold">
+      <button class="modal-close-btn" onclick="closeModal('renameCardModal')">✕</button>
+      <div class="modal-header-icon">✏️</div>
+      <div class="modal-header-title">改名卡</div>
+      <div class="modal-header-sub">使用後扣除 500 🪙，輸入新的玩家暱稱</div>
+    </div>
+    <div class="modal-body">
+      <div class="auth-field">
+        <label class="auth-label">新暱稱（2-20 字）</label>
+        <input type="text" id="renameCardInput" class="auth-input" placeholder="請輸入新暱稱..." maxlength="20" autocomplete="new-password" aria-label="新暱稱">
+      </div>
+      <div id="renameCardError" class="auth-error"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-flex" onclick="closeModal('renameCardModal')">取消</button>
+      <button class="btn btn-gold btn-flex" onclick="confirmRenameCard()">✅ 確認修改</button>
+    </div>
+  </div>
+</div>
+
 <!-- 更換密碼 Modal -->
-<div id="changePwdModal" class="modal-overlay" style="display:none">
+<div id="changePwdModal" class="modal-overlay">
   <div class="modal-card">
     <div class="modal-header modal-header-gold">
       <button class="modal-close-btn" onclick="closeModal('changePwdModal')">✕</button>
@@ -834,7 +921,7 @@
         <label class="auth-label">目前密碼</label>
         <div class="password-wrap">
           <input type="password" id="changePwdOld" class="auth-input" placeholder="請輸入目前密碼" autocomplete="off" aria-label="目前密碼">
-          <input type="text" id="changePwdOldVisible" class="auth-input" placeholder="請輸入目前密碼" autocomplete="off" readonly style="display:none" aria-label="目前密碼（顯示）">
+          <input type="text" id="changePwdOldVisible" class="auth-input pwd-visible" placeholder="請輸入目前密碼" autocomplete="off" readonly aria-label="目前密碼（顯示）">
           <button type="button" class="toggle-pwd-btn active">👁</button>
         </div>
       </div>
@@ -842,7 +929,7 @@
         <label class="auth-label">新密碼（至少 6 位）</label>
         <div class="password-wrap">
           <input type="password" id="changePwdNew" class="auth-input" placeholder="請輸入新密碼" autocomplete="off">
-          <input type="text" id="changePwdNewVisible" class="auth-input" placeholder="請輸入新密碼" autocomplete="off" readonly style="display:none">
+          <input type="text" id="changePwdNewVisible" class="auth-input pwd-visible" placeholder="請輸入新密碼" autocomplete="off" readonly>
           <button type="button" class="toggle-pwd-btn active">👁</button>
         </div>
       </div>
@@ -850,7 +937,7 @@
         <label class="auth-label">確認新密碼</label>
         <div class="password-wrap">
           <input type="password" id="changePwdConfirm" class="auth-input" placeholder="請再輸入一次新密碼" autocomplete="off">
-          <input type="text" id="changePwdConfirmVisible" class="auth-input" placeholder="請再輸入一次新密碼" autocomplete="off" readonly style="display:none">
+          <input type="text" id="changePwdConfirmVisible" class="auth-input pwd-visible" placeholder="請再輸入一次新密碼" autocomplete="off" readonly>
           <button type="button" class="toggle-pwd-btn active">👁</button>
         </div>
       </div>
@@ -864,7 +951,7 @@
 </div>
 
 <!-- 刪除帳號 Modal -->
-<div id="deleteAccountModal" class="modal-overlay" style="display:none">
+<div id="deleteAccountModal" class="modal-overlay">
   <div class="modal-card">
     <div class="modal-header modal-header-danger">
       <button class="modal-close-btn" onclick="closeModal('deleteAccountModal')">✕</button>
@@ -884,7 +971,7 @@
         <label class="auth-label">輸入密碼確認身份</label>
         <div class="password-wrap">
           <input type="password" id="deleteAccountPwd" class="auth-input" placeholder="請輸入密碼" autocomplete="off">
-          <input type="text" id="deleteAccountPwdVisible" class="auth-input" placeholder="請輸入密碼" autocomplete="off" readonly style="display:none">
+          <input type="text" id="deleteAccountPwdVisible" class="auth-input pwd-visible" placeholder="請輸入密碼" autocomplete="off" readonly>
           <button type="button" class="toggle-pwd-btn active">👁</button>
         </div>
       </div>
@@ -894,6 +981,48 @@
       <button class="btn btn-outline btn-flex" onclick="closeModal('deleteAccountModal')">取消</button>
       <button class="btn btn-danger btn-flex" onclick="handleDeleteAccount()">🗑️ 確認刪除</button>
     </div>
+  </div>
+</div>
+
+<!-- 新手禮包 Modal -->
+<div id="welcomeModal" class="modal-overlay" onclick="if(_welcomeOpened) closeWelcomeModal()">
+  <div class="modal-card welcome-card" onclick="event.stopPropagation()">
+    <div class="welcome-coins-wrap" id="welcomeCoinsWrap"></div>
+    <div class="welcome-title">新手玩家禮包</div>
+    <!-- 開箱前 -->
+    <div id="welcomeGiftBtn" class="welcome-gift-btn" onclick="openWelcomeGift(event)">
+      <span class="welcome-gift-icon" id="welcomeGiftIcon">🎁</span>
+      <span class="welcome-gift-name">新手玩家禮包</span>
+      <span class="welcome-gift-label">點擊開啟</span>
+    </div>
+    <!-- 開箱後 -->
+    <div id="welcomeRewardWrap">
+      <div class="welcome-amount">+500 🪙</div>
+      <p class="welcome-desc">歡迎加入知識王！<br>金幣已存入你的帳戶</p>
+      <div class="modal-footer">
+        <button class="btn btn-gold btn-full" onclick="closeWelcomeModal()">開心收下！</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 升等動畫 Overlay -->
+<div id="levelUpOverlay" class="levelup-overlay" onclick="if(_levelUpOpened) closeLevelUpOverlay()">
+  <div class="levelup-rays" id="levelUpRays"></div>
+  <div class="levelup-card">
+    <div class="levelup-badge">LEVEL UP</div>
+    <div class="levelup-lv">Lv.<span id="levelUpNum">2</span></div>
+    <div class="levelup-sub">恭喜升級！</div>
+    <div class="levelup-gift-btn" id="levelUpGiftBtn" onclick="openLevelUpGift(event)">
+      <span class="levelup-gift-icon">🎁</span>
+      <span class="levelup-gift-name">升等禮包</span>
+      <span class="levelup-gift-label">點擊開啟</span>
+    </div>
+    <div class="levelup-reward-wrap" id="levelUpRewardWrap">
+      <div class="levelup-reward-list" id="levelUpRewardList"></div>
+      <div class="levelup-reward-total" id="levelUpRewardTotal"></div>
+    </div>
+    <div class="levelup-hint" id="levelUpHint">點擊任意處繼續</div>
   </div>
 </div>
 

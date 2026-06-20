@@ -1,4 +1,4 @@
-from flask import Flask, jsonify  # Flask 框架，jsonify 把 dict 轉成 JSON 回傳
+from flask import Flask, jsonify, request, redirect  # Flask 框架，jsonify 把 dict 轉成 JSON 回傳
 from flask_cors import CORS  # 允許跨域請求，讓前端可以呼叫後端 API
 from dotenv import load_dotenv  # 讀取 .env 檔案裡的環境變數
 import os  # Python 內建模組，用來讀取環境變數
@@ -359,6 +359,222 @@ def already_verified():
           for (let i = 0; i < 80; i++) {{
             const s = document.createElement('div');
             s.className = 'star';
+            s.style.cssText = `width:${{Math.random()*3+1}}px;height:${{Math.random()*3+1}}px;left:${{Math.random()*100}}%;top:${{Math.random()*100}}%;animation-delay:${{Math.random()*3}}s;animation-duration:${{2+Math.random()*3}}s`;
+            c.appendChild(s);
+          }}
+          let sec = 5;
+          const el = document.getElementById('countdown');
+          const timer = setInterval(() => {{
+            sec--;
+            el.textContent = sec + ' 秒後自動跳轉...';
+            if (sec <= 0) {{ clearInterval(timer); window.location.href = '{frontend_url}'; }}
+          }}, 1000);
+        </script>
+      </body>
+    </html>
+    '''
+
+@app.route('/reset-password')
+def reset_password_page():
+    token = request.args.get('token', '')
+    backend_url = os.environ.get('BACKEND_URL', 'http://localhost:3000')
+    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5500') + '/index.html'
+
+    # 解析 expire_at 並做過期判斷，直接在頁面層擋掉
+    import time
+    parts = token.split('.')
+    if len(parts) == 2:
+        try:
+            expire_at = int(parts[1])
+            if int(time.time() * 1000) > expire_at:
+                return redirect(backend_url + '/reset-expired')
+        except ValueError:
+            return redirect(backend_url + '/reset-expired')
+    else:
+        return redirect(backend_url + '/reset-expired')
+
+    return f'''
+    <!DOCTYPE html>
+    <html lang="zh-TW">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>知識王 - 重設密碼</title>
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+        <style>
+          * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+          body {{
+            background: #0a0a1a;
+            color: #fff;
+            font-family: 'Noto Sans TC', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+          }}
+          .stars {{ position: fixed; inset: 0; pointer-events: none; z-index: 0; }}
+          .star {{ position: absolute; border-radius: 50%; background: #fff; animation: twinkle 3s infinite; }}
+          @keyframes twinkle {{
+            0%, 100% {{ opacity: .2; transform: scale(1); }}
+            50% {{ opacity: .8; transform: scale(1.2); }}
+          }}
+          .card {{
+            position: relative; z-index: 1;
+            background: #1a1a3e;
+            border: 1px solid rgba(255,215,0,0.2);
+            border-radius: 20px;
+            padding: 48px 40px;
+            text-align: center;
+            max-width: 420px; width: 90%;
+            box-shadow: 0 0 40px rgba(255,215,0,0.15);
+          }}
+          .icon {{ font-size: 56px; margin-bottom: 16px; display: block; }}
+          .title {{
+            font-family: 'Orbitron', monospace; font-size: 20px; font-weight: 900;
+            background: linear-gradient(135deg, #ffd700, #ff6b35);
+            -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+            margin-bottom: 24px;
+          }}
+          .field {{ margin-bottom: 16px; text-align: left; }}
+          .field label {{ font-size: 13px; color: #b0b0d0; display: block; margin-bottom: 6px; }}
+          .field input {{
+            width: 100%; padding: 12px 16px; border-radius: 10px;
+            background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.15);
+            color: #fff; font-size: 15px; font-family: inherit; outline: none;
+          }}
+          .field input:focus {{ border-color: #ffd700; }}
+          .error {{ color: #ff6b6b; font-size: 13px; margin-bottom: 12px; min-height: 18px; }}
+          .btn {{
+            width: 100%; padding: 14px; border-radius: 12px; border: none; cursor: pointer;
+            background: linear-gradient(135deg, #ffd700, #ffaa00);
+            color: #1a0a00; font-family: inherit; font-size: 15px; font-weight: 900;
+            box-shadow: 0 0 20px rgba(255,215,0,.4);
+          }}
+          .btn:disabled {{ opacity: .5; cursor: not-allowed; }}
+          .success {{ color: #00e676; font-size: 14px; margin-bottom: 12px; }}
+        </style>
+      </head>
+      <body>
+        <div class="stars" id="stars"></div>
+        <div class="card">
+          <span class="icon">🔑</span>
+          <div class="title">重設密碼</div>
+          <div class="field">
+            <label>新密碼（至少 6 位）</label>
+            <input type="password" id="pw1" placeholder="請輸入新密碼">
+          </div>
+          <div class="field">
+            <label>確認新密碼</label>
+            <input type="password" id="pw2" placeholder="請再輸入一次">
+          </div>
+          <div class="error" id="errMsg"></div>
+          <button class="btn" id="submitBtn" onclick="doReset()">確認重設</button>
+        </div>
+        <script>
+          const c = document.getElementById('stars');
+          for (let i = 0; i < 80; i++) {{
+            const s = document.createElement('div'); s.className = 'star';
+            s.style.cssText = `width:${{Math.random()*3+1}}px;height:${{Math.random()*3+1}}px;left:${{Math.random()*100}}%;top:${{Math.random()*100}}%;animation-delay:${{Math.random()*3}}s;animation-duration:${{2+Math.random()*3}}s`;
+            c.appendChild(s);
+          }}
+          async function doReset() {{
+            const pw1 = document.getElementById('pw1').value;
+            const pw2 = document.getElementById('pw2').value;
+            const err = document.getElementById('errMsg');
+            const btn = document.getElementById('submitBtn');
+            err.textContent = '';
+            if (!pw1 || !pw2) {{ err.textContent = '請填寫所有欄位'; return; }}
+            if (pw1.length < 6) {{ err.textContent = '密碼至少需要 6 位數'; return; }}
+            if (pw1 !== pw2) {{ err.textContent = '兩次密碼不一致'; return; }}
+            btn.textContent = '重設中...'; btn.disabled = true;
+            try {{
+              const res = await fetch('{backend_url}/auth/reset-password', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ token: '{token}', new_password: pw1 }})
+              }});
+              const data = await res.json();
+              if (!res.ok) {{ err.textContent = data.error || '重設失敗，請再試一次'; return; }}
+              err.style.color = '#00e676';
+              err.textContent = '✅ 密碼重設成功！即將跳轉到登入頁...';
+              setTimeout(() => window.location.href = '{frontend_url}', 2000);
+            }} catch (e) {{
+              err.textContent = '無法連線到伺服器';
+            }} finally {{
+              btn.textContent = '確認重設'; btn.disabled = false;
+            }}
+          }}
+        </script>
+      </body>
+    </html>
+    '''
+
+@app.route('/reset-expired')
+def reset_expired():
+    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5500') + '/index.html'
+    return f'''
+    <!DOCTYPE html>
+    <html lang="zh-TW">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>知識王 - 重設連結已過期</title>
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+        <style>
+          * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+          body {{
+            background: #0a0a1a; color: #fff;
+            font-family: 'Noto Sans TC', sans-serif;
+            min-height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden;
+          }}
+          .stars {{ position: fixed; inset: 0; pointer-events: none; z-index: 0; }}
+          .star {{ position: absolute; border-radius: 50%; background: #fff; animation: twinkle 3s infinite; }}
+          @keyframes twinkle {{
+            0%, 100% {{ opacity: .2; transform: scale(1); }}
+            50% {{ opacity: .8; transform: scale(1.2); }}
+          }}
+          .card {{
+            position: relative; z-index: 1; background: #1a1a3e;
+            border: 1px solid rgba(255,100,100,0.3); border-radius: 20px;
+            padding: 48px 40px; text-align: center; max-width: 420px; width: 90%;
+            box-shadow: 0 0 40px rgba(255,100,100,0.1);
+          }}
+          .icon {{ font-size: 64px; margin-bottom: 16px; display: block; animation: bounce .6s ease infinite alternate; }}
+          @keyframes bounce {{ from {{ transform: translateY(0); }} to {{ transform: translateY(-8px); }} }}
+          .title {{
+            font-family: 'Orbitron', monospace; font-size: 22px; font-weight: 900;
+            background: linear-gradient(135deg, #ff6b6b, #ff9a3c);
+            -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+          }}
+          .desc {{ color: #b0b0d0; font-size: 14px; margin-bottom: 28px; line-height: 1.6; }}
+          .progress-wrap {{ background: rgba(255,255,255,.08); border-radius: 99px; height: 6px; overflow: hidden; margin-bottom: 20px; }}
+          .progress-bar {{ height: 100%; background: linear-gradient(90deg, #ff6b6b, #ff9a3c); border-radius: 99px; width: 100%; animation: shrink 5s linear forwards; }}
+          @keyframes shrink {{ from {{ width: 100%; }} to {{ width: 0%; }} }}
+          .countdown {{ font-size: 13px; color: #7070a0; margin-bottom: 24px; }}
+          .btn {{
+            display: inline-block; background: linear-gradient(135deg, #ffd700, #ffaa00);
+            color: #1a0a00; font-family: 'Noto Sans TC', sans-serif; font-size: 15px; font-weight: 900;
+            padding: 14px 32px; border-radius: 12px; border: none; cursor: pointer;
+            text-decoration: none; box-shadow: 0 0 20px rgba(255,215,0,.4);
+          }}
+        </style>
+      </head>
+      <body>
+        <div class="stars" id="stars"></div>
+        <div class="card">
+          <span class="icon">⏰</span>
+          <div class="title">重設連結過期啦！</div>
+          <p class="desc">這個連結已經失效了<br>請重新申請忘記密碼</p>
+          <div class="progress-wrap"><div class="progress-bar"></div></div>
+          <div class="countdown" id="countdown">5 秒後自動跳轉...</div>
+          <a href="{frontend_url}" class="btn">立即前往</a>
+        </div>
+        <script>
+          const c = document.getElementById('stars');
+          for (let i = 0; i < 80; i++) {{
+            const s = document.createElement('div'); s.className = 'star';
             s.style.cssText = `width:${{Math.random()*3+1}}px;height:${{Math.random()*3+1}}px;left:${{Math.random()*100}}%;top:${{Math.random()*100}}%;animation-delay:${{Math.random()*3}}s;animation-duration:${{2+Math.random()*3}}s`;
             c.appendChild(s);
           }}

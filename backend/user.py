@@ -34,13 +34,22 @@ def admin_delete_user(user_id):
     )
 
 # 取得玩家資料 API
+# 輕量金幣查詢 API
+# 路徑：GET /user/coins/<user_id>
+@user_bp.route('/coins/<user_id>', methods=['GET'])
+def get_coins(user_id):
+    res = supabase.table('users').select('coins').eq('id', user_id).execute()
+    if not res.data:
+        return jsonify({'error': '找不到使用者'}), 400
+    return jsonify({'coins': res.data[0]['coins']}), 200
+
 # 路徑：GET /user/profile/<user_id>
 # 傳入：URL 參數 user_id
 @user_bp.route('/profile/<user_id>', methods=['GET'])  # 定義 GET /profile/<user_id> 路由
 def get_profile(user_id):
     # 查詢玩家資料
     user_response = supabase.table('users').select(
-        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect, topic_stats'
+        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect, topic_stats, welcome_claimed'
     ).eq('id', user_id).execute()  # 條件：找這個 id 的玩家
 
     # 找不到玩家
@@ -83,6 +92,7 @@ def get_profile(user_id):
         'owned_effects': user_data.get('owned_effects') or [],             # 已擁有的特效
         'active_effect': user_data.get('active_effect'),                   # 目前裝備的特效
         'topic_stats': user_data.get('topic_stats') or {},                 # 主題統計
+        'welcome_claimed': user_data.get('welcome_claimed') or False,      # 是否已領取新手禮包
     }), 200  # 200 成功
 
 # 修改暱稱 API
@@ -93,6 +103,7 @@ def update_nickname():
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')            # 取出 user_id 欄位
     new_nickname = data.get('new_nickname')  # 取出 new_nickname 欄位
+    use_card = data.get('use_card', False)   # 是否使用改名卡（直接扣 500，不計入月免費次數）
 
     # 防呆：兩個欄位都必填
     if not user_id or not new_nickname:
@@ -101,6 +112,11 @@ def update_nickname():
     # 防呆：暱稱長度 2-20 字
     if len(new_nickname) < 2 or len(new_nickname) > 20:
         return jsonify({'error': '暱稱長度需在 2-20 字之間'}), 400  # 400 客戶端錯誤：暱稱長度不符
+
+    # 防呆：暱稱不能與他人重複
+    existing_nick = supabase.table('users').select('id').eq('nickname', new_nickname).neq('id', user_id).execute()
+    if existing_nick.data:
+        return jsonify({'error': '暱稱已被使用，請換一個'}), 400
 
     # 查詢玩家資料，取得目前的金幣、修改次數、上次重置時間
     user_response = supabase.table('users').select(
@@ -112,7 +128,32 @@ def update_nickname():
 
     user_data = user_response.data[0]  # 取得第一筆資料
 
-    # 判斷是否需要重置修改次數
+    # 改名卡流程：直接扣 500 金幣，並讓改名次數 +1
+    if use_card:
+        from datetime import datetime, timezone
+        last_reset = datetime.fromisoformat(user_data['nickname_last_reset'])
+        now = datetime.now(timezone.utc)
+        is_new_month = now.year > last_reset.year or now.month > last_reset.month
+        current_count = 0 if is_new_month else user_data['nickname_change_count']
+        if current_count >= FREE_NICKNAME_CHANGE_LIMIT:
+            return jsonify({'error': '本月改名次數已達上限，下個月再試'}), 400
+        if user_data['coins'] < NICKNAME_CHANGE_COST:
+            return jsonify({
+                'error': f'金幣不足，改名卡需要 {NICKNAME_CHANGE_COST} 金幣，目前只有 {user_data["coins"]} 金幣'
+            }), 400
+        supabase.table('users').update({
+            'nickname': new_nickname,
+            'coins': user_data['coins'] - NICKNAME_CHANGE_COST,
+            'nickname_change_count': current_count + 1,
+            'nickname_last_reset': now.isoformat() if is_new_month else user_data['nickname_last_reset']
+        }).eq('id', user_id).execute()
+        return jsonify({
+            'message': '暱稱更新成功',
+            'cost_coins': NICKNAME_CHANGE_COST,
+            'remaining_coins': user_data['coins'] - NICKNAME_CHANGE_COST
+        }), 200
+
+    # 一般流程：前 3 次免費，超過扣 500
     from datetime import datetime, timezone  # 載入日期時間模組
     last_reset = datetime.fromisoformat(user_data['nickname_last_reset'])  # 上次重置時間
     now = datetime.now(timezone.utc)  # 現在時間（UTC）
@@ -158,6 +199,48 @@ def update_nickname():
         'remaining_free': max(0, FREE_NICKNAME_CHANGE_LIMIT - (current_count + 1)),                        # 剩餘免費次數
         'remaining_coins': user_data['coins'] - NICKNAME_CHANGE_COST if need_coins else user_data['coins']  # 剩餘金幣
     }), 200  # 200 成功
+
+# 新手禮包 API
+# 路徑：POST /user/welcome-gift
+# 傳入：{ user_id }
+@user_bp.route('/welcome-gift', methods=['POST'])
+def claim_welcome_gift():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'error': '缺少 user_id'}), 400
+
+    res = supabase.table('users').select('coins, welcome_claimed').eq('id', user_id).execute()
+    if not res.data:
+        return jsonify({'error': '找不到使用者'}), 400
+
+    if res.data[0].get('welcome_claimed'):
+        return jsonify({'error': '已領取過新手禮包'}), 400
+
+    new_coins = res.data[0]['coins'] + 500
+    supabase.table('users').update({'coins': new_coins, 'welcome_claimed': True}).eq('id', user_id).execute()
+    return jsonify({'coins': new_coins}), 200
+
+# 升等禮包領取 API
+# 路徑：POST /user/levelup-gift
+@user_bp.route('/levelup-gift', methods=['POST'])
+def claim_levelup_gift():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'error': '缺少 user_id'}), 400
+
+    res = supabase.table('users').select('coins, pending_levelup_coins').eq('id', user_id).execute()
+    if not res.data:
+        return jsonify({'error': '找不到使用者'}), 400
+
+    pending = int(res.data[0].get('pending_levelup_coins') or 0)
+    if pending <= 0:
+        return jsonify({'error': '沒有待領取的升等獎勵'}), 400
+
+    new_coins = res.data[0]['coins'] + pending
+    supabase.table('users').update({'coins': new_coins, 'pending_levelup_coins': 0}).eq('id', user_id).execute()
+    return jsonify({'coins': new_coins}), 200
 
 # 扣除金幣 API
 # 路徑：POST /user/spend-coins
@@ -280,7 +363,7 @@ def update_stats():
 
         # 查詢玩家目前資料
         user_response = supabase.table('users').select(
-            'coins, xp, xp_max, level, wins, losses, total_answered, avg_accuracy, total_score, topic_stats'
+            'coins, xp, xp_max, level, wins, losses, total_answered, avg_accuracy, total_score, topic_stats, pending_levelup_coins'
         ).eq('id', user_id).execute()
 
         if not user_response.data:
@@ -333,13 +416,21 @@ def update_stats():
         coins = max(0, coins + coin_delta)
         xp += xp_gain
         leveled_up = False
+        level_up_coins = 0
+        level_up_base = 0
+        level_up_milestone = 0
         while xp >= xp_max:
             xp -= xp_max
             level += 1
             xp_max += 500
             leveled_up = True
+            level_up_base += 100
+            if level % 10 == 0:
+                level_up_milestone += 400
+        level_up_coins = level_up_base + level_up_milestone
+        existing_pending = int(user_data.get('pending_levelup_coins') or 0)
 
-        print(f"[update_stats] 結算結果: coin_delta={coin_delta}, xp_gain={xp_gain}, 新 coins={coins}, 新 xp={xp}")
+        print(f"[update_stats] 結算結果: coin_delta={coin_delta}, xp_gain={xp_gain}, 新 coins={coins}, 新 xp={xp}, 升等待領={level_up_coins}")
 
         new_total_answered = total_answered + total
         if new_total_answered > 0:
@@ -379,7 +470,8 @@ def update_stats():
             'total_answered': new_total_answered,
             'avg_accuracy': accuracy,
             'total_score': total_score,
-            'topic_stats': merged_topic_stats
+            'topic_stats': merged_topic_stats,
+            'pending_levelup_coins': existing_pending + level_up_coins,
         }
         
         print(f"[update_stats] 更新 users 表: {update_data}")
@@ -407,6 +499,9 @@ def update_stats():
             'avg_accuracy': float(accuracy),
             'total_score': int(total_score),
             'coin_delta': int(coin_delta),
+            'level_up_coins': int(level_up_coins),
+            'level_up_base': int(level_up_base),
+            'level_up_milestone': int(level_up_milestone),
             'xp_gain': int(xp_gain),  # 確保是整數
             'leveled_up': bool(leveled_up)
         }

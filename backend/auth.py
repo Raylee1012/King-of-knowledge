@@ -184,6 +184,14 @@ def register():
     if len(password) < 6:
         return jsonify({'error': '密碼至少需要6位數'}), 400
 
+    existing = supabase.table('users').select('id').eq('custom_id', custom_id).execute()
+    if existing.data:
+        return jsonify({'error': '帳號 ID 已存在，請換一個'}), 400
+
+    existing_nick = supabase.table('users').select('id').eq('nickname', nickname).execute()
+    if existing_nick.data:
+        return jsonify({'error': '暱稱已被使用，請換一個'}), 400
+
     try:
         auth_response = supabase.auth.sign_up({'email': email, 'password': password})
         if auth_response.user is None:
@@ -205,7 +213,7 @@ def register():
             'email': email,
             'is_verified': False,
             'verify_token': token,
-            'coins': 500
+            'coins': 0
         }).execute()
     except Exception:
         admin_delete_user(user_id)
@@ -271,7 +279,8 @@ def verify():
         }), 200
 
     supabase.table('users').update({
-        'is_verified': True
+        'is_verified': True,
+        'verify_token': None
     }).eq('email', email).execute()
 
     admin_update_user(user_id, {'email_confirm': True})
@@ -294,7 +303,7 @@ def verify_link():
     if len(parts) != 2:
         return jsonify({'error': '驗證連結無效'}), 400
 
-    raw_token, expire_at = parts
+    _, expire_at = parts
 
     # 先查使用者（不論是否過期），讓後續邏輯可以判斷 is_verified
     user_response = supabase.table('users').select('id, email, is_verified').eq('verify_token', token).execute()
@@ -310,9 +319,9 @@ def verify_link():
             delete_unverified_account(user_data['email'])
         return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/verify-expired')
 
-    # 找不到對應帳號
+    # 找不到對應帳號：token 尚未過期卻找不到，代表已透過驗證碼完成驗證（token 已清空）
     if not user_data:
-        return jsonify({'error': '驗證連結無效'}), 400
+        return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/already-verified')
 
     supabase.table('users').update({
         'is_verified': True,
@@ -347,6 +356,10 @@ def login():
             return jsonify({'error': '帳號或密碼錯誤'}), 400
     except Exception:
         return jsonify({'error': '帳號或密碼錯誤'}), 400
+
+    user_response = supabase.table('users').select('id, is_verified').eq('email', email).execute()
+    if not user_response.data or not user_response.data[0]['is_verified']:
+        return jsonify({'error': '帳號尚未驗證，請先查收信箱完成驗證', 'unverified': True, 'email': email}), 403
 
     return jsonify({
         'message': '登入成功',
@@ -388,7 +401,7 @@ def forgot_password():
         'reset_token': reset_token
     }).eq('email', email).execute()
 
-    reset_link = f'{os.environ.get("FRONTEND_URL")}/reset-password?token={reset_token}'
+    reset_link = f'{os.environ.get("FRONTEND_URL", "http://localhost:5500")}/index.html?reset_token={reset_token}'
 
     send_email(
         email,
@@ -398,6 +411,33 @@ def forgot_password():
     )
 
     return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200
+
+
+@auth_bp.route('/reset-info', methods=['GET'])
+def reset_info():
+    token = request.args.get('token', '')
+    parts = token.split('.')
+    if len(parts) != 2:
+        return jsonify({'error': '無效的連結'}), 400
+    try:
+        expire_at = int(parts[1])
+    except ValueError:
+        return jsonify({'error': '無效的連結'}), 400
+    if int(time.time() * 1000) > expire_at:
+        return jsonify({'error': '連結已過期'}), 400
+
+    res = supabase.table('users').select('nickname, custom_id, email').eq('reset_token', token).execute()
+    if not res.data:
+        return jsonify({'error': '無效的連結'}), 400
+
+    u = res.data[0]
+    email = u['email']
+    masked_email = email[:2] + '***' + email[email.index('@'):]
+    return jsonify({
+        'nickname': u['nickname'],
+        'custom_id': u['custom_id'],
+        'email': masked_email
+    }), 200
 
 
 @auth_bp.route('/reset-password', methods=['POST'])
@@ -416,7 +456,7 @@ def reset_password():
     if len(parts) != 2:
         return jsonify({'error': '重設密碼連結無效'}), 400
 
-    raw_token, expire_at = parts
+    _, expire_at = parts
 
     if int(time.time() * 1000) > int(expire_at):
         return jsonify({'error': '重設密碼連結已過期，請重新申請'}), 400

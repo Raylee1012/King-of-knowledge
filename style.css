@@ -1974,6 +1974,37 @@ body {
   to   { width: 0%; }
 }
 
+.reset-expired-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ff4b4b, #ff9a3c);
+  border-radius: 99px;
+  width: 100%;
+}
+.reset-expired-bar.running {
+  animation: verified-shrink 5s linear forwards;
+}
+
+.reset-used-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #00c896, #00b4d8);
+  border-radius: 99px;
+  width: 100%;
+}
+.reset-used-bar.running {
+  animation: verified-shrink 5s linear forwards;
+}
+
+.verified-card-used {
+  border-color: rgba(0, 200, 150, 0.3);
+  box-shadow: 0 0 40px rgba(0, 200, 150, 0.1);
+}
+.verified-title-used {
+  background: linear-gradient(135deg, #00c896, #00b4d8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 .verified-countdown {
   font-size: 13px;
   color: #7070a0;
@@ -2836,7 +2867,7 @@ input[type="search"]::-webkit-search-decoration {
   inset: 0;
   background: rgba(0, 0, 0, 0.75);
   z-index: 300;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
 }
@@ -2852,15 +2883,13 @@ input[type="search"]::-webkit-search-decoration {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.75);
   z-index: 300;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   padding: 20px;
-  animation: modalOverlayIn .25s ease;
+  animation: modalOverlayIn .2s ease;
 }
 
 @keyframes modalOverlayIn {
@@ -2877,6 +2906,7 @@ input[type="search"]::-webkit-search-decoration {
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04);
   animation: modalCardIn .3s cubic-bezier(.34, 1.56, .64, 1);
+  will-change: transform, opacity;
 }
 
 @keyframes modalCardIn {
@@ -2891,11 +2921,11 @@ input[type="search"]::-webkit-search-decoration {
 }
 
 .modal-overlay.closing {
-  animation: modalOverlayOut .25s ease forwards;
+  animation: modalOverlayOut .2s ease forwards;
 }
 
 .modal-overlay.closing .modal-card {
-  animation: modalCardOut .25s cubic-bezier(.4, 0, 1, 1) forwards;
+  animation: modalCardOut .2s cubic-bezier(.4, 0, 1, 1) forwards;
 }
 
 @keyframes modalOverlayOut {
@@ -3078,7 +3108,7 @@ input[type="search"]::-webkit-search-decoration {
 
 .admin-question-list { margin-top: 12px; }
 
-.admin-results-section { margin-top: 20px; }
+.admin-results-section { display: none; margin-top: 20px; }
 
 .admin-stat-card { text-align: center; }
 
@@ -3118,4 +3148,325 @@ input[type="search"]::-webkit-search-decoration {
 .account-action-row {
   display: flex;
   gap: 8px;
+}
+/* ─── 新手禮包 Modal ─────────────────────────────────────── */
+.welcome-card {
+  text-align: center;
+  padding: 32px 28px 28px;
+  overflow: visible;
+  background: linear-gradient(160deg, #1a1430 0%, #1f1a40 50%, #0f1628 100%);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  box-shadow: 0 0 60px rgba(255, 215, 0, 0.15), 0 30px 80px rgba(0,0,0,.7);
+  position: relative;
+  min-width: 320px;
+}
+.welcome-coins-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 24px;
+  pointer-events: none;
+}
+.welcome-coin {
+  position: absolute;
+  bottom: -30px;
+  font-size: 22px;
+  animation: coinFloat var(--dur) ease-in-out var(--delay) infinite;
+  will-change: transform, opacity;
+  opacity: 0;
+}
+@keyframes coinFloat {
+  0%   { transform: translateY(0) rotate(0deg);   opacity: 0; }
+  10%  { opacity: 1; }
+  80%  { opacity: .8; }
+  100% { transform: translateY(-420px) rotate(360deg); opacity: 0; }
+}
+.welcome-gift-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 16px 0 8px;
+  transition: transform .15s;
+}
+.welcome-gift-btn:hover { transform: scale(1.06); }
+.welcome-gift-icon {
+  font-size: 72px;
+  animation: giftBounce .7s cubic-bezier(.34,1.56,.64,1) both, giftPulse 1.4s .7s ease-in-out infinite;
+  will-change: transform;
+  display: block;
+}
+.welcome-gift-name {
+  font-size: 16px;
+  font-weight: 900;
+  color: #ffd700;
+  letter-spacing: 1px;
+}
+.welcome-gift-label {
+  font-size: 12px;
+  color: rgba(255,255,255,.4);
+  letter-spacing: 1px;
+}
+@keyframes giftBounce {
+  from { transform: scale(0) rotate(-15deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg);  opacity: 1; }
+}
+.welcome-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+.welcome-amount {
+  font-size: 44px;
+  font-weight: 900;
+  color: #ffd700;
+  text-shadow: 0 0 24px rgba(255,215,0,.6), 0 0 60px rgba(255,215,0,.3);
+  animation: amountPop .5s .2s cubic-bezier(.34,1.56,.64,1) both;
+  will-change: transform, opacity;
+  margin-bottom: 12px;
+}
+@keyframes amountPop {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.welcome-desc {
+  color: var(--text2);
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 0 0 24px;
+}
+
+/* ─── 升等動畫 Overlay ───────────────────────────────────── */
+.levelup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  will-change: opacity;
+  animation: lvOverlayIn .3s ease;
+}
+@keyframes lvOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.levelup-overlay.closing {
+  animation: lvOverlayOut .4s ease forwards;
+}
+@keyframes lvOverlayOut {
+  to { opacity: 0; transform: scale(1.05); }
+}
+.levelup-rays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  contain: layout style paint;
+}
+.levelup-ray {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  border-radius: 2px;
+  transform-origin: 0 0;
+  background: linear-gradient(to top, transparent, rgba(255,215,0,.7));
+  will-change: scale, opacity;
+  animation: rayExpand .6s ease-out both;
+}
+@keyframes rayExpand {
+  from { scale: 1 0; opacity: 0; }
+  to   { scale: 1 1; opacity: var(--ray-opacity, 1); }
+}
+.levelup-card {
+  position: relative;
+  text-align: center;
+  will-change: transform, opacity;
+  animation: lvCardIn .5s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes lvCardIn {
+  from { transform: scale(0.6); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.levelup-badge {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 8px;
+  color: #ffd700;
+  text-shadow: 0 0 20px rgba(255,215,0,.8);
+  margin-bottom: 12px;
+  animation: badgePulse 1s ease infinite alternate;
+}
+@keyframes badgePulse {
+  from { text-shadow: 0 0 20px rgba(255,215,0,.5); }
+  to   { text-shadow: 0 0 40px rgba(255,215,0,1), 0 0 80px rgba(255,215,0,.5); }
+}
+.levelup-lv {
+  font-size: 88px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+  font-family: 'Orbitron', monospace;
+  text-shadow: 0 0 40px rgba(255,215,0,.6), 0 4px 0 rgba(0,0,0,.5);
+  margin-bottom: 16px;
+}
+.levelup-lv span {
+  color: #ffd700;
+  text-shadow: 0 0 60px rgba(255,215,0,.9);
+}
+.levelup-sub {
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(255,255,255,.9);
+  margin-bottom: 8px;
+}
+.levelup-gift-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: transform .15s;
+}
+.levelup-gift-btn:hover { transform: scale(1.08); }
+.levelup-gift-icon {
+  font-size: 54px;
+  animation: giftBounce .7s cubic-bezier(.34,1.56,.64,1) both, giftPulse 1.4s .7s ease-in-out infinite;
+  display: block;
+}
+@keyframes giftPulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.1); }
+}
+@keyframes giftShake {
+  0%,100% { transform: rotate(0deg)   scale(1); }
+  20%     { transform: rotate(-12deg) scale(1.1); }
+  40%     { transform: rotate(10deg)  scale(1.1); }
+  60%     { transform: rotate(-8deg)  scale(1.05); }
+  80%     { transform: rotate(6deg)   scale(1.05); }
+}
+@keyframes giftExplode {
+  0%   { transform: scale(1);   opacity: 1; }
+  40%  { transform: scale(1.5); opacity: 1; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+.gift-burst-coin {
+  position: fixed;
+  font-size: 20px;
+  pointer-events: none;
+  z-index: 600;
+  will-change: transform, opacity;
+  animation: giftCoinBurst .75s ease-out forwards;
+}
+@keyframes giftCoinBurst {
+  0%   { transform: translate(0, 0) scale(1);   opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) scale(.5); opacity: 0; }
+}
+.levelup-gift-name {
+  font-size: 18px;
+  font-weight: 900;
+  color: #ffd700;
+  letter-spacing: 2px;
+  text-shadow: 0 0 16px rgba(255,215,0,.6);
+}
+.levelup-gift-label {
+  font-size: 12px;
+  color: rgba(255,255,255,.4);
+  letter-spacing: 1px;
+}
+.levelup-reward-wrap {
+  display: none;
+  margin-bottom: 16px;
+  text-align: center;
+}
+.levelup-reward-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  padding: 10px 18px;
+  margin-bottom: 8px;
+  min-width: 240px;
+  will-change: transform, opacity;
+  animation: rewardItemIn .35s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes rewardItemIn {
+  from { opacity: 0; transform: translateY(12px) scale(.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.reward-label {
+  font-size: 14px;
+  color: rgba(255,255,255,.75);
+}
+.reward-coins {
+  font-size: 16px;
+  font-weight: 900;
+  color: #00e676;
+  text-shadow: 0 0 12px rgba(0,230,118,.5);
+}
+.levelup-reward-total {
+  font-size: 18px;
+  font-weight: 700;
+  color: rgba(255,255,255,.6);
+  border-top: 1px solid rgba(255,255,255,.12);
+  padding-top: 10px;
+  margin-top: 4px;
+  animation: rewardItemIn .35s .3s both;
+}
+.levelup-reward-total span {
+  color: #ffd700;
+  font-size: 22px;
+  font-weight: 900;
+  text-shadow: 0 0 20px rgba(255,215,0,.6);
+}
+.levelup-hint {
+  display: none;
+  font-size: 12px;
+  color: rgba(255,255,255,.35);
+  letter-spacing: 1px;
+}
+
+.reset-account-info {
+  background: rgba(255,215,0,0.07);
+  border: 1px solid rgba(255,215,0,0.2);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: #b0b0d0;
+  line-height: 1.8;
+}
+.reset-account-info strong {
+  color: #ffd700;
+}
+
+.verified-card-error {
+  border-color: rgba(255,100,100,0.3);
+  box-shadow: 0 0 40px rgba(255,100,100,0.1);
+}
+.verified-title-error {
+  background: linear-gradient(135deg, #ff6b6b, #ff9a3c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.pwd-visible { display: none; }
+#adminBtn { display: none; }
+#welcomeRewardWrap { display: none; }
+#waitingForOpponentScreen {
+  display: none;
+  text-align: center;
+  margin-top: 100px;
 }

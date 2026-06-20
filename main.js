@@ -1,7 +1,7 @@
 // ─── CONFIG ──────────────────────────────────────────────
 const API_BASE = 'http://localhost:3000';  // 帳號系統後端（登入、註冊、玩家資料）
 const WS_BASE  = 'ws://localhost:4000/ws'; // 對戰系統後端（WebSocket）
-const GEN_BASE = 'http://localhost:5000';  // 題庫生成工具（管理員用）
+const GEN_BASE = 'http://localhost:5000';  // 題庫生成管理工具（管理員用）
 
 // ─── STATE ──────────────────────────────────────────────
 const state = {
@@ -12,16 +12,12 @@ const state = {
   equippedFrame: 'frame-none', equippedEmoji: '🧠', activeEffect: null,  // 預設無邊框
   owned: { frames: ['frame-none'], tags: ['tag-rookie'], effects: [] },  // 預設只有無邊框和新手稱號
   wins: 0, losses: 0,
-  topicStats: {
-    '🔬 科學':22,'🌍 地理':18,'📚 歷史':15,'🎮 電競':20,'🎵 音樂':12,
-    '🎬 電影':8,'⚽ 體育':10,'🖥️ 科技':25,'🍜 美食':6,'🐾 動物':9,
-    '🌿 植物':5,'🚀 航太':14,'💡 發明':11,'🎨 藝術':7,'🧪 化學':16,
-    '📐 數學':19,'🌊 海洋':8,'🦁 生態':10,'🏛️ 政治':13,'💰 經濟':17,'🔭 天文':11
-  },
-  recentScores: [680,520,790,640,720,580,810,670,750,820],
-  recentAccuracy: [72,65,83,70,78,62,88,74,80,85],
+  topicStats: {},
+  recentScores: [],
+  recentAccuracy: [],
+  nicknameRemainingFree: 3,
   battleData: { round:0, playerScore:0, oppScore:0, correct:0, total:0, timer:null, timerVal:15, combo:0, answering:false, topicStats: {} },
-  skills: { used50: false, usedTime: false, usedHint: false },
+  skills: { used50: false, usedTime: false },
   totalAnswered: 0,  // 累計答題數，從後端同步
   avgAccuracy: 0,    // 平均準確率，從後端同步
   totalScore: 0      // 累計積分，從後端同步
@@ -32,41 +28,31 @@ const state = {
 const shopData = {
   frames: [
     {id:'frame-none',name:'無邊框',desc:'標準外觀',price:0,preview:'⬜',class:''},
-    {id:'frame-gold',name:'黃金戰士',desc:'閃耀黃金光芒',price:200,preview:'🟡',class:'frame-gold'},
-    {id:'frame-diamond',name:'鑽石冠軍',desc:'藍色旋轉鑽石框',price:500,preview:'💎',class:'frame-diamond'},
-    {id:'frame-fire',name:'火焰王者',desc:'橘紅火焰特效',price:800,preview:'🔥',class:'frame-fire'},
-    {id:'frame-rainbow',name:'彩虹傳說',desc:'七彩漸變框（稀有）',price:1500,preview:'🌈',class:'frame-rainbow'},
+    {id:'frame-gold',name:'黃金戰士',desc:'閃耀黃金光芒',price:1000,preview:'🟡',class:'frame-gold'},
+    {id:'frame-diamond',name:'鑽石冠軍',desc:'藍色旋轉鑽石框',price:2000,preview:'💎',class:'frame-diamond'},
+    {id:'frame-fire',name:'火焰王者',desc:'橘紅火焰特效',price:2000,preview:'🔥',class:'frame-fire'},
+    {id:'frame-rainbow',name:'彩虹傳說',desc:'七彩漸變框（稀有）',price:5000,preview:'🌈',class:'frame-rainbow'},
   ],
   tags: [
-    {id:'tag-rookie',name:'新手',desc:'剛入門的稱號',price:0,preview:'🌱',class:'tag-rookie'},
-    {id:'tag-apprentice',name:'學徒',desc:'開始累積知識的挑戰者',price:150,preview:'📘',class:'tag-apprentice'},
-    {id:'tag-expert',name:'專家',desc:'熟練掌握多種主題',price:450,preview:'🎯',class:'tag-expert'},
-    {id:'tag-master',name:'大師',desc:'知識的探索者',price:800,preview:'⭐',class:'tag-master'},
-    {id:'tag-legend',name:'傳說',desc:'頂尖知識戰士',price:1500,preview:'🏆',class:'tag-legend'},
-    {id:'tag-king',name:'知識王',desc:'最高榮耀稱號',price:3000,preview:'👑',class:'tag-king'},
+    {id:'tag-rookie',name:'新手',desc:'剛入門的稱號',price:0,unlockLevel:1,preview:'🌱',class:'tag-rookie'},
+    {id:'tag-apprentice',name:'學徒',desc:'開始累積知識的挑戰者',price:200,unlockLevel:10,preview:'📘',class:'tag-apprentice'},
+    {id:'tag-expert',name:'專家',desc:'熟練掌握多種主題',price:500,unlockLevel:25,preview:'🎯',class:'tag-expert'},
+    {id:'tag-master',name:'大師',desc:'知識的探索者',price:1000,unlockLevel:50,preview:'⭐',class:'tag-master'},
+    {id:'tag-legend',name:'傳說',desc:'頂尖知識戰士',price:2000,unlockLevel:75,preview:'🏆',class:'tag-legend'},
+    {id:'tag-king',name:'知識王',desc:'最高榮耀稱號',price:5000,unlockLevel:100,preview:'👑',class:'tag-king'},
   ],
   effects: [
-    {id:'eff-confetti',name:'彩紙爆炸',desc:'答對時彩紙飛舞',price:400,preview:'🎊'},
-    {id:'eff-lightning',name:'閃電特效',desc:'連答正確閃電爆發',price:600,preview:'⚡'},
-    {id:'eff-star',name:'星光迸發',desc:'每次答題星光特效',price:900,preview:'✨'},
+    {id:'eff-confetti',name:'彩紙爆炸',desc:'答對時彩紙飛舞',price:2000,preview:'🎊'},
+    {id:'eff-lightning',name:'閃電特效',desc:'連答正確閃電爆發',price:2500,preview:'⚡'},
+    {id:'eff-star',name:'星光迸發',desc:'每次答題星光特效',price:3000,preview:'✨'},
   ],
   skills: [
-    {id:'skill-5050',name:'50/50',desc:'消去兩個錯誤選項',price:300,preview:'🎯'},
+    {id:'skill-5050',name:'50/50',desc:'消去兩個錯誤選項',price:500,preview:'🎯'},
     {id:'skill-time',name:'加時 +10秒',desc:'對戰時延長作答時間',price:300,preview:'⏱️'},
-    {id:'skill-hint',name:'提示',desc:'顯示正確答案方向',price:300,preview:'💡'},
+    {id:'item-rename',name:'改名卡',desc:'立即修改一次玩家暱稱（消耗品）',price:500,preview:'✏️'},
   ]
 };
 
-const rankData = [
-  {rank:1,name:'天才博士',tag:'傳說',score:98540,wins:312,frame:'💎',emoji:'🧠'},
-  {rank:2,name:'全知全能',tag:'傳說',score:91230,wins:287,frame:'💎',emoji:'🎓'},
-  {rank:3,name:'知識爆炸',tag:'大師',score:84100,wins:241,frame:'🔥',emoji:'⚡'},
-  {rank:4,name:'百科全書',tag:'大師',score:76550,wins:198,frame:'🟡',emoji:'📚'},
-  {rank:5,name:'問題終結者',tag:'大師',score:70200,wins:175,frame:'🟡',emoji:'🎯'},
-  {rank:6,name:'知識戰士',tag:'大師',score:62800,wins:159,frame:'🟡',emoji:'🧠',isYou:true},
-  {rank:7,name:'無所不知',tag:'大師',score:58300,wins:142,frame:'',emoji:'🦉'},
-  {rank:8,name:'答題機器',tag:'學徒',score:45100,wins:98,frame:'',emoji:'🤖'},
-];
 
 // ─── STARS ───────────────────────────────────────────────
 function createStars() {
@@ -97,12 +83,23 @@ function showScreen(id) {
       const errEl = document.getElementById('registerError');
       if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
     }
+    if (current.id === 'loginScreen') {
+      document.getElementById('usernameInput').value = '';
+      document.getElementById('passwordInput').value = '';
+      document.getElementById('passwordInputVisible').value = '';
+      const errEl = document.getElementById('loginError');
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+    }
     if (current.id === 'forgotScreen') {
       document.getElementById('forgotEmailInput').value = '';
       const errEl = document.getElementById('forgotError');
       const sucEl = document.getElementById('forgotSuccess');
       if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       if (sucEl) { sucEl.textContent = ''; sucEl.style.display = 'none'; }
+    }
+    if (current.id === 'roomMatchScreen') {
+      const roomInput = document.getElementById('roomIdInput');
+      if (roomInput) roomInput.value = '';
     }
     setTimeout(() => {
       document.querySelectorAll('.screen').forEach(s => {
@@ -118,7 +115,7 @@ function showScreen(id) {
       if(id==='rankScreen') renderRank();
       if(id==='profileScreen') { switchProfileTab('edit'); updateProfileEditUI(); updateStatsDisplay(); }
       if(id==='adminScreen') { switchAdminTab('generate'); initAdminScreen(); }
-      if(id==='registerScreen') initPwdToggle('regPasswordConfirm');
+
       if(id==='forgotScreen') {
         document.getElementById('forgotEmailInput').value = '';
         const fe = document.getElementById('forgotError');
@@ -158,6 +155,28 @@ function renderPlayerTag() {
   return renderTitleBadge(state.playerTagClass, state.playerTag, false);
 }
 
+let _coinSyncTimer = null;
+
+function startCoinSync() {
+  stopCoinSync();
+  _coinSyncTimer = setInterval(async () => {
+    if (!state.userId) return;
+    try {
+      const res = await fetch(`${API_BASE}/user/coins/${state.userId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.coins !== undefined && data.coins !== state.coins) {
+        state.coins = data.coins;
+        updatePlayerBar();
+      }
+    } catch {}
+  }, 10000);
+}
+
+function stopCoinSync() {
+  if (_coinSyncTimer) { clearInterval(_coinSyncTimer); _coinSyncTimer = null; }
+}
+
 function updatePlayerBar() {
   const coinsText = state.coins.toLocaleString();
   document.getElementById('coinDisplay').textContent = coinsText;
@@ -187,6 +206,7 @@ let currentBattleMode = null;  // 記錄當前對戰模式（'bot', 'queue', 'cr
 let currentRoomId = null;   // 記錄當前房間 ID
 let battleIntentionalClose = false; // 是否為故意關閉連線
 let battleSuppressErrorUntil = 0; // 抑制錯誤提示的時間戳
+let battleGameStarted = false; // 是否已收到 game_start，才算對戰真正開始
 
 function suppressBattleError() {
   battleIntentionalClose = true;
@@ -202,12 +222,13 @@ function startBattle(mode = 'bot') {
 
   currentBattleMode = mode;
   battleIntentionalClose = false;
+  battleGameStarted = false;
   
   // 重置對戰資料
   const bd = state.battleData;
   bd.round = 0; bd.playerScore = 0; bd.oppScore = 0; bd.correct = 0; bd.oppCorrect = 0; bd.total = 0; bd.combo = 0; bd.answering = false; bd.topicStats = {};
   if (bd.timer) clearInterval(bd.timer);
-  state.skills = { used50: false, usedTime: false, usedHint: false };
+  state.skills = { used50: false, usedTime: false };
   resetSkillBtns();
   updateScoreDisplay();
   document.getElementById('battleAvatar').textContent = state.equippedEmoji;
@@ -367,6 +388,7 @@ function handleBattleMessage(msg) {
   }
 
   if (msg.type === 'game_start') {
+    battleGameStarted = true;
     // 遊戲開始，隱藏等待屏幕
     hideWaitingScreen();
     // 遊戲開始，設定對手名稱
@@ -599,6 +621,12 @@ async function endBattle(won, playerScore, oppScore) {
   const acc = bd.total > 0 ? Math.round(bd.correct / bd.total * 100) : 0;  // 計算準確率
 
   let xpGain = 0;
+  let serverCoinDelta = null;
+  // 未真正開始對戰（伺服器未連上），不寫入任何記錄
+  if (!battleGameStarted) {
+    showScreen('battleModeScreen');
+    return;
+  }
   // 呼叫後端更新統計資料
   try {
     console.log('[endBattle] 發送數據到後端:', {  // 調試：列印發送的數據
@@ -650,7 +678,8 @@ async function endBattle(won, playerScore, oppScore) {
       
       console.log('[endBattle] xpGain 最終值:', xpGain, '(來自後端:', data.xp_gain, ')');
       
-      if (data.leveled_up) showToast('🎉 升級了！Lv.' + data.level);  // 升級提示
+      serverCoinDelta = data.coin_delta !== undefined ? data.coin_delta : null;
+      if (data.leveled_up) showLevelUpOverlay(data.level, data.level_up_base || 0, data.level_up_milestone || 0);
       updatePlayerBar();  // 更新玩家列
     } else {
       console.error('[endBattle] 後端返回非 OK 狀態:', res.status, data);
@@ -667,7 +696,9 @@ async function endBattle(won, playerScore, oppScore) {
 
   // 顯示結果畫面
   let coinDelta = 0;
-  if (currentBattleMode === 'bot') {
+  if (serverCoinDelta !== null) {
+    coinDelta = serverCoinDelta;
+  } else if (currentBattleMode === 'bot') {
     coinDelta = finalWon ? 100 + 20 * bd.correct : 0;
   } else if (currentBattleMode === 'create_room' || currentBattleMode === 'join_room') {
     coinDelta = 0;  // 房號配對不計錢
@@ -693,10 +724,8 @@ function resetSkillBtns() {
   const ownedSkills = state.owned.skills || [];
   const s50 = document.getElementById('skill50');
   const sTime = document.getElementById('skillTime');
-  const sHint = document.getElementById('skillHint');
   if (s50) s50.classList.toggle('used', !ownedSkills.includes('skill-5050'));
   if (sTime) sTime.classList.toggle('used', !ownedSkills.includes('skill-time'));
-  if (sHint) sHint.classList.toggle('used', !ownedSkills.includes('skill-hint'));
 }
 function useSkill50() {
   if (state.skills.used50) return;
@@ -724,15 +753,6 @@ function useSkillTime() {
       if (!bd.answering) timeOut();
     }
   }, 1000);
-}
-function useSkillHint() {
-  if (state.skills.usedHint) return;
-  state.skills.usedHint = true;
-  document.getElementById('skillHint').classList.add('used');
-  const qi = questionOrder[(state.battleData.round-1)%questions.length];
-  const q = questions[qi];
-  const btns = document.getElementById('optionsGrid').querySelectorAll('.option-btn');
-  btns[q.ans].style.boxShadow='0 0 15px rgba(0,230,118,.6)';
 }
 
 // ─── EFFECTS ─────────────────────────────────────────────
@@ -1253,18 +1273,20 @@ function renderShop(tab) {
     const isEquipped = (tab === 'frames' && state.equippedFrame === item.id) ||
       (tab === 'tags' && state.playerTagClass === item.id) ||
       (tab === 'effects' && (state.activeEffect || state.owned.activeEffect) === item.id);
+    const isLocked = tab === 'tags' && item.unlockLevel > 1 && state.level < item.unlockLevel;
     const previewClass = item.class || '';
     const previewHTML = tab === 'tags'
       ? `<div style="display:flex;justify-content:center;margin-bottom:12px">${renderTitleBadge(item.id, item.name, true)}</div>`
       : tab === 'effects'
         ? renderEffectCard(item.id, item.name)
         : `<div class="item-preview ${previewClass}">${item.preview}</div>`;
-    return `<div class="shop-item ${isOwned?'owned':''} ${isEquipped?'equipped':''}" onclick="buyItem('${tab}','${item.id}')">
+    return `<div class="shop-item ${isOwned?'owned':''} ${isEquipped?'equipped':''} ${isLocked?'locked':''}" onclick="buyItem('${tab}','${item.id}')">
       ${previewHTML}
       <div class="item-name">${item.name}</div>
       <div class="item-desc">${item.desc}</div>
       ${isEquipped ? '<span class="badge-equipped">使用中</span>' :
         isOwned ? '<span class="badge-owned">已擁有</span>' :
+        isLocked ? `<div class="item-price" style="color:#ff6b6b">🔒 需 Lv.${item.unlockLevel}</div>` :
         `<div class="item-price">${item.price > 0 ? '🪙' + item.price : '免費'}</div>`}
     </div>`;
   }).join('')}</div>`;
@@ -1276,9 +1298,28 @@ function buyItem(tab, id) {
   if (!item) return;
   const isOwned = state.owned[tab] && state.owned[tab].includes(id);
 
+  // 改名卡：消耗品，不加入 owned，直接開啟改名 modal
+  if (id === 'item-rename') {
+    if (state.nicknameRemainingFree <= 0) {
+      showToast('本月改名次數已達上限，下個月再試！');
+      return;
+    }
+    if (item.price > state.coins) {
+      showToast(`金幣不足！還差 ${item.price - state.coins} 🪙，繼續對戰賺取金幣`);
+      return;
+    }
+    showRenameCardModal();
+    return;
+  }
+
   if (isOwned) {
     showToast('已擁有此道具，請到「個人設定」裝備');
     renderShop(tab);
+    return;
+  }
+
+  if (tab === 'tags' && item.unlockLevel > 1 && state.level < item.unlockLevel) {
+    showToast(`需達到 Lv.${item.unlockLevel} 才能購買此稱號（目前 Lv.${state.level}）`);
     return;
   }
 
@@ -1303,7 +1344,249 @@ function closeModal(id) {
   setTimeout(() => {
     el.classList.remove('closing');
     el.style.display = 'none';
-  }, 260);
+  }, 210);
+}
+
+// ─── 新手禮包 Modal ───────────────────────────────────────
+let _welcomeOpened = false;
+
+function showWelcomeModal(userId) {
+  if (state.welcomeClaimed) return;
+
+  _welcomeOpened = false;
+  document.getElementById('welcomeGiftBtn').style.display = 'flex';
+  document.getElementById('welcomeRewardWrap').style.display = 'none';
+  document.getElementById('welcomeGiftIcon').style.animation = '';
+
+  const wrap = document.getElementById('welcomeCoinsWrap');
+  wrap.innerHTML = '';
+
+  const modal = document.getElementById('welcomeModal');
+  modal.style.display = 'flex';
+}
+
+function openWelcomeGift(event) {
+  event.stopPropagation();
+  if (_welcomeOpened) return;
+  _welcomeOpened = true;
+
+  const icon = document.getElementById('welcomeGiftIcon');
+
+  // 抖動 → 爆開
+  icon.style.animation = 'giftShake .35s ease';
+  setTimeout(() => {
+    icon.style.animation = 'giftExplode .4s cubic-bezier(.36,.07,.19,.97) forwards';
+
+    // 噴出金幣特效
+    const rect = icon.getBoundingClientRect();
+    const ox = rect.left + rect.width / 2;
+    const oy = rect.top + rect.height / 2;
+    for (let i = 0; i < 16; i++) {
+      const coin = document.createElement('span');
+      coin.textContent = '🪙';
+      coin.className = 'gift-burst-coin';
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 90 + Math.random() * 130;
+      coin.style.cssText = `left:${ox}px;top:${oy}px;--tx:${Math.cos(angle)*dist}px;--ty:${Math.sin(angle)*dist}px;animation-delay:${Math.random()*.1}s`;
+      document.body.appendChild(coin);
+      setTimeout(() => coin.remove(), 900);
+    }
+  }, 350);
+
+  setTimeout(async () => {
+    document.getElementById('welcomeGiftBtn').style.display = 'none';
+    document.getElementById('welcomeRewardWrap').style.display = 'block';
+
+    // 呼叫後端入帳 500 金幣
+    try {
+      const res = await fetch(`${API_BASE}/user/welcome-gift`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: state.userId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        state.coins = data.coins;
+        state.welcomeClaimed = true;
+        updatePlayerBar();
+      }
+    } catch (e) {}
+
+    // 金幣飄動背景啟動
+    const wrap = document.getElementById('welcomeCoinsWrap');
+    const coins = ['🪙','🪙','💰','🪙','🪙','💰','🪙'];
+    coins.forEach((c, i) => {
+      const el = document.createElement('span');
+      el.className = 'welcome-coin';
+      el.textContent = c;
+      el.style.cssText = `left:${10 + i * 13}%;--dur:${1.8 + Math.random() * 1.2}s;--delay:${i * 0.18}s`;
+      wrap.appendChild(el);
+    });
+  }, 750);
+}
+
+function closeWelcomeModal() {
+  const modal = document.getElementById('welcomeModal');
+  modal.classList.add('closing');
+  setTimeout(() => {
+    modal.classList.remove('closing');
+    modal.style.display = 'none';
+  }, 210);
+}
+
+// ─── 升等動畫 Overlay ─────────────────────────────────────
+let _levelUpBase = 0;
+let _levelUpMilestone = 0;
+let _levelUpOpened = false;
+
+function showLevelUpOverlay(level, base, milestone) {
+  _levelUpBase = base;
+  _levelUpMilestone = milestone;
+  _levelUpOpened = false;
+
+  document.getElementById('levelUpNum').textContent = level;
+  document.getElementById('levelUpGiftBtn').style.display = 'flex';
+  document.getElementById('levelUpRewardWrap').style.display = 'none';
+  document.getElementById('levelUpHint').style.display = 'none';
+
+  const raysEl = document.getElementById('levelUpRays');
+  raysEl.innerHTML = '';
+  const count = 16;
+  for (let i = 0; i < count; i++) {
+    const angle = (360 / count) * i;
+    const len = 180 + Math.random() * 160;
+    const ray = document.createElement('div');
+    ray.className = 'levelup-ray';
+    ray.style.cssText = `rotate:${angle}deg;translate:-50% 0;height:${len}px;--ray-opacity:${0.4 + Math.random() * 0.5};animation-delay:${i * 0.03}s`;
+    raysEl.appendChild(ray);
+  }
+
+  const overlay = document.getElementById('levelUpOverlay');
+  overlay.style.display = 'flex';
+}
+
+async function openLevelUpGift(event) {
+  event.stopPropagation();
+  if (_levelUpOpened) return;
+  _levelUpOpened = true;
+
+  const claimPromise = fetch(`${API_BASE}/user/levelup-gift`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: state.userId })
+  }).then(r => r.json()).catch(() => null);
+
+  const giftBtn = document.getElementById('levelUpGiftBtn');
+  const giftIcon = giftBtn.querySelector('.levelup-gift-icon');
+
+  // 抖動 → 爆開
+  giftIcon.style.animation = 'giftShake .35s ease';
+  setTimeout(() => {
+    giftIcon.style.animation = 'giftExplode .4s cubic-bezier(.36,.07,.19,.97) forwards';
+
+    // 爆開時噴出金幣特效
+    const overlay = document.getElementById('levelUpOverlay');
+    const rect = giftIcon.getBoundingClientRect();
+    const ox = rect.left + rect.width / 2;
+    const oy = rect.top + rect.height / 2;
+    for (let i = 0; i < 14; i++) {
+      const coin = document.createElement('span');
+      coin.textContent = '🪙';
+      coin.className = 'gift-burst-coin';
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 80 + Math.random() * 120;
+      coin.style.cssText = `left:${ox}px;top:${oy}px;--tx:${Math.cos(angle)*dist}px;--ty:${Math.sin(angle)*dist}px;animation-delay:${Math.random()*.12}s`;
+      document.body.appendChild(coin);
+      setTimeout(() => coin.remove(), 900);
+    }
+  }, 350);
+
+  setTimeout(async () => {
+    giftBtn.style.display = 'none';
+
+    const list = document.getElementById('levelUpRewardList');
+    const total = document.getElementById('levelUpRewardTotal');
+    const items = [];
+    if (_levelUpBase > 0)      items.push({ label: '升等獎勵', coins: _levelUpBase });
+    if (_levelUpMilestone > 0) items.push({ label: '里程碑獎勵', coins: _levelUpMilestone });
+
+    list.innerHTML = items.map((item, i) =>
+      `<div class="levelup-reward-item" style="animation-delay:${i * 0.12}s">
+        <span class="reward-label">${item.label}</span>
+        <span class="reward-coins">+${item.coins} 🪙</span>
+      </div>`
+    ).join('');
+
+    const totalCoins = _levelUpBase + _levelUpMilestone;
+    total.innerHTML = `合計 <span>+${totalCoins} 🪙</span>`;
+
+    document.getElementById('levelUpRewardWrap').style.display = 'block';
+    setTimeout(() => {
+      document.getElementById('levelUpHint').style.display = 'block';
+    }, items.length * 120 + 400);
+
+    const result = await claimPromise;
+    if (result && result.coins !== undefined) {
+      state.coins = result.coins;
+      updatePlayerBar();
+    }
+
+    setTimeout(() => closeLevelUpOverlay(), 4000);
+  }, 750);
+}
+
+function closeLevelUpOverlay() {
+  const overlay = document.getElementById('levelUpOverlay');
+  if (!overlay || overlay.style.display === 'none') return;
+  overlay.classList.add('closing');
+  setTimeout(() => {
+    overlay.classList.remove('closing');
+    overlay.style.display = 'none';
+  }, 400);
+}
+
+function showRenameCardModal() {
+  document.getElementById('renameCardInput').value = '';
+  const errEl = document.getElementById('renameCardError');
+  errEl.style.display = 'none';
+  errEl.textContent = '';
+  document.getElementById('renameCardModal').style.display = 'flex';
+}
+
+async function confirmRenameCard() {
+  const newName = document.getElementById('renameCardInput').value.trim();
+  const errEl = document.getElementById('renameCardError');
+  const btn = document.querySelector('#renameCardModal .btn-gold');
+  errEl.style.display = 'none';
+
+  if (!newName) { errEl.textContent = '暱稱不能為空'; errEl.style.display = 'block'; return; }
+  if (newName.length < 2 || newName.length > 20) { errEl.textContent = '暱稱長度需在 2-20 字之間'; errEl.style.display = 'block'; return; }
+
+  btn.textContent = '修改中...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/user/nickname`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: state.userId, new_nickname: newName, use_card: true })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || '修改失敗，請再試一次'; errEl.style.display = 'block'; return; }
+
+    state.playerName = newName;
+    state.coins -= 500;
+    state.nicknameRemainingFree = Math.max(0, state.nicknameRemainingFree - 1);
+    updatePlayerBar();
+    closeModal('renameCardModal');
+    showToast('✅ 暱稱已更新！');
+  } catch (e) {
+    errEl.textContent = '無法連線到伺服器';
+    errEl.style.display = 'block';
+  } finally {
+    btn.textContent = '✅ 確認修改';
+    btn.disabled = false;
+  }
 }
 
 function showToast(msg) {
@@ -1382,6 +1665,86 @@ async function renderRank() {
 // ─── INIT ────────────────────────────────────────────────
 createStars();
 
+// 偵測 URL 是否帶有重設密碼 token
+(function checkResetToken() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('reset_token');
+  if (!token) return;
+
+  // 清掉 URL 上的 token，避免重新整理重複觸發
+  history.replaceState(null, '', window.location.pathname);
+
+  const parts = token.split('.');
+  const expired = parts.length !== 2 || Date.now() > parseInt(parts[1]);
+
+  if (expired) {
+    showScreen('resetExpiredScreen');
+    startResetExpiredCountdown();
+  } else {
+    window._resetToken = token;
+    showScreen('resetPasswordScreen');
+    const infoEl = document.getElementById('resetAccountInfo');
+    if (infoEl) infoEl.innerHTML = '載入帳號資訊中...';
+    fetch(`${API_BASE}/auth/reset-info?token=${encodeURIComponent(token)}`)
+      .then(r => r.json().then(data => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (ok) {
+          const el = document.getElementById('resetAccountInfo');
+          if (el) el.innerHTML = `帳號 ID：<strong>${escapeHTML(data.custom_id)}</strong>`;
+        } else {
+          showScreen('resetUsedScreen');
+          startResetUsedCountdown();
+        }
+      })
+      .catch(() => {
+        showScreen('resetUsedScreen');
+        startResetUsedCountdown();
+      });
+  }
+})();
+
+async function handleResetPassword() {
+  const pw1 = getPwdVal('resetPw1');
+  const pw2 = getPwdVal('resetPw2');
+  const errEl = document.getElementById('resetError');
+  const btn = document.getElementById('resetSubmitBtn');
+  errEl.textContent = '';
+
+  if (!pw1 || !pw2) { errEl.textContent = '請填寫所有欄位'; return; }
+  if (pw1.length < 6) { errEl.textContent = '密碼至少需要 6 位數'; return; }
+  if (pw1 !== pw2) { errEl.textContent = '兩次密碼不一致'; return; }
+
+  btn.textContent = '重設中...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: window._resetToken, new_password: pw1 })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.error && data.error.includes('過期')) {
+        showScreen('resetExpiredScreen');
+        startResetExpiredCountdown();
+      } else {
+        errEl.textContent = data.error || '重設失敗，請再試一次';
+      }
+      return;
+    }
+    showToast('✅ 密碼重設成功！請重新登入');
+    document.getElementById('resetPw1').value = '';
+    document.getElementById('resetPw2').value = '';
+    showScreen('loginScreen');
+  } catch (e) {
+    errEl.textContent = '無法連線到伺服器';
+  } finally {
+    btn.textContent = '✅ 確認重設密碼';
+    btn.disabled = false;
+  }
+}
+
 // ─── 密碼欄位初始化 ───────────────────────────────────────
 (function initPasswordFields() {
   // 初始化指定 id 的眼睛按鈕
@@ -1394,8 +1757,8 @@ createStars();
     if (btn.dataset.pwdBound === '1') return;  // 防止重複綁定
     btn.dataset.pwdBound = '1';
     btn.classList.add('active');
-    const show = (e) => { e.preventDefault(); visEl.value = pwdEl.value; pwdEl.style.display = 'none'; visEl.style.display = ''; btn.classList.remove('active'); };
-    const hide = () => { if (visEl.style.display !== 'none') pwdEl.value = visEl.value; visEl.style.display = 'none'; pwdEl.style.display = ''; btn.classList.add('active'); };
+    const show = (e) => { e.preventDefault(); visEl.value = pwdEl.value; pwdEl.style.display = 'none'; visEl.style.display = 'block'; btn.classList.remove('active'); };
+    const hide = () => { if (visEl.style.display === 'block') pwdEl.value = visEl.value; visEl.style.display = 'none'; pwdEl.style.display = ''; btn.classList.add('active'); };
     btn.addEventListener('mousedown', show);
     btn.addEventListener('mouseup', hide);
     btn.addEventListener('mouseleave', hide);
@@ -1405,7 +1768,8 @@ createStars();
 
   window.initPwdToggle = initPwdToggle;  // 暴露給 showScreen 呼叫
 
-  ['passwordInput', 'regPasswordInput'].forEach(id => {
+  ['passwordInput', 'regPasswordInput', 'regPasswordConfirm', 'resetPw1', 'resetPw2',
+   'changePwdOld', 'changePwdNew', 'changePwdConfirm', 'deleteAccountPwd'].forEach(id => {
     const pwdEl = document.getElementById(id);
     const visEl = document.getElementById(id + 'Visible');
     const wrap = pwdEl && pwdEl.closest('.password-wrap');
@@ -1420,13 +1784,13 @@ createStars();
       e.preventDefault();
       visEl.value = pwdEl.value;
       pwdEl.style.display = 'none';
-      visEl.style.display = '';
+      visEl.style.display = 'block';
       btn.classList.remove('active');  // 移除斜線（顯示中）
     });
 
     // 放開 → 隱藏密碼
     const hide = () => {
-      pwdEl.value = visEl.value;
+      if (visEl.style.display === 'block') pwdEl.value = visEl.value;
       visEl.style.display = 'none';
       pwdEl.style.display = '';
       btn.classList.add('active');  // 加上斜線（隱藏中）
@@ -1437,7 +1801,7 @@ createStars();
       e.preventDefault();
       visEl.value = pwdEl.value;
       pwdEl.style.display = 'none';
-      visEl.style.display = '';
+      visEl.style.display = 'block';
       btn.classList.remove('active');
     });
     btn.addEventListener('touchend', hide);
@@ -1699,7 +2063,7 @@ function ensureModalsAtBody() {
 function getPwdVal(id) {
   const vis = document.getElementById(id + 'Visible');
   const pwd = document.getElementById(id);
-  if (vis && vis.style.display !== 'none') return vis.value.trim();
+  if (vis && vis.style.display === 'block') return vis.value.trim();
   return pwd ? pwd.value.trim() : '';
 }
 
@@ -1722,8 +2086,8 @@ function showChangePwdModal() {
     const btn = oldBtn.cloneNode(true);
     oldBtn.parentNode.replaceChild(btn, oldBtn);
     btn.classList.add('active');
-    const show = (e) => { e.preventDefault(); visEl.value = pwdEl.value; pwdEl.style.display = 'none'; visEl.style.display = ''; btn.classList.remove('active'); };
-    const hide = () => { pwdEl.value = visEl.value; visEl.style.display = 'none'; pwdEl.style.display = ''; btn.classList.add('active'); };
+    const show = (e) => { e.preventDefault(); visEl.value = pwdEl.value; pwdEl.style.display = 'none'; visEl.style.display = 'block'; btn.classList.remove('active'); };
+    const hide = () => { if (visEl.style.display === 'block') pwdEl.value = visEl.value; visEl.style.display = 'none'; pwdEl.style.display = ''; btn.classList.add('active'); };
     btn.addEventListener('mousedown', show);
     btn.addEventListener('mouseup', hide);
     btn.addEventListener('mouseleave', hide);
@@ -1805,6 +2169,7 @@ async function handleDeleteAccount() {
 
 function logout() {
   if (confirm('確定要登出嗎？')) {
+    stopCoinSync();
     state.userId = null;
     document.getElementById('usernameInput').value = '';
     document.getElementById('passwordInput').value = '';
@@ -1824,6 +2189,10 @@ async function handleForgotPassword() {
 
   if (!identifier) { errEl.textContent = '請輸入帳號或信箱'; errEl.style.display = 'block'; return; }
 
+  const btn = document.querySelector('#forgotScreen .btn-gold');
+  btn.textContent = '寄送中...';
+  btn.disabled = true;
+
   try {
     const res = await fetch(`${API_BASE}/auth/forgot-password`, {
       method: 'POST',
@@ -1838,6 +2207,9 @@ async function handleForgotPassword() {
   } catch (err) {
     errEl.textContent = '無法連線到伺服器';
     errEl.style.display = 'block';
+  } finally {
+    btn.textContent = '📧 寄送重設連結';
+    btn.disabled = false;
   }
 }
 
@@ -1867,8 +2239,11 @@ async function handleLogin() {
     const data = await res.json();
 
     if (!res.ok) {
-      // 登入失敗，顯示錯誤訊息
-      showLoginError(data.error || '登入失敗，請再試一次');
+      if (data.unverified) {
+        showLoginError(data.error);
+      } else {
+        showLoginError(data.error || '登入失敗，請再試一次');
+      }
       return;
     }
 
@@ -1881,6 +2256,8 @@ async function handleLogin() {
     // 跳轉到主頁
     showScreen('homeScreen');
     updatePlayerBar();
+    startCoinSync();
+    setTimeout(() => showWelcomeModal(data.user.id), 600);
 
   } catch (err) {
     showLoginError('無法連線到伺服器，請確認後端是否已啟動');
@@ -1918,6 +2295,8 @@ async function loadUserProfile(userId) {
     state.owned.activeEffect = profile.active_effect || null;     // 同步 owned.activeEffect
 
     state.topicStats = profile.topic_stats || {};  // 主題統計（從後端讀取）
+    state.nicknameRemainingFree = profile.nickname_remaining_free ?? 3;  // 本月剩餘改名次數
+    state.welcomeClaimed = profile.welcome_claimed ?? false;             // 是否已領取新手禮包
     state.recentScores = [];              // 近期得分（等對戰系統串接後才有）
     state.recentAccuracy = [];            // 近期準確率（等對戰系統串接後才有）
 
@@ -2135,6 +2514,64 @@ function goToLogin() {
   showScreen(verifiedCountdownTarget);
 }
 
+let resetExpiredCountdownTimer = null;
+
+function startResetExpiredCountdown() {
+  if (resetExpiredCountdownTimer) clearInterval(resetExpiredCountdownTimer);
+  let sec = 5;
+  const countdownEl = document.getElementById('resetExpiredCountdown');
+  const barEl = document.getElementById('resetExpiredBar');
+  if (barEl) {
+    barEl.classList.remove('running');
+    void barEl.offsetWidth;
+    barEl.classList.add('running');
+  }
+  if (countdownEl) countdownEl.textContent = `${sec} 秒後自動跳轉...`;
+  resetExpiredCountdownTimer = setInterval(() => {
+    sec--;
+    if (countdownEl) countdownEl.textContent = `${sec} 秒後自動跳轉...`;
+    if (sec <= 0) {
+      clearInterval(resetExpiredCountdownTimer);
+      resetExpiredCountdownTimer = null;
+      goToForgot();
+    }
+  }, 1000);
+}
+
+function goToForgot() {
+  if (resetExpiredCountdownTimer) { clearInterval(resetExpiredCountdownTimer); resetExpiredCountdownTimer = null; }
+  showScreen('forgotScreen');
+}
+
+let resetUsedCountdownTimer = null;
+
+function startResetUsedCountdown() {
+  if (resetUsedCountdownTimer) clearInterval(resetUsedCountdownTimer);
+  let sec = 5;
+  const countdownEl = document.getElementById('resetUsedCountdown');
+  const barEl = document.getElementById('resetUsedBar');
+  if (barEl) {
+    barEl.classList.remove('running');
+    void barEl.offsetWidth;
+    barEl.classList.add('running');
+  }
+  if (countdownEl) countdownEl.textContent = `${sec} 秒後自動跳轉...`;
+  resetUsedCountdownTimer = setInterval(() => {
+    sec--;
+    if (countdownEl) countdownEl.textContent = `${sec} 秒後自動跳轉...`;
+    if (sec <= 0) {
+      clearInterval(resetUsedCountdownTimer);
+      resetUsedCountdownTimer = null;
+      goToLoginFromUsed();
+    }
+  }, 1000);
+}
+
+function goToLoginFromUsed() {
+  if (resetUsedCountdownTimer) { clearInterval(resetUsedCountdownTimer); resetUsedCountdownTimer = null; }
+  showScreen('loginScreen');
+}
+
 function showRegisterError(msg) {
   const errEl = document.getElementById('registerError');
   if (errEl) {
@@ -2185,12 +2622,8 @@ function initVerifyCodeInputs() {
       const target = inputs[startIndex + offset];
       if (target) target.value = digit;
     });
-    const nextIndex = startIndex + digits.length;
-    if (nextIndex < inputs.length) {
-      focusVerifyCodeInput(nextIndex);
-    } else if (inputs.length) {
-      inputs[inputs.length - 1].blur();
-    }
+    const nextEmpty = Math.min(startIndex + digits.length, inputs.length - 1);
+    if (digits.length > 0) inputs[nextEmpty].focus();
   };
 
   inputs.forEach((input, index) => {
