@@ -577,14 +577,14 @@ def save_active_effect():
 def get_rank():
     user_id = request.args.get('user_id')  # 當前玩家 ID
 
-    # 查詢前 3 名（積分優先，同分比勝場）
+    # 查詢足夠多的玩家，確保能涵蓋前 3 名的所有並列情況
     rank_response = supabase.table('users').select(
         'id, nickname, custom_id, total_score, wins, level'
-    ).order('total_score', desc=True).order('wins', desc=True).limit(3).execute()
+    ).order('total_score', desc=True).order('wins', desc=True).limit(200).execute()
 
     players = rank_response.data or []
 
-    # 計算名次（積分和勝場都相同則並列）
+    # 計算名次（積分和勝場都相同則並列），回傳全部玩家
     result = []
     current_rank = 1
     for i, p in enumerate(players):
@@ -641,52 +641,6 @@ def get_rank():
         'myRank': my_rank
     }), 200
 
-# 更新主題統計
-# 路徑：POST /user/topic-stats
-# 傳入：{ user_id, topic_stats: { 分類: { correct, wrong } } }
-@user_bp.route('/topic-stats', methods=['POST'])
-def update_topic_stats():
-    data = request.get_json()
-    user_id = data.get('user_id')
-    new_stats = data.get('topic_stats', {})
-    if not user_id:
-        return jsonify({'error': '缺少 user_id'}), 400
-
-    # 取得現有統計並合併（累加答題數）
-    res = supabase.table('users').select('topic_stats').eq('id', user_id).execute()
-    if not res.data:
-        return jsonify({'error': '找不到使用者'}), 400
-    existing = res.data[0].get('topic_stats') or {}
-    merged = dict(existing)
-    for cat, stats in new_stats.items():
-        if cat not in merged:
-            merged[cat] = {'correct': 0, 'wrong': 0}
-        merged[cat]['correct'] = merged[cat].get('correct', 0) + stats.get('correct', 0)
-        merged[cat]['wrong'] = merged[cat].get('wrong', 0) + stats.get('wrong', 0)
-
-    supabase.table('users').update({'topic_stats': merged}).eq('id', user_id).execute()
-    return jsonify({'message': '更新成功', 'topic_stats': merged}), 200
-
-
-# 儲存單場對戰記錄
-# 路徑：POST /user/battle-record
-# 傳入：{ user_id, score, correct, total, won, topic_stats }
-@user_bp.route('/battle-record', methods=['POST'])
-def save_battle_record():
-    data = request.get_json()
-    user_id = data.get('user_id')
-    if not user_id:
-        return jsonify({'error': '缺少 user_id'}), 400
-
-    supabase.table('battle_records').insert({
-        'user_id': user_id,
-        'score': data.get('score', 0),
-        'correct': data.get('correct', 0),
-        'total': data.get('total', 0),
-        'won': data.get('won', False),
-        'topic_stats': data.get('topic_stats', {}),  # 保存題目分類統計
-    }).execute()
-    return jsonify({'message': '記錄成功'}), 200
 
 
 # 查詢最近對戰記錄

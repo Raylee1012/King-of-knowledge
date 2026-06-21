@@ -10,9 +10,10 @@ ITEM_MAX_USES = 2  # 每位玩家可使用道具的次數
 
 
 class GameRoom:  # 遊戲房間類別
-    def __init__(self, room_id, p1, p2, question_bank, on_end):  # 初始化函式
+    def __init__(self, room_id, p1, p2, question_bank, daily_categories, on_end):  # 初始化函式
         self.room_id = room_id  # 房間 ID
         self.players = [p1, p2]  # 玩家列表 [玩家1, 玩家2]
+        self.daily_categories = set(daily_categories)  # 今日挑戰主題分類集合
         self.on_end = on_end  # 遊戲結束時的回調函式
         self.questions = self.sample_questions(question_bank, QUESTIONS_PER_GAME)  # 從題庫中隨機抽取題目
         self.scores = [0, 0]  # 兩位玩家的分數
@@ -51,6 +52,8 @@ class GameRoom:  # 遊戲房間類別
         self.answers = [None, None]  # 重置答案
         self.answered = [False, False]  # 重置作答狀態
         self.removed_options = [set(), set()]  # 重置已刪除選項
+        category = q.get('category', '一般')
+        is_daily = category in self.daily_categories
 
         for i, p in enumerate(self.players):  # 遍歷兩位玩家
             self._send(p, {  # 發送題目訊息
@@ -59,7 +62,8 @@ class GameRoom:  # 遊戲房間類別
                 'total': QUESTIONS_PER_GAME,  # 總題數
                 'question': q['q'],  # 題目文本
                 'options': q['opts'],  # 選項列表
-                'category': q.get('category', '一般'),  # 題目分類
+                'category': category,  # 題目分類
+                'isDaily': is_daily,  # 是否為今日挑戰主題（答對 x2 分）
                 'itemUsesLeft': self.item_uses_left[i],  # 該玩家剩餘道具次數
             })
 
@@ -154,6 +158,7 @@ class GameRoom:  # 遊戲房間類別
             return  # 函式結束
         q = self.questions[self.current_q]  # 取得當前題目
         category = q.get('category', '一般')  # 取得題目分類
+        is_daily = category in self.daily_categories  # 是否為今日主題
         results = []  # 儲存結算結果
         for i in range(2):  # 遍歷兩位玩家
             ans = self.answers[i]  # 取得玩家的答案
@@ -161,6 +166,8 @@ class GameRoom:  # 遊戲房間類別
             used_sec = ans['usedSec'] if ans else QUESTION_TIMEOUT  # 提取用時，如未作答則為 10 秒
             correct = answer_idx == q['ans']  # 判斷答案是否正確
             gained = self.calc_score(used_sec) if correct else 0  # 計算得分，錯誤則為 0
+            if correct and is_daily:
+                gained *= 2  # 今日主題答對得分 x2
             self.scores[i] += gained  # 累加玩家分數
             
             # 更新題目分類統計
@@ -185,6 +192,7 @@ class GameRoom:  # 遊戲房間類別
             'correctAns': q['ans'],  # 正確答案
             'results': results,  # 結果列表
             'scores': list(self.scores),  # 當前分數
+            'isDaily': is_daily,  # 是否為今日主題
         })
 
         threading.Timer(RESULT_DELAY, self._next_question).start()  # 1.5 秒後進行下一題

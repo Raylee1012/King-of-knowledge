@@ -49,6 +49,8 @@ const shopData = {
   skills: [
     {id:'skill-5050',name:'50/50',desc:'消去兩個錯誤選項',price:500,preview:'🎯'},
     {id:'skill-time',name:'加時 +10秒',desc:'對戰時延長作答時間',price:300,preview:'⏱️'},
+  ],
+  items: [
     {id:'item-rename',name:'改名卡',desc:'立即修改一次玩家暱稱（消耗品）',price:500,preview:'✏️'},
   ]
 };
@@ -170,7 +172,7 @@ function startCoinSync() {
         updatePlayerBar();
       }
     } catch {}
-  }, 10000);
+  }, 60000);
 }
 
 function stopCoinSync() {
@@ -245,7 +247,8 @@ function startBattle(mode = 'bot') {
   battleWs = new WebSocket(WS_BASE);
 
   battleWs.onopen = () => {
-    // 連線成功後依模式發送對應訊息
+    // 連線成功後才進入對戰畫面，並依模式發送對應訊息
+    showScreen('battleScreen');
     if (mode === 'bot') {
       battleWs.send(JSON.stringify({ type: 'join_bot', userName: state.playerName, userId: state.userId }));
     } else if (mode === 'queue') {
@@ -281,8 +284,6 @@ function startBattle(mode = 'bot') {
     }
     battleIntentionalClose = false;
   };
-
-  showScreen('battleScreen');
 }
 
 // 創建戰鬥房間
@@ -410,7 +411,17 @@ function handleBattleMessage(msg) {
     document.getElementById('comboMult').textContent = bd.combo;
 
     // 顯示題目
-    document.getElementById('topicBadge').textContent = '知識王';
+    const badge = document.getElementById('topicBadge');
+    if (msg.isDaily) {
+      const emoji = DAILY_EMOJI[msg.category] || '📌';
+      badge.textContent = `${emoji} ${msg.category} ⚡x2`;
+      badge.style.background = 'linear-gradient(135deg,#f59e0b,#ef4444)';
+      badge.style.color = '#fff';
+    } else {
+      badge.textContent = msg.category || '知識王';
+      badge.style.background = '';
+      badge.style.color = '';
+    }
     document.getElementById('questionText').textContent = msg.question;
 
     // 顯示選項
@@ -463,6 +474,7 @@ function handleBattleMessage(msg) {
       bd.combo = bd.combo + 1;  // 答對加 1 連擊，無上限
       document.getElementById('comboMult').textContent = bd.combo;  // 顯示新 combo
       addCorrectEffect(myResult.gained);            // 答對特效
+      if (msg.isDaily) showToast(`⚡ 今日主題 x2！+${myResult.gained}`);
       if (bd.combo >= 2) showComboPopup(bd.combo); // 2 連擊以上顯示彈出提示
       showXpPopup();
     } else {
@@ -1598,6 +1610,36 @@ function showToast(msg) {
   setTimeout(()=>t.remove(), 2500);
 }
 
+// ─── DAILY THEME ─────────────────────────────────────────
+const DAILY_EMOJI = {
+  '體育': '⚽', '美術': '🎨', '國文': '📖', '英文': '🔤',
+  '數學': '🔢', '歷史': '📜', '地理': '🌍', '公民': '🏛️',
+  '物理': '⚛️', '化學': '⚗️', '生物': '🧬', '地科': '🌋',
+  '程式': '💻', '健教': '🏥', '家政': '🏠', '軍教': '🪖',
+  '人文': '🎭', '常識': '💡', '新聞': '📰', '其他': '📌',
+};
+
+function renderDailyChips(categories) {
+  const chipsEl = document.getElementById('dailyThemeChips');
+  if (!chipsEl) return;
+  chipsEl.innerHTML = categories.map(cat => {
+    const emoji = DAILY_EMOJI[cat] || '📌';
+    return `<span class="topic-chip">${emoji} ${cat}</span>`;
+  }).join('');
+}
+
+async function loadDailyTheme() {
+  const chipsEl = document.getElementById('dailyThemeChips');
+  if (!chipsEl) return;
+  try {
+    const res = await fetch('http://localhost:4000/daily-theme');
+    const data = await res.json();
+    renderDailyChips(data.categories);
+  } catch {
+    chipsEl.innerHTML = `<span style="color:var(--text2);font-size:13px">對戰伺服器未開啟</span>`;
+  }
+}
+
 // ─── RANK ────────────────────────────────────────────────
 async function renderRank() {
   const listEl = document.getElementById('rankList');
@@ -1609,50 +1651,82 @@ async function renderRank() {
     if (!res.ok) throw new Error(data.error);
 
     const medals = ['🥇', '🥈', '🥉'];
-    const rankColor = (rank) => rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#7070a0';
+    const rankColor = (rank) => rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : 'var(--text2)';
 
     const renderRow = (r) => {
       const isTop3 = r.rank <= 3;
+      const dimStyle = isTop3 ? '' : 'opacity:0.45;';
       const bg = isTop3 ? 'background:var(--card2);border-color:rgba(255,215,0,0.3);' : '';
-      const you = r.isYou ? 'border-color:#ffd700;' : '';
+      const you = r.isYou ? 'border-color:#ffd700;opacity:1;' : '';
       return `
-      <div class="card" style="${bg}${you}">
+      <div class="card" style="${dimStyle}${bg}${you}">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-          <div style="font-size:${r.rank <= 3 ? '28px' : '20px'};font-weight:900;min-width:36px;text-align:center;
+          <div style="font-size:${isTop3 ? '28px' : '16px'};font-weight:900;min-width:36px;text-align:center;
             font-family:'Orbitron',monospace;color:${rankColor(r.rank)}">
-            ${r.rank <= 3 ? medals[r.rank - 1] : r.rank}
+            ${isTop3 ? medals[r.rank - 1] : r.rank}
           </div>
-          <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff6b35);
-            display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid rgba(255,255,255,.2)">
+          <div style="width:${isTop3 ? '48px' : '36px'};height:${isTop3 ? '48px' : '36px'};border-radius:50%;
+            background:linear-gradient(135deg,#ffd700,#ff6b35);
+            display:flex;align-items:center;justify-content:center;font-size:${isTop3 ? '22px' : '16px'};
+            border:2px solid rgba(255,255,255,.2)">
             🧠
           </div>
           <div style="flex:1">
-            <div style="font-size:16px;font-weight:900">
+            <div style="font-size:${isTop3 ? '16px' : '14px'};font-weight:900">
               ${r.name}${r.isYou ? ' <span style="color:var(--accent);font-size:12px">(你)</span>' : ''}
             </div>
             <div style="font-size:12px;color:var(--text2)">Lv.${r.level} · ${r.wins} 勝</div>
           </div>
           <div style="text-align:right">
-            <div style="font-size:18px;font-weight:900;color:${rankColor(r.rank)}">${(r.score || 0).toLocaleString()}</div>
+            <div style="font-size:${isTop3 ? '18px' : '14px'};font-weight:900;color:${rankColor(r.rank)}">${(r.score || 0).toLocaleString()}</div>
             <div style="font-size:11px;color:var(--text2)">積分</div>
           </div>
         </div>
       </div>`;
     };
 
-    // 只顯示前 3 名
-    let html = data.rank.slice(0, 3).map(r => renderRow(r)).join('');
+    const rank = data.rank;
+    const sep  = `<div style="text-align:center;color:var(--text2);padding:4px 0;font-size:20px;opacity:0.6">⋮</div>`;
+    const top3 = rank.filter(r => r.rank <= 3);
+    const rest  = rank.filter(r => r.rank > 3);
 
-    // 當前玩家（在前3裡或在myRank）
-    const me = data.rank.find(r => r.isYou) || data.myRank;
-    if (me && !data.rank.find(r => r.isYou)) {
-      // 第 5 名以後才顯示直線
-      if (me.rank >= 5) {
-        html += `<div style="text-align:center;color:var(--text2);padding:2px 0;line-height:1.2">│<br>│<br>│</div>`;
+    // 前三名（含所有並列，全部列出）
+    let html = top3.map(r => renderRow(r)).join('');
+
+    const meIdx    = rank.findIndex(r => r.isYou);
+    const meInTop3 = meIdx !== -1 && meIdx < top3.length;
+
+    if (meInTop3) {
+      // 自己在前三名：只顯示前三名那組，不需要後續任何內容
+
+    } else {
+      // 緊接前三名後的 3 筆（自己不在前三名時才顯示）
+      const afterTop3  = rest.slice(0, 3);
+      html += afterTop3.map(r => renderRow(r)).join('');
+      const shownCount = top3.length + afterTop3.length;
+
+      if (meIdx !== -1 && meIdx < shownCount) {
+        // 自己在 afterTop3 區間（第 4~6 名）：後面還有人才加 ⋮
+        if (rest.length > 3) html += sep;
+
+      } else if (meIdx !== -1 && meIdx >= shownCount) {
+        // 自己在更後面：補自己前後的脈絡
+        const contextStart = Math.max(shownCount, meIdx - 1);
+        const contextEnd   = Math.min(rank.length - 1, meIdx + 2);
+
+        if (contextStart > shownCount) html += sep;
+        for (let i = contextStart; i <= contextEnd; i++) html += renderRow(rank[i]);
+        if (contextEnd < rank.length - 1) html += sep;
+
+      } else {
+        // 自己不在名單內（超過 200 名或無積分）
+        if (data.myRank) {
+          html += sep;
+          html += renderRow(data.myRank);
+        } else {
+          html += `<div class="card" style="text-align:center;color:var(--text2);padding:16px;font-size:13px">尚未有積分，快去對戰吧！</div>`;
+        }
       }
-      html += renderRow(me);
-    } else if (!me) {
-      html += `<div class="card" style="text-align:center;color:var(--text2);padding:16px;font-size:13px">尚未有積分，快去對戰吧！</div>`;
     }
 
     listEl.innerHTML = html || '<p style="text-align:center;color:var(--text2);padding:40px">暫無資料</p>';
@@ -2006,11 +2080,6 @@ function toggleNameEdit() {
   }
 }
 
-function saveProfileChanges() {
-  updatePlayerBar();
-  showToast('✅ 資料已保存！');
-}
-
 function updateStatsDisplay() {
   // 計算勝率
   const total = state.wins + state.losses;  // 總場數
@@ -2049,10 +2118,6 @@ function updateStatsDisplay() {
 }
 
 // 密碼不顯示，只顯示遮罩
-function togglePasswordVisibility() {
-  showToast('基於安全考量，密碼無法顯示');  // 不顯示密碼
-}
-
 function ensureModalsAtBody() {
   ['changePwdModal', 'deleteAccountModal'].forEach(id => {
     const el = document.getElementById(id);
@@ -2257,6 +2322,7 @@ async function handleLogin() {
     showScreen('homeScreen');
     updatePlayerBar();
     startCoinSync();
+    loadDailyTheme();
     setTimeout(() => showWelcomeModal(data.user.id), 600);
 
   } catch (err) {
@@ -2276,7 +2342,7 @@ async function loadUserProfile(userId) {
     // 從後端更新所有 state 資料
     state.playerName = profile.nickname || profile.custom_id;  // 有暱稱用暱稱，沒有用 custom_id
     state.customId = profile.custom_id;  // 帳號 ID
-    state.coins = profile.coins;          // 金幣數量
+    state.coins = profile.coins ?? 0;     // 金幣數量
     state.userId = profile.id;            // 玩家 uuid
     state.email = profile.email;          // 玩家 email
     state.wins = profile.wins ?? 0;            // 勝場數，預設 0
@@ -2301,19 +2367,19 @@ async function loadUserProfile(userId) {
     state.recentAccuracy = [];            // 近期準確率（等對戰系統串接後才有）
 
     // 更新畫面上的玩家資料
-    updatePlayerBar();    // 更新玩家列（金幣、等級、暱稱）
-    updateStatsDisplay(); // 更新統計資料頁面
+    try { updatePlayerBar(); } catch (e) { console.error('updatePlayerBar 失敗:', e); }
+    try { updateStatsDisplay(); } catch (e) { console.error('updateStatsDisplay 失敗:', e); }
 
-    // 如果是管理員，顯示題庫管理按鈕
     // 管理員才顯示題庫管理按鈕，並控制個人設定的位置
+    const isAdmin = Boolean(profile.is_admin);
     const adminBtn = document.getElementById('adminBtn');
     const profileBtn = document.getElementById('profileBtn');
-    if (profile.is_admin) {
-      if (adminBtn) adminBtn.style.display = '';      // 顯示題庫管理（排在第5格）
-      if (profileBtn) profileBtn.style.gridColumn = ''; // 個人設定排第6格
+    if (isAdmin) {
+      if (adminBtn) adminBtn.style.display = 'block';
+      if (profileBtn) profileBtn.style.gridColumn = '';
     } else {
-      if (adminBtn) adminBtn.style.display = 'none';  // 隱藏題庫管理
-      if (profileBtn) profileBtn.style.gridColumn = '2'; // 個人設定移到第2欄（排行榜旁邊）
+      if (adminBtn) adminBtn.style.display = 'none';
+      if (profileBtn) profileBtn.style.gridColumn = '2';
     }
   } catch (err) {
     console.error('載入玩家資料失敗:', err);
@@ -2795,7 +2861,7 @@ async function adminStartGenerate() {
 async function adminGenerateQuestions(categories, count) {
   const res = await fetch(`${GEN_BASE}/generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': state.userId },
     body: JSON.stringify({ categories, count })  // 傳送分類和數量
   });
   const data = await res.json();
@@ -2920,7 +2986,9 @@ async function adminLoadQuestions(page = 1) {
   listEl.innerHTML = '<p style="color:var(--text2);text-align:center;padding:20px">載入中...</p>';
 
   try {
-    const res = await fetch(`${GEN_BASE}/questions?${params}`);
+    const res = await fetch(`${GEN_BASE}/questions?${params}`, {
+      headers: { 'X-User-Id': state.userId }
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
 
@@ -3003,7 +3071,7 @@ async function adminDoDelete(ids) {
   try {
     const res = await fetch(`${GEN_BASE}/questions`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': state.userId },
       body: JSON.stringify({ ids })
     });
     const data = await res.json();
@@ -3054,7 +3122,7 @@ async function adminSaveEdit() {
   try {
     const res = await fetch(`${GEN_BASE}/questions/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': state.userId },
       body: JSON.stringify(data)
     });
     const result = await res.json();

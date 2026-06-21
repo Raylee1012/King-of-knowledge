@@ -239,7 +239,7 @@
     <div>
       <div class="player-name" id="playerNameDisplay">知識戰士<span class="title-badge tag-master"><span class="title-medal">⭐</span><span class="title-plate">大師</span></span></div>
       <div class="player-xp-text">Lv.<span id="playerLevel">1</span> · XP <span id="playerXP">0</span>/<span id="playerXPMax">100</span></div>
-      <div class="xp-bar-wrap"><div class="xp-bar" id="xpBar" style="width:95%"></div></div>
+      <div class="xp-bar-wrap"><div class="xp-bar" id="xpBar"></div></div>
     </div>
     <div class="coins"><span>🪙</span><span id="coinDisplay">1200</span></div>
   </div>
@@ -251,43 +251,40 @@
     <div class="hero-card" onclick="showScreen('battleModeScreen')">
       <span class="hero-icon">⚔️</span>
       <div class="hero-title">對戰模式</div>
-      <div class="hero-desc">快速配對・房號對戰<br>AI 練習生</div>
+      <div class="hero-desc">配對・房間・AI 對戰</div>
     </div>
     <div class="hero-card" onclick="showScreen('analyticsScreen')">
       <span class="hero-icon">📊</span>
       <div class="hero-title">數據分析</div>
-      <div class="hero-desc">主題分佈・能力雷達圖<br>戰績趨勢</div>
+      <div class="hero-desc">答題統計・雷達圖</div>
     </div>
     <div class="hero-card" onclick="showScreen('shopScreen')">
       <span class="hero-icon">🏪</span>
       <div class="hero-title">裝備商店</div>
-      <div class="hero-desc">頭像框・名字標籤<br>特效道具</div>
+      <div class="hero-desc">外觀・技能・道具</div>
     </div>
     <div class="hero-card" onclick="showScreen('rankScreen')">
       <span class="hero-icon">🏆</span>
       <div class="hero-title">排行榜</div>
-      <div class="hero-desc">全球知識戰士排名<br>本週榜首</div>
+      <div class="hero-desc">全服積分排名</div>
     </div>
     <div class="hero-card" id="adminBtn" onclick="showScreen('adminScreen')">
       <span class="hero-icon">🛠️</span>
       <div class="hero-title">題庫管理</div>
-      <div class="hero-desc">管理員專用<br>生成與管理題目</div>
+      <div class="hero-desc">生成・管理題目</div>
     </div>
     <div class="hero-card" id="profileBtn" onclick="showScreen('profileScreen')">
       <span class="hero-icon">⚙️</span>
       <div class="hero-title">個人設定</div>
-      <div class="hero-desc">修改資料・查看統計<br>帳號安全設定</div>
+      <div class="hero-desc">帳號・裝備・戰績・登出</div>
     </div>
   </div>
 
-  <div class="card card-center">
+  <div class="card card-center" id="dailyThemeCard">
     <div class="daily-topic-label">今日挑戰主題</div>
     <div>
-      <span class="topic-chip">🔬 科學</span>
-      <span class="topic-chip">🌍 地理</span>
-      <span class="topic-chip">🎮 電競</span>
-      <span class="topic-chip">🎵 音樂</span>
-      <span class="topic-chip">⚡ 額外 x2 積分</span>
+      <span id="dailyThemeChips"><span class="chip-loading">載入中...</span></span>
+      <span class="topic-chip">⚡ 答題 x2 積分</span>
     </div>
   </div>
 </div>
@@ -332,7 +329,7 @@
     <div>
       <div class="player-name" id="playerNameDisplay3">知識戰士</div>
       <div class="player-xp-text">Lv.<span id="playerLevel3">1</span> · XP <span id="playerXP3">0</span>/<span id="playerXPMax3">1000</span></div>
-      <div class="xp-bar-wrap"><div class="xp-bar" id="xpBar3" style="width:0%"></div></div>
+      <div class="xp-bar-wrap"><div class="xp-bar" id="xpBar3"></div></div>
     </div>
     <div class="coins"><span>🪙</span><span id="coinDisplay3">0</span></div>
   </div>
@@ -409,7 +406,7 @@
       </div>
       <div class="fighter-score fighter-score-player" id="playerScore">0</div>
       <div class="fighter-score-label">得分</div>
-      <div class="fighter-hp"><div class="fighter-hp-bar hp-player" id="playerHp" style="width:100%"></div></div>
+      <div class="fighter-hp"><div class="fighter-hp-bar hp-player" id="playerHp"></div></div>
     </div>
     <div class="vs-divider">VS</div>
     <div class="fighter opponent">
@@ -422,7 +419,7 @@
       </div>
       <div class="fighter-score fighter-score-opp" id="oppScore">0</div>
       <div class="fighter-score-label">得分</div>
-      <div class="fighter-hp"><div class="fighter-hp-bar hp-opp" id="oppHp" style="width:100%"></div></div>
+      <div class="fighter-hp"><div class="fighter-hp-bar hp-opp" id="oppHp"></div></div>
     </div>
   </div>
 
@@ -533,6 +530,7 @@
     <button class="nav-btn" onclick="switchShop('tags')">名字標籤</button>
     <button class="nav-btn" onclick="switchShop('effects')">特效道具</button>
     <button class="nav-btn" onclick="switchShop('skills')">對戰道具</button>
+    <button class="nav-btn" onclick="switchShop('items')">帳號道具</button>
   </div>
 
   <div id="shopContent"></div>

@@ -1,4 +1,5 @@
 import os  # 讀取環境變數
+import requests as _req  # 用於向 Supabase 驗證管理員身份
 from dotenv import load_dotenv  # 讀取 .env 檔案
 from flask import Flask, jsonify, request  # Flask 框架
 from flask_cors import CORS  # 允許跨域請求
@@ -13,6 +14,28 @@ from services.supabase_service import (                   # Supabase 服務
 app = Flask(__name__)
 CORS(app)
 
+_SUPABASE_URL = os.getenv('SUPABASE_URL')
+_SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+
+def verify_admin(user_id):
+    """向 Supabase 確認 user_id 是否為管理員，回傳 True/False"""
+    if not user_id or not _SUPABASE_URL or not _SUPABASE_KEY:
+        return False
+    try:
+        res = _req.get(
+            f'{_SUPABASE_URL}/rest/v1/users',
+            headers={
+                'apikey': _SUPABASE_KEY,
+                'Authorization': f'Bearer {_SUPABASE_KEY}',
+            },
+            params={'id': f'eq.{user_id}', 'select': 'is_admin'},
+            timeout=5
+        )
+        data = res.json()
+        return bool(data and data[0].get('is_admin'))
+    except Exception:
+        return False
+
 # ─── 連線測試 ──────────────────────────────────────────────
 # 路徑：GET /config
 # initAdminScreen() 用來確認後端是否可以連線
@@ -25,6 +48,9 @@ def config():
 # 傳入：{ categories: [...], count: 10 }
 @app.route('/generate', methods=['POST'])
 def generate():
+    if not verify_admin(request.headers.get('X-User-Id', '').strip()):
+        return jsonify({'error': '權限不足，僅限管理員使用'}), 403
+
     data = request.get_json()
     categories = data.get('categories', [])  # 分類列表
     count = int(data.get('count', 10))       # 生成數量
@@ -50,6 +76,9 @@ def generate():
 # 參數：category（分類）、keyword（關鍵字）、page（頁數）、page_size（每頁數量）
 @app.route('/questions', methods=['GET'])
 def list_questions():
+    if not verify_admin(request.headers.get('X-User-Id', '').strip()):
+        return jsonify({'error': '權限不足，僅限管理員使用'}), 403
+
     category = request.args.get('category')        # 分類篩選
     keyword = request.args.get('keyword')          # 關鍵字搜尋
     page = int(request.args.get('page', 1))        # 頁數，預設第 1 頁
@@ -66,6 +95,9 @@ def list_questions():
 # 傳入：{ question, answer_a, answer_b, answer_c, answer_d, correct_answer, category }
 @app.route('/questions/<int:question_id>', methods=['PATCH'])
 def edit_question(question_id):
+    if not verify_admin(request.headers.get('X-User-Id', '').strip()):
+        return jsonify({'error': '權限不足，僅限管理員使用'}), 403
+
     data = request.get_json()
 
     # 只允許更新這些欄位
@@ -86,6 +118,9 @@ def edit_question(question_id):
 # 傳入：{ ids: [1, 2, 3] }（支援批量刪除）
 @app.route('/questions', methods=['DELETE'])
 def remove_questions():
+    if not verify_admin(request.headers.get('X-User-Id', '').strip()):
+        return jsonify({'error': '權限不足，僅限管理員使用'}), 403
+
     data = request.get_json()
     ids = data.get('ids', [])  # 要刪除的題目 ID 列表
 

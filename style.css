@@ -586,10 +586,12 @@ body {
 }
 
 .hp-player {
+  width: 100%;
   background: linear-gradient(90deg, #00e676, #ffd700);
 }
 
 .hp-opp {
+  width: 100%;
   background: linear-gradient(90deg, #00d4ff, #7b2ff7);
 }
 
@@ -1258,9 +1260,14 @@ body {
 
 .xp-bar {
   height: 100%;
+  width: 0;
   background: linear-gradient(90deg, var(--accent3), var(--purple));
   border-radius: 3px;
   transition: width .5s
+}
+
+.chip-loading {
+  opacity: .5
 }
 
 /* Responsive */
@@ -2287,18 +2294,6 @@ body {
   font-size: 14px;
   font-weight: 700;
   word-break: break-all;
-}
-
-.pwd-display {
-  flex: 1;
-  background: var(--card2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
-  color: var(--accent);
-  font-size: 16px;
-  letter-spacing: 2px;
-  font-weight: 900;
 }
 
 .frame-preview-none {

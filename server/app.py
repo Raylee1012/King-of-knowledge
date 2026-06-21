@@ -1,4 +1,5 @@
 """Python Flask + WebSocket 伺服器。"""
+import datetime  # 用於取得今日日期
 import json  # 用於 JSON 序列化/反序列化
 import os  # 用於環境變數和檔案路徑操作
 import random  # 用於產生隨機房間 ID 和隨機數
@@ -37,6 +38,23 @@ sock = Sock(app)  # 為 Flask 應用添加 WebSocket 支援
 match_manager = MatchManager()  # 建立配對管理器實例
 rooms = {}  # 儲存所有遊戲房間的字典
 questions = []  # 儲存所有題庫的列表
+
+
+def get_daily_categories(count=3):
+    """以今天日期為 seed，從題庫分類中固定挑出 count 個今日主題。"""
+    if not questions:
+        return []
+    all_cats = sorted({q['category'] for q in questions})
+    today_seed = int(datetime.date.today().isoformat().replace('-', ''))
+    rng = random.Random(today_seed)
+    rng.shuffle(all_cats)
+    return all_cats[:min(count, len(all_cats))]
+
+
+@app.route('/daily-theme')
+def daily_theme():
+    ensure_questions_loaded()
+    return jsonify({'categories': get_daily_categories()})
 
 
 @app.route('/')  # 定義根路由
@@ -176,7 +194,7 @@ def start_room(p1, p2, room_id):  # 啟動遊戲房間函式
     ensure_questions_loaded()  # 確保題庫已載入
     p1.room_id = room_id  # 設定玩家 1 的房間 ID
     p2.room_id = room_id  # 設定玩家 2 的房間 ID
-    room = GameRoom(room_id, p1, p2, questions, lambda: rooms.pop(room_id, None))  # 建立遊戲房間
+    room = GameRoom(room_id, p1, p2, questions, get_daily_categories(), lambda: rooms.pop(room_id, None))  # 建立遊戲房間
     rooms[room_id] = room  # 將房間添加到房間字典
     room.start()  # 啟動遊戲
     print(f"[Server] 遊戲開始 room={room_id}: {p1.player_name} vs {p2.player_name} (題庫{len(questions)}題)")  # 列印遊戲開始訊息
