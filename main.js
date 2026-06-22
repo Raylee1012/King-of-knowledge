@@ -382,7 +382,7 @@ function handleBattleMessage(msg) {
     // 在等待屏幕上也顯示房號
     const waitingSubtext = document.getElementById('waitingSubtext');
     if (waitingSubtext) {
-      waitingSubtext.innerHTML = `房號: <span style="font-weight:bold; font-size:18px; color:#FFD700;">${msg.roomId}</span><br>請分享給朋友`;
+      waitingSubtext.innerHTML = `房號: <span class="room-id-highlight">${msg.roomId}</span><br>請分享給朋友`;
     }
     return;
   }
@@ -696,6 +696,7 @@ async function endBattle(won, playerScore, oppScore) {
       serverCoinDelta = data.coin_delta !== undefined ? data.coin_delta : null;
       if (data.leveled_up) showLevelUpOverlay(data.level, data.level_up_base || 0, data.level_up_milestone || 0);
       updatePlayerBar();  // 更新玩家列
+      renderRank();
     } else {
       console.error('[endBattle] 後端返回非 OK 狀態:', res.status, data);
       // 即使後端失敗，也嘗試設置 xpGain
@@ -735,12 +736,17 @@ async function endBattle(won, playerScore, oppScore) {
 
 // ─── SKILLS ──────────────────────────────────────────────
 function resetSkillBtns() {
-  // 根據已購買的道具決定是否可用
   const ownedSkills = state.owned.skills || [];
+  const count50 = ownedSkills.filter(id => id === 'skill-5050').length;
+  const countTime = ownedSkills.filter(id => id === 'skill-time').length;
   const s50 = document.getElementById('skill50');
   const sTime = document.getElementById('skillTime');
-  if (s50) s50.classList.toggle('used', !ownedSkills.includes('skill-5050'));
-  if (sTime) sTime.classList.toggle('used', !ownedSkills.includes('skill-time'));
+  if (s50) s50.classList.toggle('used', count50 === 0);
+  if (sTime) sTime.classList.toggle('used', countTime === 0);
+  const el50 = document.getElementById('skill50Count');
+  const elTime = document.getElementById('skillTimeCount');
+  if (el50) el50.textContent = `x${count50}`;
+  if (elTime) elTime.textContent = `x${countTime}`;
 }
 function deductSkill(skillId) {
   const idx = state.owned.skills.indexOf(skillId);
@@ -1029,7 +1035,7 @@ async function initCharts() {
   const topics = Object.keys(stats);
   const totalPerCat = topics.map(t => (stats[t].correct||0) + (stats[t].wrong||0));
 
-  const NO_DATA = '<div style="display:flex;align-items:center;justify-content:center;width:100%;min-height:120px"><p style="color:var(--text2);font-size:14px">尚無對戰記錄</p></div>';
+  const NO_DATA = '<div class="no-data-wrap"><p class="no-data-text">尚無對戰記錄</p></div>';
 
   // ─── 主題分佈 ───────────────────────────────────────────
   if (document.getElementById('tab-distribution').classList.contains('active')) {
@@ -1306,7 +1312,7 @@ function renderShop(tab) {
     const isLocked = tab === 'tags' && item.unlockLevel > 1 && state.level < item.unlockLevel;
     const previewClass = item.class || '';
     const previewHTML = tab === 'tags'
-      ? `<div style="display:flex;justify-content:center;margin-bottom:12px">${renderTitleBadge(item.id, item.name, true)}</div>`
+      ? `<div class="tag-preview-wrap">${renderTitleBadge(item.id, item.name, true)}</div>`
       : tab === 'effects'
         ? renderEffectCard(item.id, item.name)
         : `<div class="item-preview ${previewClass}">${item.preview}</div>`;
@@ -1314,7 +1320,7 @@ function renderShop(tab) {
       : isSkill ? `<div class="item-price">🪙${item.price}<span class="skill-owned-count">已有 ${skillCount} 個</span></div>`
       : isItem ? `<div class="item-price">🪙${item.price}<span class="skill-owned-count">已有 ${skillCount} 張</span></div>`
       : isOwned ? '<span class="badge-owned">已擁有</span>'
-      : isLocked ? `<div class="item-price" style="color:#ff6b6b">🔒 需 Lv.${item.unlockLevel}</div>`
+      : isLocked ? `<div class="item-price item-price-locked">🔒 需 Lv.${item.unlockLevel}</div>`
       : `<div class="item-price">${item.price > 0 ? '🪙' + item.price : '免費'}</div>`;
     return `<div class="shop-item ${isOwned?'owned':''} ${isEquipped?'equipped':''} ${isLocked?'locked':''}" onclick="buyItem('${tab}','${item.id}')">
       ${previewHTML}
@@ -1633,6 +1639,7 @@ async function confirmRenameCard() {
     updatePlayerBar();
     closeModal('renameCardModal');
     showToast('✅ 暱稱已更新！');
+    renderRank();
   } catch (e) {
     errEl.textContent = '無法連線到伺服器';
     errEl.style.display = 'block';
@@ -1768,7 +1775,7 @@ function closeDailyGiftModal() {
 // ─── RANK ────────────────────────────────────────────────
 async function renderRank() {
   const listEl = document.getElementById('rankList');
-  listEl.innerHTML = '<p style="text-align:center;color:var(--text2);padding:40px">載入中...</p>';
+  listEl.innerHTML = '<p class="rank-empty">載入中...</p>';
 
   try {
     const res = await fetch(`${API_BASE}/user/rank?user_id=${state.userId || ''}`);
@@ -1780,38 +1787,30 @@ async function renderRank() {
 
     const renderRow = (r) => {
       const isTop3 = r.rank <= 3;
-      const dimStyle = isTop3 ? '' : 'opacity:0.45;';
-      const bg = isTop3 ? 'background:var(--card2);border-color:rgba(255,215,0,0.3);' : '';
-      const you = r.isYou ? 'border-color:#ffd700;opacity:1;' : '';
+      const cardClass = ['card', isTop3 ? 'rank-top3' : 'rank-dim', r.isYou ? 'rank-you' : ''].filter(Boolean).join(' ');
       return `
-      <div class="card" style="${dimStyle}${bg}${you}">
-        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-          <div style="font-size:${isTop3 ? '28px' : '16px'};font-weight:900;min-width:36px;text-align:center;
-            font-family:'Orbitron',monospace;color:${rankColor(r.rank)}">
+      <div class="${cardClass}">
+        <div class="rank-row-inner">
+          <div class="rank-num ${isTop3 ? 'top3' : ''}" style="color:${rankColor(r.rank)}">
             ${isTop3 ? medals[r.rank - 1] : r.rank}
           </div>
-          <div style="width:${isTop3 ? '48px' : '36px'};height:${isTop3 ? '48px' : '36px'};border-radius:50%;
-            background:linear-gradient(135deg,#ffd700,#ff6b35);
-            display:flex;align-items:center;justify-content:center;font-size:${isTop3 ? '22px' : '16px'};
-            border:2px solid rgba(255,255,255,.2)">
-            🧠
-          </div>
-          <div style="flex:1">
-            <div style="font-size:${isTop3 ? '16px' : '14px'};font-weight:900">
-              ${r.name}${r.isYou ? ' <span style="color:var(--accent);font-size:12px">(你)</span>' : ''}
+          <div class="rank-avatar ${isTop3 ? 'top3' : ''}">🧠</div>
+          <div class="rank-info">
+            <div class="rank-name ${isTop3 ? 'top3' : ''}">
+              ${r.name}${r.isYou ? ' <span class="rank-you-tag">(你)</span>' : ''}
             </div>
-            <div style="font-size:12px;color:var(--text2)">Lv.${r.level} · ${r.wins} 勝</div>
+            <div class="rank-meta">Lv.${r.level} · ${r.wins} 勝</div>
           </div>
-          <div style="text-align:right">
-            <div style="font-size:${isTop3 ? '18px' : '14px'};font-weight:900;color:${rankColor(r.rank)}">${(r.score || 0).toLocaleString()}</div>
-            <div style="font-size:11px;color:var(--text2)">積分</div>
+          <div class="rank-score-wrap">
+            <div class="rank-score ${isTop3 ? 'top3' : ''}" style="color:${rankColor(r.rank)}">${(r.score || 0).toLocaleString()}</div>
+            <div class="rank-score-label">積分</div>
           </div>
         </div>
       </div>`;
     };
 
     const rank = data.rank;
-    const sep  = `<div style="text-align:center;color:var(--text2);padding:4px 0;font-size:20px;opacity:0.6">⋮</div>`;
+    const sep  = '<div class="rank-sep">⋮</div>';
     const top3 = rank.filter(r => r.rank <= 3);
     const rest  = rank.filter(r => r.rank > 3);
 
@@ -1849,15 +1848,15 @@ async function renderRank() {
           html += sep;
           html += renderRow(data.myRank);
         } else {
-          html += `<div class="card" style="text-align:center;color:var(--text2);padding:16px;font-size:13px">尚未有積分，快去對戰吧！</div>`;
+          html += '<div class="card rank-no-data">尚未有積分，快去對戰吧！</div>';
         }
       }
     }
 
-    listEl.innerHTML = html || '<p style="text-align:center;color:var(--text2);padding:40px">暫無資料</p>';
+    listEl.innerHTML = html || '<p class="rank-empty">暫無資料</p>';
 
   } catch (e) {
-    listEl.innerHTML = `<p style="text-align:center;color:var(--red);padding:40px">載入失敗：${e.message}</p>`;
+    listEl.innerHTML = `<p class="rank-error">載入失敗：${e.message}</p>`;
   }
 }
 
@@ -2244,10 +2243,10 @@ function updateStatsDisplay() {
     .sort((a,b)=>b[1]-a[1])
     .slice(0,5)
     .map(([topic,count],i)=>
-      `<div class="stat-box" style="text-align:center">
-        <div style="font-size:24px;margin-bottom:6px">${topic.split(' ')[0]}</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:4px">${topic}</div>
-        <div style="font-size:16px;font-weight:900;color:${['#ffd700','#c0c0c0','#cd7f32','#7070a0','#7070a0'][i]}">${count}</div>
+      `<div class="stat-box">
+        <div class="topic-stat-emoji">${topic.split(' ')[0]}</div>
+        <div class="topic-stat-name">${topic}</div>
+        <div class="topic-stat-count" style="color:${['#ffd700','#c0c0c0','#cd7f32','#7070a0','#7070a0'][i]}">${count}</div>
       </div>`
     ).join('');
   document.getElementById('topTopics').innerHTML = topTopics;
@@ -3048,20 +3047,20 @@ function adminShowPreview() {
         <tbody>
           ${preview.map((q, i) => `
             <tr>
-              <td style="color:var(--text2)">${i + 1}</td>
+              <td class="admin-idx">${i + 1}</td>
               <td><span class="cat-tag">${q.category}</span></td>
               <td>${q.question}</td>
               <td>${q.answer_a}</td>
               <td>${q.answer_b}</td>
               <td>${q.answer_c}</td>
               <td>${q.answer_d}</td>
-              <td><strong style="color:var(--accent)">${q.correct_answer}</strong></td>
+              <td><strong class="admin-answer">${q.correct_answer}</strong></td>
             </tr>
           `).join('')}
         </tbody>
       </table>
     </div>
-    <p style="color:var(--text2);font-size:0.8rem;margin-top:8px;text-align:center">顯示前 ${preview.length} 題預覽</p>
+    <p class="admin-preview-note">顯示前 ${preview.length} 題預覽</p>
   `;
 }
 
@@ -3184,14 +3183,14 @@ function adminRenderPagination(total) {
 
   const cur = adminCurrentPage;
   const last = adminTotalPages;
-  let html = `<span style="color:var(--text2);font-size:13px;margin-right:4px">共 ${total} 筆</span>`;
+  let html = `<span class="admin-page-total">共 ${total} 筆</span>`;
 
   if (cur > 1) html += `<button class="btn btn-sm btn-outline" onclick="adminLoadQuestions(${cur - 1})">‹</button>`;
 
   const pages = new Set([1, last, cur-2, cur-1, cur, cur+1, cur+2].filter(p => p >= 1 && p <= last));
   let prev = 0;
   for (const p of [...pages].sort((a,b) => a-b)) {
-    if (prev && p - prev > 1) html += `<span style="color:var(--text2);padding:0 4px">…</span>`;
+    if (prev && p - prev > 1) html += '<span class="admin-page-sep">…</span>';
     html += `<button class="btn btn-sm ${p === cur ? 'btn-gold' : 'btn-outline'}" onclick="adminLoadQuestions(${p})">${p}</button>`;
     prev = p;
   }

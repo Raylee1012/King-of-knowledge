@@ -110,7 +110,7 @@ class GameRoom:  # 遊戲房間類別
             })
             return  # 函式結束
 
-current = self.questions[self.current_q]  # 取得當前題目
+        current = self.questions[self.current_q]  # 取得當前題目
         wrong_indices = [i for i in range(len(current['opts']))  # 找出所有錯誤選項
                          if i != current['ans'] and i not in self.removed_options[player_idx]]  # 排除正確答案和已刪除選項
         if not wrong_indices:  # 如果沒有可刪除的選項
