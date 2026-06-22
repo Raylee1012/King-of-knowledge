@@ -1181,7 +1181,7 @@ async function initCharts() {
       const totalCorrect = topics.reduce((s,t) => s + (stats[t].correct||0), 0);
       const overallAcc = totalAnswered > 0 ? Math.round(totalCorrect/totalAnswered*100) : 0;
       const bestEntry = topics
-        .filter(t => ((stats[t].correct||0)+(stats[t].wrong||0)) >= 5)
+        .filter(t => ((stats[t].correct||0)+(stats[t].wrong||0)) >= 1)
         .sort((a,b) => {
           const totalA = (stats[a].correct||0)+(stats[a].wrong||0);
           const totalB = (stats[b].correct||0)+(stats[b].wrong||0);
