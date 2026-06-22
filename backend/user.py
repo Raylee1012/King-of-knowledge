@@ -43,13 +43,46 @@ def get_coins(user_id):
         return jsonify({'error': '找不到使用者'}), 400
     return jsonify({'coins': res.data[0]['coins']}), 200
 
+def _get_daily_claimed_at(user_id):
+    """單獨查詢 daily_claimed_at，欄位不存在時回傳 None。"""
+    try:
+        res = supabase.table('users').select('daily_claimed_at').eq('id', user_id).execute()
+        if res.data:
+            return res.data[0].get('daily_claimed_at')
+    except Exception:
+        pass
+    return None
+
+
+def _get_owned_skills(user_id):
+    """單獨查詢 owned_skills，欄位不存在時回傳空陣列避免讓整個 profile 查詢失敗。"""
+    try:
+        res = supabase.table('users').select('owned_skills').eq('id', user_id).execute()
+        if res.data:
+            return res.data[0].get('owned_skills') or []
+    except Exception:
+        pass
+    return []
+
+
+def _get_rename_cards(user_id):
+    """單獨查詢 rename_cards，欄位不存在時回傳 0。"""
+    try:
+        res = supabase.table('users').select('rename_cards').eq('id', user_id).execute()
+        if res.data:
+            return int(res.data[0].get('rename_cards') or 0)
+    except Exception:
+        pass
+    return 0
+
+
 # 路徑：GET /user/profile/<user_id>
 # 傳入：URL 參數 user_id
 @user_bp.route('/profile/<user_id>', methods=['GET'])  # 定義 GET /profile/<user_id> 路由
 def get_profile(user_id):
     # 查詢玩家資料
     user_response = supabase.table('users').select(
-        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect, topic_stats, welcome_claimed'
+        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect, topic_stats, welcome_claimed, pending_levelup_coins'
     ).eq('id', user_id).execute()  # 條件：找這個 id 的玩家
 
     # 找不到玩家
@@ -90,9 +123,13 @@ def get_profile(user_id):
         'owned_frames': user_data.get('owned_frames') or ['frame-none'],   # 已擁有的頭像框
         'owned_tags': user_data.get('owned_tags') or ['tag-rookie'],       # 已擁有的稱號
         'owned_effects': user_data.get('owned_effects') or [],             # 已擁有的特效
+        'owned_skills': _get_owned_skills(user_id),                          # 已擁有的對戰技能
         'active_effect': user_data.get('active_effect'),                   # 目前裝備的特效
         'topic_stats': user_data.get('topic_stats') or {},                 # 主題統計
         'welcome_claimed': user_data.get('welcome_claimed') or False,      # 是否已領取新手禮包
+        'daily_claimed_at': _get_daily_claimed_at(user_id),               # 上次領取每日禮包時間
+        'pending_levelup_coins': int(user_data.get('pending_levelup_coins') or 0),  # 待領取的升等獎勵
+        'rename_cards': _get_rename_cards(user_id),                        # 改名卡數量
     }), 200  # 200 成功
 
 # 修改暱稱 API
@@ -103,7 +140,7 @@ def update_nickname():
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')            # 取出 user_id 欄位
     new_nickname = data.get('new_nickname')  # 取出 new_nickname 欄位
-    use_card = data.get('use_card', False)   # 是否使用改名卡（直接扣 500，不計入月免費次數）
+    use_card = data.get('use_card', False)   # 是否使用改名卡流程
 
     # 防呆：兩個欄位都必填
     if not user_id or not new_nickname:
@@ -128,29 +165,56 @@ def update_nickname():
 
     user_data = user_response.data[0]  # 取得第一筆資料
 
-    # 改名卡流程：直接扣 500 金幣，並讓改名次數 +1
+    # 改名卡流程：免費次數用完自動用改名卡，否則扣 500 金幣
     if use_card:
         from datetime import datetime, timezone
         last_reset = datetime.fromisoformat(user_data['nickname_last_reset'])
         now = datetime.now(timezone.utc)
         is_new_month = now.year > last_reset.year or now.month > last_reset.month
-        current_count = 0 if is_new_month else user_data['nickname_change_count']
+        current_count = 0 if is_new_month else int(user_data.get('nickname_change_count') or 0)
+        reset_time = now.isoformat() if is_new_month else user_data['nickname_last_reset']
+
         if current_count >= FREE_NICKNAME_CHANGE_LIMIT:
-            return jsonify({'error': '本月改名次數已達上限，下個月再試'}), 400
-        if user_data['coins'] < NICKNAME_CHANGE_COST:
+            # 免費次數用完，嘗試用改名卡
+            rename_cards = _get_rename_cards(user_id)
+            if rename_cards > 0:
+                supabase.table('users').update({
+                    'nickname': new_nickname,
+                    'rename_cards': rename_cards - 1,
+                    'nickname_change_count': current_count + 1,
+                    'nickname_last_reset': reset_time
+                }).eq('id', user_id).execute()
+                return jsonify({
+                    'message': '暱稱更新成功',
+                    'used_rename_card': True,
+                    'rename_cards': rename_cards - 1
+                }), 200
+            # 沒有改名卡，扣金幣
+            if user_data['coins'] < NICKNAME_CHANGE_COST:
+                return jsonify({'error': f'金幣不足，還差 {NICKNAME_CHANGE_COST - user_data["coins"]} 🪙'}), 400
+            new_coins = user_data['coins'] - NICKNAME_CHANGE_COST
+            supabase.table('users').update({
+                'nickname': new_nickname,
+                'coins': new_coins,
+                'nickname_change_count': current_count + 1,
+                'nickname_last_reset': reset_time
+            }).eq('id', user_id).execute()
             return jsonify({
-                'error': f'金幣不足，改名卡需要 {NICKNAME_CHANGE_COST} 金幣，目前只有 {user_data["coins"]} 金幣'
-            }), 400
+                'message': '暱稱更新成功',
+                'used_rename_card': False,
+                'remaining_coins': new_coins
+            }), 200
+
+        # 免費次數未用完，直接改名
         supabase.table('users').update({
             'nickname': new_nickname,
-            'coins': user_data['coins'] - NICKNAME_CHANGE_COST,
             'nickname_change_count': current_count + 1,
-            'nickname_last_reset': now.isoformat() if is_new_month else user_data['nickname_last_reset']
+            'nickname_last_reset': reset_time
         }).eq('id', user_id).execute()
         return jsonify({
             'message': '暱稱更新成功',
-            'cost_coins': NICKNAME_CHANGE_COST,
-            'remaining_coins': user_data['coins'] - NICKNAME_CHANGE_COST
+            'used_rename_card': False,
+            'remaining_coins': user_data['coins']
         }), 200
 
     # 一般流程：前 3 次免費，超過扣 500
@@ -220,6 +284,43 @@ def claim_welcome_gift():
     new_coins = res.data[0]['coins'] + 500
     supabase.table('users').update({'coins': new_coins, 'welcome_claimed': True}).eq('id', user_id).execute()
     return jsonify({'coins': new_coins}), 200
+
+# 每日禮包領取 API
+# 路徑：POST /user/daily-gift
+# 傳入：{ user_id }
+@user_bp.route('/daily-gift', methods=['POST'])
+def claim_daily_gift():
+    from datetime import datetime, timezone, date
+    data = request.get_json()
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'error': '缺少 user_id'}), 400
+
+    try:
+        res = supabase.table('users').select('coins, daily_claimed_at').eq('id', user_id).execute()
+    except Exception:
+        res = supabase.table('users').select('coins').eq('id', user_id).execute()
+    if not res.data:
+        return jsonify({'error': '找不到使用者'}), 400
+
+    last = res.data[0].get('daily_claimed_at')
+    today = date.today().isoformat()  # e.g. "2026-06-21"
+
+    if last and last[:10] == today:
+        return jsonify({'error': '今天已領取過每日禮包'}), 400
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    reward = 300
+    new_coins = res.data[0]['coins'] + reward
+    update_data = {'coins': new_coins}
+    try:
+        update_data['daily_claimed_at'] = now_iso
+        supabase.table('users').update(update_data).eq('id', user_id).execute()
+    except Exception:
+        supabase.table('users').update({'coins': new_coins}).eq('id', user_id).execute()
+
+    return jsonify({'coins': new_coins, 'reward': reward}), 200
+
 
 # 升等禮包領取 API
 # 路徑：POST /user/levelup-gift
@@ -295,45 +396,88 @@ def buy_item():
     if not user_id or not item_type or not item_id or price is None:
         return jsonify({'error': '請填寫所有欄位'}), 400  # 400 客戶端錯誤：欄位未填寫
 
-    # 防呆：道具類型只能是這三種
-    if item_type not in ['frames', 'tags', 'effects']:
-        return jsonify({'error': '無效的道具類型'}), 400  # 400 客戶端錯誤：道具類型錯誤
+    # 防呆：道具類型只能是這五種
+    if item_type not in ['frames', 'tags', 'effects', 'skills', 'items']:
+        return jsonify({'error': '無效的道具類型'}), 400
+
+    # 改名卡：用整數欄位追蹤數量
+    if item_type == 'items' and item_id == 'item-rename':
+        try:
+            res = supabase.table('users').select('coins, rename_cards').eq('id', user_id).execute()
+            if not res.data:
+                return jsonify({'error': '找不到使用者'}), 400
+            current_coins = res.data[0]['coins']
+            current_cards = int(res.data[0].get('rename_cards') or 0)
+            if current_coins < price:
+                return jsonify({'error': f'金幣不足，還差 {price - current_coins} 金幣'}), 400
+            new_coins = current_coins - price
+            new_cards = current_cards + 1
+            supabase.table('users').update({'coins': new_coins, 'rename_cards': new_cards}).eq('id', user_id).execute()
+            return jsonify({'message': '購買成功', 'remaining_coins': new_coins, 'rename_cards': new_cards}), 200
+        except Exception:
+            return jsonify({'error': '購買失敗，請確認 rename_cards 欄位已建立'}), 500
 
     # 查詢玩家目前的金幣和已擁有的道具
-    user_response = supabase.table('users').select(
-        f'coins, owned_{item_type}'  # 只查需要的欄位
-    ).eq('id', user_id).execute()
+    try:
+        user_response = supabase.table('users').select(
+            f'coins, owned_{item_type}'  # 只查需要的欄位
+        ).eq('id', user_id).execute()
+    except Exception:
+        return jsonify({'error': f'欄位 owned_{item_type} 尚未建立，請先在資料庫新增此欄位'}), 500
 
     if not user_response.data:  # 找不到玩家
-        return jsonify({'error': '找不到使用者'}), 400  # 400 客戶端錯誤：找不到玩家
+        return jsonify({'error': '找不到使用者'}), 400
 
-    user_data = user_response.data[0]  # 取得第一筆資料
-    current_coins = user_data['coins']  # 目前金幣數量
-    owned_items = user_data[f'owned_{item_type}'] or []  # 已擁有的道具列表
+    user_data = user_response.data[0]
+    current_coins = user_data['coins']
+    owned_items = user_data[f'owned_{item_type}'] or []
 
-    # 防呆：已擁有此道具
-    if item_id in owned_items:
-        return jsonify({'error': '已擁有此道具'}), 400  # 400 客戶端錯誤：已擁有
+    # 技能是消耗品，可以重複購買；其他道具只能擁有一個
+    if item_type != 'skills' and item_id in owned_items:
+        return jsonify({'error': '已擁有此道具'}), 400
 
-    # 防呆：金幣不足
     if current_coins < price:
-        return jsonify({'error': f'金幣不足，還差 {price - current_coins} 金幣'}), 400  # 400 客戶端錯誤：金幣不足
+        return jsonify({'error': f'金幣不足，還差 {price - current_coins} 金幣'}), 400
 
-    # 扣除金幣並加入道具
-    new_coins = current_coins - price    # 計算扣除後的金幣
-    new_owned = owned_items + [item_id]  # 加入新道具到列表
+    new_coins = current_coins - price
+    new_owned = owned_items + [item_id]
 
-    # 更新資料庫（一次更新金幣和道具列表）
     supabase.table('users').update({
-        'coins': new_coins,                  # 更新金幣
-        f'owned_{item_type}': new_owned      # 更新已擁有的道具列表
+        'coins': new_coins,
+        f'owned_{item_type}': new_owned
     }).eq('id', user_id).execute()
 
     return jsonify({
         'message': '購買成功',
-        'remaining_coins': new_coins,  # 剩餘金幣
-        'owned': new_owned             # 更新後的道具列表
-    }), 200  # 200 成功
+        'remaining_coins': new_coins,
+        'owned': new_owned
+    }), 200
+
+
+# 使用技能 API（消耗品，扣一個）
+# 路徑：POST /user/use-skill
+# 傳入：{ user_id, skill_id }
+@user_bp.route('/use-skill', methods=['POST'])
+def use_skill():
+    data = request.get_json()
+    user_id  = data.get('user_id')
+    skill_id = data.get('skill_id')
+
+    if not user_id or not skill_id:
+        return jsonify({'error': '請填寫所有欄位'}), 400
+
+    res = supabase.table('users').select('owned_skills').eq('id', user_id).execute()
+    if not res.data:
+        return jsonify({'error': '找不到使用者'}), 400
+
+    owned = res.data[0].get('owned_skills') or []
+    if skill_id not in owned:
+        return jsonify({'error': '沒有此技能'}), 400
+
+    owned.remove(skill_id)  # 移除一個（list.remove 只移除第一個符合的）
+    supabase.table('users').update({'owned_skills': owned}).eq('id', user_id).execute()
+
+    return jsonify({'remaining': owned.count(skill_id)}), 200
 
 
 # 更新玩家對戰後統計資料 API
@@ -503,7 +647,8 @@ def update_stats():
             'level_up_base': int(level_up_base),
             'level_up_milestone': int(level_up_milestone),
             'xp_gain': int(xp_gain),  # 確保是整數
-            'leveled_up': bool(leveled_up)
+            'leveled_up': bool(leveled_up),
+            'topic_stats': merged_topic_stats
         }
         print(f"[update_stats] 返回成功: {response_data}")
         return jsonify(response_data), 200

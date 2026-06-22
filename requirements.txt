@@ -1,13 +1,14 @@
-# 帳號系統依賴
+# 共用
 flask
 flask-cors
 python-dotenv
+
+# 帳號 / 題庫管理後端
 supabase
 httpx
+requests
 
-#對戰系統依賴
-Flask>=2.0
-Flask-Sock>=0.6
-gevent>=22.0
-gevent-websocket>=0.10
-requests>=2.28
+# 對戰伺服器
+flask-sock
+gevent
+gevent-websocket

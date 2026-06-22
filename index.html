@@ -287,6 +287,7 @@
       <span class="topic-chip">⚡ 答題 x2 積分</span>
     </div>
   </div>
+
 </div>
 </div>
 
@@ -675,6 +676,11 @@
         </div>
 
         <div class="profile-section">
+          <label class="profile-label">⚔️ 對戰技能</label>
+          <div id="ownedSkillsList" class="owned-skills-list"></div>
+        </div>
+
+        <div class="profile-section">
           <label class="profile-label">🏷️ 玩家名稱</label>
           <div class="profile-name-row">
             <input type="text" id="playerNameInput" class="profile-input" placeholder="輸入你的名稱" value="知識戰士" maxlength="20" disabled autocomplete="off">
@@ -889,7 +895,7 @@
       <button class="modal-close-btn" onclick="closeModal('renameCardModal')">✕</button>
       <div class="modal-header-icon">✏️</div>
       <div class="modal-header-title">改名卡</div>
-      <div class="modal-header-sub">使用後扣除 500 🪙，輸入新的玩家暱稱</div>
+      <div class="modal-header-sub" id="renameCardModalSub">免費次數用完後使用，不扣金幣</div>
     </div>
     <div class="modal-body">
       <div class="auth-field">
@@ -983,7 +989,26 @@
 </div>
 
 <!-- 新手禮包 Modal -->
-<div id="welcomeModal" class="modal-overlay" onclick="if(_welcomeOpened) closeWelcomeModal()">
+<div id="dailyGiftModal" class="modal-overlay" onclick="closeDailyGiftModal()">
+  <div class="modal-card welcome-card" onclick="event.stopPropagation()">
+    <div class="welcome-coins-wrap" id="dailyCoinsWrap"></div>
+    <div class="welcome-title">每日登入禮包</div>
+    <div id="dailyGiftOpenBtn" class="welcome-gift-btn" onclick="openDailyGift(event)">
+      <span class="welcome-gift-icon" id="dailyGiftIcon">🎁</span>
+      <span class="welcome-gift-name">每日禮包</span>
+      <span class="welcome-gift-label">點擊開啟</span>
+    </div>
+    <div id="dailyRewardWrap" style="display:none">
+      <div class="welcome-amount">+300 🪙</div>
+      <p class="welcome-desc">感謝每日登入！<br>金幣已存入你的帳戶</p>
+      <div class="modal-footer">
+        <button class="btn btn-gold btn-full" onclick="closeDailyGiftModal()">開心收下！</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="welcomeModal" class="modal-overlay" onclick="closeWelcomeModal()">
   <div class="modal-card welcome-card" onclick="event.stopPropagation()">
     <div class="welcome-coins-wrap" id="welcomeCoinsWrap"></div>
     <div class="welcome-title">新手玩家禮包</div>
@@ -1005,7 +1030,7 @@
 </div>
 
 <!-- 升等動畫 Overlay -->
-<div id="levelUpOverlay" class="levelup-overlay" onclick="if(_levelUpOpened) closeLevelUpOverlay()">
+<div id="levelUpOverlay" class="levelup-overlay" onclick="closeLevelUpOverlay()">
   <div class="levelup-rays" id="levelUpRays"></div>
   <div class="levelup-card">
     <div class="levelup-badge">LEVEL UP</div>

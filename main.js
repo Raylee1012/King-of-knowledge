@@ -16,8 +16,8 @@ const state = {
   recentScores: [],
   recentAccuracy: [],
   nicknameRemainingFree: 3,
+  renameCards: 0,
   battleData: { round:0, playerScore:0, oppScore:0, correct:0, total:0, timer:null, timerVal:15, combo:0, answering:false, topicStats: {} },
-  skills: { used50: false, usedTime: false },
   totalAnswered: 0,  // 累計答題數，從後端同步
   avgAccuracy: 0,    // 平均準確率，從後端同步
   totalScore: 0      // 累計積分，從後端同步
@@ -51,7 +51,7 @@ const shopData = {
     {id:'skill-time',name:'加時 +10秒',desc:'對戰時延長作答時間',price:300,preview:'⏱️'},
   ],
   items: [
-    {id:'item-rename',name:'改名卡',desc:'立即修改一次玩家暱稱（消耗品）',price:500,preview:'✏️'},
+    {id:'item-rename',name:'改名卡',desc:'每月免費次數用完後，可多改一次暱稱',price:500,preview:'✏️'},
   ]
 };
 
@@ -113,7 +113,7 @@ function showScreen(id) {
       next.classList.add('active');
       setTimeout(() => next.classList.add('visible'), 10);  // 稍微延遲讓 CSS transition 生效
       if(id==='analyticsScreen') { switchAnalytics('distribution'); setTimeout(initCharts, 100); }
-      if(id==='shopScreen') renderShop('frames');
+      if(id==='shopScreen') switchShop('frames');
       if(id==='rankScreen') renderRank();
       if(id==='profileScreen') { switchProfileTab('edit'); updateProfileEditUI(); updateStatsDisplay(); }
       if(id==='adminScreen') { switchAdminTab('generate'); initAdminScreen(); }
@@ -230,7 +230,6 @@ function startBattle(mode = 'bot') {
   const bd = state.battleData;
   bd.round = 0; bd.playerScore = 0; bd.oppScore = 0; bd.correct = 0; bd.oppCorrect = 0; bd.total = 0; bd.combo = 0; bd.answering = false; bd.topicStats = {};
   if (bd.timer) clearInterval(bd.timer);
-  state.skills = { used50: false, usedTime: false };
   resetSkillBtns();
   updateScoreDisplay();
   document.getElementById('battleAvatar').textContent = state.equippedEmoji;
@@ -408,7 +407,7 @@ function handleBattleMessage(msg) {
     bd.currentQuestion = msg;  // 儲存題目資料
     battleStartTime = Date.now();  // 記錄題目開始時間
     document.getElementById('roundNum').textContent = bd.round;
-    document.getElementById('comboMult').textContent = bd.combo;
+    document.getElementById('comboMult').textContent = bd.combo || 1;
 
     // 顯示題目
     const badge = document.getElementById('topicBadge');
@@ -479,7 +478,7 @@ function handleBattleMessage(msg) {
       showXpPopup();
     } else {
       bd.combo = 0;  // 答錯或超時重置 combo
-      document.getElementById('comboMult').textContent = bd.combo;
+      document.getElementById('comboMult').textContent = 1;
       addWrongFlash();                              // 答錯特效
     }
     updateScoreDisplay();
@@ -677,12 +676,16 @@ async function endBattle(won, playerScore, oppScore) {
     
     if (res.ok && data) {
       // 更新本地 state
-      state.coins = data.coins;          // 更新金幣
-      state.level = data.level;          // 更新等級
-      state.xp = data.xp;               // 更新 XP
-      state.xpMax = data.xp_max;         // 更新 XP 上限
-      state.wins = data.wins;            // 更新勝場
-      state.losses = data.losses;        // 更新敗場
+      state.coins = data.coins;
+      state.level = data.level;
+      state.xp = data.xp;
+      state.xpMax = data.xp_max;
+      state.wins = data.wins;
+      state.losses = data.losses;
+      state.totalAnswered = data.total_answered;
+      state.avgAccuracy = data.avg_accuracy;
+      state.totalScore = data.total_score;
+      if (data.topic_stats) state.topicStats = data.topic_stats;
       
       // 關鍵：確保 xp_gain 被正確提取
       const receivedXpGain = parseInt(data.xp_gain);
@@ -739,20 +742,28 @@ function resetSkillBtns() {
   if (s50) s50.classList.toggle('used', !ownedSkills.includes('skill-5050'));
   if (sTime) sTime.classList.toggle('used', !ownedSkills.includes('skill-time'));
 }
-function useSkill50() {
-  if (state.skills.used50) return;
-  state.skills.used50 = true;
-  document.getElementById('skill50').classList.add('used');
+function deductSkill(skillId) {
+  const idx = state.owned.skills.indexOf(skillId);
+  if (idx !== -1) state.owned.skills.splice(idx, 1);
+  fetch(`${API_BASE}/user/use-skill`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: state.userId, skill_id: skillId })
+  }).catch(() => {});
+}
 
-  // 發送使用道具訊息給對戰系統後端
+function useSkill50() {
+  if (!(state.owned.skills || []).includes('skill-5050')) return;
+  deductSkill('skill-5050');
+  resetSkillBtns();
   if (battleWs && battleWs.readyState === WebSocket.OPEN) {
     battleWs.send(JSON.stringify({ type: 'use_item', item: 'delete_wrong' }));
   }
 }
 function useSkillTime() {
-  if (state.skills.usedTime) return;
-  state.skills.usedTime = true;
-  document.getElementById('skillTime').classList.add('used');
+  if (!(state.owned.skills || []).includes('skill-time')) return;
+  deductSkill('skill-time');
+  resetSkillBtns();
   state.battleData.timerVal = Math.min(state.battleData.timerVal+10, 25);
   updateTimer(state.battleData.timerVal);
   const bd = state.battleData;
@@ -1166,9 +1177,12 @@ async function initCharts() {
       const bestEntry = topics
         .filter(t => ((stats[t].correct||0)+(stats[t].wrong||0)) >= 5)
         .sort((a,b) => {
-          const accA = stats[a].correct / ((stats[a].correct||0)+(stats[a].wrong||0));
-          const accB = stats[b].correct / ((stats[b].correct||0)+(stats[b].wrong||0));
-          return accB - accA;
+          const totalA = (stats[a].correct||0)+(stats[a].wrong||0);
+          const totalB = (stats[b].correct||0)+(stats[b].wrong||0);
+          const accA = Math.round((stats[a].correct||0) / totalA * 1000);
+          const accB = Math.round((stats[b].correct||0) / totalB * 1000);
+          if (accB !== accA) return accB - accA;
+          return totalB - totalA;  // 持平時答題量多的優先
         })[0];
       document.getElementById('bestTopic').textContent = bestEntry || '-';
       document.getElementById('avgAccuracy').textContent = overallAcc + '%';
@@ -1250,7 +1264,7 @@ function switchShop(tab) {
   setTimeout(() => {
     document.querySelectorAll('#shopScreen .nav-btn').forEach((b, i) => {
       b.classList.remove('active');
-      if (['frames', 'tags', 'effects', 'skills'][i] === tab) b.classList.add('active');
+      if (['frames', 'tags', 'effects', 'skills', 'items'][i] === tab) b.classList.add('active');
     });
     renderShop(tab);  // 重新渲染商店內容
     // 淡入商店內容
@@ -1281,7 +1295,11 @@ function renderShop(tab) {
   const items = shopData[tab];
   const note = '<div class="effect-shop-note">商店只負責購買；裝備請到「個人設定」裡選擇。</div>';
   container.innerHTML = note + `<div class="shop-grid">${items.map(item => {
-    const isOwned = state.owned[tab] && state.owned[tab].includes(item.id);
+    const isSkill = tab === 'skills';
+    const isItem = tab === 'items';
+    const skillCount = isSkill ? (state.owned.skills || []).filter(id => id === item.id).length
+      : isItem && item.id === 'item-rename' ? (state.renameCards || 0) : 0;
+    const isOwned = !isSkill && !isItem && state.owned[tab] && state.owned[tab].includes(item.id);
     const isEquipped = (tab === 'frames' && state.equippedFrame === item.id) ||
       (tab === 'tags' && state.playerTagClass === item.id) ||
       (tab === 'effects' && (state.activeEffect || state.owned.activeEffect) === item.id);
@@ -1292,41 +1310,50 @@ function renderShop(tab) {
       : tab === 'effects'
         ? renderEffectCard(item.id, item.name)
         : `<div class="item-preview ${previewClass}">${item.preview}</div>`;
+    const bottomHTML = isEquipped ? '<span class="badge-equipped">使用中</span>'
+      : isSkill ? `<div class="item-price">🪙${item.price}<span class="skill-owned-count">已有 ${skillCount} 個</span></div>`
+      : isItem ? `<div class="item-price">🪙${item.price}<span class="skill-owned-count">已有 ${skillCount} 張</span></div>`
+      : isOwned ? '<span class="badge-owned">已擁有</span>'
+      : isLocked ? `<div class="item-price" style="color:#ff6b6b">🔒 需 Lv.${item.unlockLevel}</div>`
+      : `<div class="item-price">${item.price > 0 ? '🪙' + item.price : '免費'}</div>`;
     return `<div class="shop-item ${isOwned?'owned':''} ${isEquipped?'equipped':''} ${isLocked?'locked':''}" onclick="buyItem('${tab}','${item.id}')">
       ${previewHTML}
       <div class="item-name">${item.name}</div>
       <div class="item-desc">${item.desc}</div>
-      ${isEquipped ? '<span class="badge-equipped">使用中</span>' :
-        isOwned ? '<span class="badge-owned">已擁有</span>' :
-        isLocked ? `<div class="item-price" style="color:#ff6b6b">🔒 需 Lv.${item.unlockLevel}</div>` :
-        `<div class="item-price">${item.price > 0 ? '🪙' + item.price : '免費'}</div>`}
+      ${bottomHTML}
     </div>`;
   }).join('')}</div>`;
 }
 
-function buyItem(tab, id) {
+async function buyItem(tab, id) {
   const items = shopData[tab];
   const item = items.find(i=>i.id===id);
   if (!item) return;
   const isOwned = state.owned[tab] && state.owned[tab].includes(id);
 
-  // 改名卡：消耗品，不加入 owned，直接開啟改名 modal
+  // 改名卡：買了先囤著
   if (id === 'item-rename') {
-    if (state.nicknameRemainingFree <= 0) {
-      showToast('本月改名次數已達上限，下個月再試！');
-      return;
-    }
     if (item.price > state.coins) {
-      showToast(`金幣不足！還差 ${item.price - state.coins} 🪙，繼續對戰賺取金幣`);
+      showToast(`金幣不足！還差 ${item.price - state.coins} 🪙`);
       return;
     }
-    showRenameCardModal();
+    const res = await fetch(`${API_BASE}/user/buy-item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: state.userId, item_type: 'items', item_id: id, price: item.price })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(`❌ ${data.error}`); return; }
+    state.coins = data.remaining_coins;
+    state.renameCards = data.rename_cards;
+    updatePlayerBar();
+    renderShop(tab);
+    showToast(`✅ 改名卡購買成功！共有 ${state.renameCards} 張，在個人設定→帳號頁使用`);
     return;
   }
 
-  if (isOwned) {
+  if (isOwned && tab !== 'skills') {
     showToast('已擁有此道具，請到「個人設定」裝備');
-    renderShop(tab);
     return;
   }
 
@@ -1340,13 +1367,27 @@ function buyItem(tab, id) {
     return;
   }
 
-  state.coins -= item.price;
-  if (!state.owned[tab]) state.owned[tab] = [];
-  state.owned[tab].push(id);
+  try {
+    const res = await fetch(`${API_BASE}/user/buy-item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: state.userId, item_type: tab, item_id: id, price: item.price })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(`❌ ${data.error}`); return; }
+    state.coins = data.remaining_coins;
+    if (!state.owned[tab]) state.owned[tab] = [];
+    state.owned[tab].push(id);  // 技能允許重複，push 讓計數正確
+  } catch {
+    showToast('❌ 購買失敗，請確認後端是否已啟動');
+    return;
+  }
+
   updatePlayerBar();
   renderShop(tab);
   updateProfileEditUI();
-  showToast(`🎉 購買成功！請到「個人設定」裝備`);
+  const msg = tab === 'skills' ? `🎉 購買成功！對戰時可使用 ${item.name}` : `🎉 購買成功！請到「個人設定」裝備`;
+  showToast(msg);
 }
 
 function closeModal(id) {
@@ -1362,8 +1403,24 @@ function closeModal(id) {
 // ─── 新手禮包 Modal ───────────────────────────────────────
 let _welcomeOpened = false;
 
-function showWelcomeModal(userId) {
+async function showWelcomeModal(userId) {
   if (state.welcomeClaimed) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/user/welcome-gift`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: state.userId })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      state.coins = data.coins;
+      state.welcomeClaimed = true;
+      updatePlayerBar();
+    } else {
+      return;
+    }
+  } catch { return; }
 
   _welcomeOpened = false;
   document.getElementById('welcomeGiftBtn').style.display = 'flex';
@@ -1405,26 +1462,10 @@ function openWelcomeGift(event) {
     }
   }, 350);
 
-  setTimeout(async () => {
+  setTimeout(() => {
     document.getElementById('welcomeGiftBtn').style.display = 'none';
     document.getElementById('welcomeRewardWrap').style.display = 'block';
 
-    // 呼叫後端入帳 500 金幣
-    try {
-      const res = await fetch(`${API_BASE}/user/welcome-gift`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: state.userId })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        state.coins = data.coins;
-        state.welcomeClaimed = true;
-        updatePlayerBar();
-      }
-    } catch (e) {}
-
-    // 金幣飄動背景啟動
     const wrap = document.getElementById('welcomeCoinsWrap');
     const coins = ['🪙','🪙','💰','🪙','🪙','💰','🪙'];
     coins.forEach((c, i) => {
@@ -1456,6 +1497,14 @@ function showLevelUpOverlay(level, base, milestone) {
   _levelUpMilestone = milestone;
   _levelUpOpened = false;
 
+  fetch(`${API_BASE}/user/levelup-gift`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: state.userId })
+  }).then(r => r.ok ? r.json() : null).then(d => {
+    if (d?.coins != null) { state.coins = d.coins; state.pendingLevelupCoins = 0; updatePlayerBar(); }
+  }).catch(() => {});
+
   document.getElementById('levelUpNum').textContent = level;
   document.getElementById('levelUpGiftBtn').style.display = 'flex';
   document.getElementById('levelUpRewardWrap').style.display = 'none';
@@ -1477,16 +1526,10 @@ function showLevelUpOverlay(level, base, milestone) {
   overlay.style.display = 'flex';
 }
 
-async function openLevelUpGift(event) {
+function openLevelUpGift(event) {
   event.stopPropagation();
   if (_levelUpOpened) return;
   _levelUpOpened = true;
-
-  const claimPromise = fetch(`${API_BASE}/user/levelup-gift`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: state.userId })
-  }).then(r => r.json()).catch(() => null);
 
   const giftBtn = document.getElementById('levelUpGiftBtn');
   const giftIcon = giftBtn.querySelector('.levelup-gift-icon');
@@ -1537,12 +1580,6 @@ async function openLevelUpGift(event) {
       document.getElementById('levelUpHint').style.display = 'block';
     }, items.length * 120 + 400);
 
-    const result = await claimPromise;
-    if (result && result.coins !== undefined) {
-      state.coins = result.coins;
-      updatePlayerBar();
-    }
-
     setTimeout(() => closeLevelUpOverlay(), 4000);
   }, 750);
 }
@@ -1587,8 +1624,12 @@ async function confirmRenameCard() {
     if (!res.ok) { errEl.textContent = data.error || '修改失敗，請再試一次'; errEl.style.display = 'block'; return; }
 
     state.playerName = newName;
-    state.coins -= 500;
-    state.nicknameRemainingFree = Math.max(0, state.nicknameRemainingFree - 1);
+    if (data.used_rename_card) {
+      state.renameCards = data.rename_cards ?? Math.max(0, state.renameCards - 1);
+    } else {
+      state.coins = data.remaining_coins ?? state.coins - 500;
+      state.nicknameRemainingFree = Math.max(0, state.nicknameRemainingFree - 1);
+    }
     updatePlayerBar();
     closeModal('renameCardModal');
     showToast('✅ 暱稱已更新！');
@@ -1638,6 +1679,90 @@ async function loadDailyTheme() {
   } catch {
     chipsEl.innerHTML = `<span style="color:var(--text2);font-size:13px">對戰伺服器未開啟</span>`;
   }
+}
+
+// ─── DAILY GIFT ──────────────────────────────────────────
+let _dailyGiftOpened = false;
+
+async function checkDailyGift() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (state.dailyClaimedAt && state.dailyClaimedAt.slice(0, 10) === today) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/user/daily-gift`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: state.userId })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      state.coins = data.coins;
+      state.dailyClaimedAt = new Date().toISOString();
+      updatePlayerBar();
+    } else {
+      return;
+    }
+  } catch { return; }
+
+  _dailyGiftOpened = false;
+  document.getElementById('dailyGiftOpenBtn').style.display = 'flex';
+  document.getElementById('dailyRewardWrap').style.display = 'none';
+  document.getElementById('dailyGiftIcon').style.animation = '';
+  document.getElementById('dailyCoinsWrap').innerHTML = '';
+
+  setTimeout(() => {
+    document.getElementById('dailyGiftModal').style.display = 'flex';
+  }, 800);
+}
+
+function openDailyGift(event) {
+  event.stopPropagation();
+  if (_dailyGiftOpened) return;
+  _dailyGiftOpened = true;
+
+  const icon = document.getElementById('dailyGiftIcon');
+  icon.style.animation = 'giftShake .35s ease';
+  setTimeout(() => {
+    icon.style.animation = 'giftExplode .4s cubic-bezier(.36,.07,.19,.97) forwards';
+
+    const rect = icon.getBoundingClientRect();
+    const ox = rect.left + rect.width / 2;
+    const oy = rect.top + rect.height / 2;
+    for (let i = 0; i < 16; i++) {
+      const coin = document.createElement('span');
+      coin.textContent = '🪙';
+      coin.className = 'gift-burst-coin';
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 90 + Math.random() * 130;
+      coin.style.cssText = `left:${ox}px;top:${oy}px;--tx:${Math.cos(angle)*dist}px;--ty:${Math.sin(angle)*dist}px;animation-delay:${Math.random()*.1}s`;
+      document.body.appendChild(coin);
+      setTimeout(() => coin.remove(), 900);
+    }
+  }, 350);
+
+  setTimeout(() => {
+    document.getElementById('dailyGiftOpenBtn').style.display = 'none';
+    document.getElementById('dailyRewardWrap').style.display = 'block';
+
+    const wrap = document.getElementById('dailyCoinsWrap');
+    const coins = ['🪙','🪙','💰','🪙','🪙','💰','🪙'];
+    coins.forEach((c, i) => {
+      const el = document.createElement('span');
+      el.className = 'welcome-coin';
+      el.textContent = c;
+      el.style.cssText = `left:${10 + i * 13}%;--dur:${1.8 + Math.random() * 1.2}s;--delay:${i * 0.18}s`;
+      wrap.appendChild(el);
+    });
+  }, 750);
+}
+
+function closeDailyGiftModal() {
+  const modal = document.getElementById('dailyGiftModal');
+  modal.classList.add('closing');
+  setTimeout(() => {
+    modal.classList.remove('closing');
+    modal.style.display = 'none';
+  }, 210);
 }
 
 // ─── RANK ────────────────────────────────────────────────
@@ -1984,6 +2109,17 @@ function updateProfileEditUI() {
       b.classList.add('disabled');
     }
   });
+
+  const skillsEl = document.getElementById('ownedSkillsList');
+  if (skillsEl) {
+    const owned = state.owned.skills || [];
+    const allSkills = shopData.skills || [];
+    const chips = allSkills.map(s => {
+      const count = owned.filter(id => id === s.id).length;
+      return `<div class="owned-skill-chip ${count === 0 ? 'empty' : ''}">${s.preview} ${s.name} <span class="skill-count">× ${count}</span></div>`;
+    });
+    skillsEl.innerHTML = chips.join('');
+  }
 }
 
 function selectAvatar(emoji) {
@@ -2278,6 +2414,18 @@ async function handleForgotPassword() {
   }
 }
 
+async function autoClaimMissedGifts() {
+  if (state.pendingLevelupCoins > 0) {
+    try {
+      const r = await fetch(`${API_BASE}/user/levelup-gift`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({user_id: state.userId})
+      });
+      if (r.ok) { const d = await r.json(); state.coins = d.coins; state.pendingLevelupCoins = 0; updatePlayerBar(); }
+    } catch {}
+  }
+}
+
 async function handleLogin() {
   const identifier = document.getElementById('usernameInput').value.trim(); // 取得帳號（custom_id 或 email）
   const password = document.getElementById('passwordInput').value.trim();   // 取得密碼
@@ -2323,6 +2471,8 @@ async function handleLogin() {
     updatePlayerBar();
     startCoinSync();
     loadDailyTheme();
+    await autoClaimMissedGifts();
+    checkDailyGift();
     setTimeout(() => showWelcomeModal(data.user.id), 600);
 
   } catch (err) {
@@ -2357,14 +2507,18 @@ async function loadUserProfile(userId) {
     state.owned.frames = profile.owned_frames || ['frame-none'];  // 已擁有的頭像框
     state.owned.tags = profile.owned_tags || ['tag-rookie'];      // 已擁有的稱號
     state.owned.effects = profile.owned_effects || [];            // 已擁有的特效
+    state.owned.skills = profile.owned_skills || [];              // 已擁有的對戰技能
     state.activeEffect = profile.active_effect || null;           // 目前裝備的特效
     state.owned.activeEffect = profile.active_effect || null;     // 同步 owned.activeEffect
 
     state.topicStats = profile.topic_stats || {};  // 主題統計（從後端讀取）
     state.nicknameRemainingFree = profile.nickname_remaining_free ?? 3;  // 本月剩餘改名次數
     state.welcomeClaimed = profile.welcome_claimed ?? false;             // 是否已領取新手禮包
+    state.renameCards = profile.rename_cards || 0;                       // 改名卡數量
+    state.dailyClaimedAt = profile.daily_claimed_at || null;            // 上次領取每日禮包時間
     state.recentScores = [];              // 近期得分（等對戰系統串接後才有）
     state.recentAccuracy = [];            // 近期準確率（等對戰系統串接後才有）
+    state.pendingLevelupCoins = profile.pending_levelup_coins || 0;  // 待領取的升等獎勵
 
     // 更新畫面上的玩家資料
     try { updatePlayerBar(); } catch (e) { console.error('updatePlayerBar 失敗:', e); }

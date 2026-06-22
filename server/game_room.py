@@ -6,7 +6,6 @@ import threading  # 用於多執行緒計時器
 QUESTION_TIMEOUT = 10  # 每題的時間限制（秒）
 RESULT_DELAY = 1.5  # 題目結算後等待時間（秒）
 QUESTIONS_PER_GAME = 10  # 每場遊戲的題目數
-ITEM_MAX_USES = 2  # 每位玩家可使用道具的次數
 
 
 class GameRoom:  # 遊戲房間類別
@@ -19,7 +18,6 @@ class GameRoom:  # 遊戲房間類別
         self.scores = [0, 0]  # 兩位玩家的分數
         self.answers = [None, None]  # 記錄兩位玩家的答案
         self.answered = [False, False]  # 記錄兩位玩家是否已作答
-        self.item_uses_left = [ITEM_MAX_USES, ITEM_MAX_USES]  # 記錄兩位玩家剩餘道具次數
         self.removed_options = [set(), set()]  # 記錄兩位玩家刪除的選項
         self.current_q = 0  # 當前題目索引
         self.question_timer = None  # 題目計時器
@@ -64,7 +62,6 @@ class GameRoom:  # 遊戲房間類別
                 'options': q['opts'],  # 選項列表
                 'category': category,  # 題目分類
                 'isDaily': is_daily,  # 是否為今日挑戰主題（答對 x2 分）
-                'itemUsesLeft': self.item_uses_left[i],  # 該玩家剩餘道具次數
             })
 
         self.question_timer = threading.Timer(QUESTION_TIMEOUT, self._resolve_question)  # 建立 10 秒計時器
@@ -113,14 +110,7 @@ class GameRoom:  # 遊戲房間類別
             })
             return  # 函式結束
 
-        if self.item_uses_left[player_idx] <= 0:  # 如果玩家沒有剩餘道具
-            self._send(self.players[player_idx], {  # 發送錯誤訊息
-                'type': 'item_error',  # 訊息類型
-                'message': '本局已無剩餘刪除錯誤選項道具',  # 錯誤訊息
-            })
-            return  # 函式結束
-
-        current = self.questions[self.current_q]  # 取得當前題目
+current = self.questions[self.current_q]  # 取得當前題目
         wrong_indices = [i for i in range(len(current['opts']))  # 找出所有錯誤選項
                          if i != current['ans'] and i not in self.removed_options[player_idx]]  # 排除正確答案和已刪除選項
         if not wrong_indices:  # 如果沒有可刪除的選項
@@ -132,13 +122,10 @@ class GameRoom:  # 遊戲房間類別
 
         removed_idx = random.choice(wrong_indices)  # 隨機選擇一個錯誤選項刪除
         self.removed_options[player_idx].add(removed_idx)  # 將選項標記為已刪除
-        self.item_uses_left[player_idx] -= 1  # 減少剩餘道具次數
-
         self._send(self.players[player_idx], {  # 發送道具使用成功訊息
             'type': 'item_used',  # 訊息類型
             'item': 'delete_wrong',  # 道具名稱
             'removedOptionIdx': removed_idx,  # 已刪除的選項索引
-            'remainingUses': self.item_uses_left[player_idx],  # 剩餘使用次數
         })
 
     def _bot_answer(self, bot_id, used_sec):  # 機器人自動作答函式
