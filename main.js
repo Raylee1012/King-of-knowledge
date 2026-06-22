@@ -1299,7 +1299,14 @@ function renderEffectCard(effectId, name) {
 function renderShop(tab) {
   const container = document.getElementById('shopContent');
   const items = shopData[tab];
-  const note = '<div class="effect-shop-note">商店只負責購買；裝備請到「個人設定」裡選擇。</div>';
+  const noteText = tab === 'items'
+    ? '💡 至「個人設定 → 帳號」改名，免費次數不足時自動消耗。'
+    : tab === 'skills'
+      ? '💡 對戰時使用，可重複購買補充。'
+      : ['frames','tags','effects'].includes(tab)
+        ? '💡 購買後，至「個人設定 → 外觀」頁面選擇裝備。'
+        : '';
+  const note = noteText ? `<div class="effect-shop-note">${noteText}</div>` : '';
   container.innerHTML = note + `<div class="shop-grid">${items.map(item => {
     const isSkill = tab === 'skills';
     const isItem = tab === 'items';
