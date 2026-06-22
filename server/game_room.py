@@ -110,9 +110,9 @@ class GameRoom:  # 遊戲房間類別
             })
             return  # 函式結束
 
-current = self.questions[self.current_q]  # 取得當前題目
+        current = self.questions[self.current_q]  # 取得當前題目
         wrong_indices = [i for i in range(len(current['opts']))  # 找出所有錯誤選項
-                         if i != current['ans'] and i not in self.removed_options[player_idx]]  # 排除正確答案和已刪除選項
+                if i != current['ans'] and i not in self.removed_options[player_idx]]  # 排除正確答案和已刪除選項
         if not wrong_indices:  # 如果沒有可刪除的選項
             self._send(self.players[player_idx], {  # 發送錯誤訊息
                 'type': 'item_error',  # 訊息類型
@@ -126,7 +126,7 @@ current = self.questions[self.current_q]  # 取得當前題目
             'type': 'item_used',  # 訊息類型
             'item': 'delete_wrong',  # 道具名稱
             'removedOptionIdx': removed_idx,  # 已刪除的選項索引
-        })
+            })
 
     def _bot_answer(self, bot_id, used_sec):  # 機器人自動作答函式
         if self.ended:  # 若遊戲已結束，則不再作答
