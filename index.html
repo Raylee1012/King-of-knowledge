@@ -425,8 +425,8 @@
   </div>
 
   <div class="skills-bar">
-    <button class="skill-btn" id="skill50" onclick="useSkill50()">🎯 50/50 消去兩個錯誤</button>
-    <button class="skill-btn" id="skillTime" onclick="useSkillTime()">⏱️ 加時 +10秒</button>
+    <button class="skill-btn" id="skill50" onclick="useSkill50()">🎯 50/50 消去兩個錯誤<span class="skill-count" id="skill50Count">x0</span></button>
+    <button class="skill-btn" id="skillTime" onclick="useSkillTime()">⏱️ 加時 +10秒<span class="skill-count" id="skillTimeCount">x0</span></button>
   </div>
 
   <div class="question-card">
@@ -998,7 +998,7 @@
       <span class="welcome-gift-name">每日禮包</span>
       <span class="welcome-gift-label">點擊開啟</span>
     </div>
-    <div id="dailyRewardWrap" style="display:none">
+    <div id="dailyRewardWrap">
       <div class="welcome-amount">+300 🪙</div>
       <p class="welcome-desc">感謝每日登入！<br>金幣已存入你的帳戶</p>
       <div class="modal-footer">

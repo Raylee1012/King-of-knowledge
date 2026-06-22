@@ -778,6 +778,16 @@ body {
   pointer-events: none
 }
 
+.skill-count {
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 20px;
+  margin-left: 2px;
+}
+
 /* RESULT */
 .result-banner {
   text-align: center;
@@ -3545,3 +3555,46 @@ input[type="search"]::-webkit-search-decoration {
   text-align: center;
   margin-top: 100px;
 }
+#dailyRewardWrap { display: none }
+
+/* ── RANK LIST ── */
+.rank-row-inner { display:flex; align-items:center; gap:14px; flex-wrap:wrap }
+.rank-num { font-weight:900; min-width:36px; text-align:center; font-family:'Orbitron',monospace; font-size:16px }
+.rank-num.top3 { font-size:28px }
+.rank-avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#ffd700,#ff6b35); display:flex; align-items:center; justify-content:center; font-size:16px; border:2px solid rgba(255,255,255,.2); flex-shrink:0 }
+.rank-avatar.top3 { width:48px; height:48px; font-size:22px }
+.rank-info { flex:1 }
+.rank-name { font-size:14px; font-weight:900 }
+.rank-name.top3 { font-size:16px }
+.rank-meta { font-size:12px; color:var(--text2) }
+.rank-score-wrap { text-align:right }
+.rank-score { font-size:14px; font-weight:900 }
+.rank-score.top3 { font-size:18px }
+.rank-score-label { font-size:11px; color:var(--text2) }
+.rank-sep { text-align:center; color:var(--text2); padding:4px 0; font-size:20px; opacity:.6 }
+.rank-empty { text-align:center; color:var(--text2); padding:40px }
+.rank-error { text-align:center; color:var(--red); padding:40px }
+.rank-you-tag { color:var(--accent); font-size:12px }
+.rank-top3 { background:var(--card2); border-color:rgba(255,215,0,.3) }
+.rank-dim { opacity:.45 }
+.rank-you { border-color:#ffd700 !important; opacity:1 !important }
+.rank-no-data { text-align:center; color:var(--text2); font-size:13px }
+
+/* ── TOPIC STATS ── */
+.topic-stat-emoji { font-size:24px; margin-bottom:6px }
+.topic-stat-name { font-size:12px; color:var(--text2); margin-bottom:4px }
+.topic-stat-count { font-size:16px; font-weight:900 }
+
+/* ── MISC UTIL ── */
+.no-data-wrap { display:flex; align-items:center; justify-content:center; width:100%; min-height:120px }
+.no-data-text { color:var(--text2); font-size:14px }
+.room-id-highlight { font-weight:bold; font-size:18px; color:#FFD700 }
+.item-price-locked { color:#ff6b6b }
+.tag-preview-wrap { display:flex; justify-content:center; margin-bottom:12px }
+
+/* ── ADMIN ── */
+.admin-idx { color:var(--text2) }
+.admin-answer { color:var(--accent) }
+.admin-preview-note { color:var(--text2); font-size:.8rem; margin-top:8px; text-align:center }
+.admin-page-total { color:var(--text2); font-size:13px; margin-right:4px }
+.admin-page-sep { color:var(--text2); padding:0 4px }
