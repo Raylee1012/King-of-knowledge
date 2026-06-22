@@ -216,8 +216,8 @@ function suppressBattleError() {
 }
 
 function startBattle(mode = 'bot') {
-  // 隨機對戰前檢查金幣是否足夠（>=0）
-  if (mode === 'queue' && state.coins < 0) {
+  // 隨機對戰前檢查金幣是否足夠（>0）
+  if (mode === 'queue' && state.coins <= 0) {
     showToast('金幣不足，無法進行隨機對戰！');
     return;
   }
