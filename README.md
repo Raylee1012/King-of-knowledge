@@ -593,59 +593,25 @@ GameRoom 的 handle_disconnect()：
 
 ## 🏗️ 系統架構圖
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     🎮 前端（Frontend）                          │
-│            index.html + main.js + style.css                      │
-│   (登入介面、大廳、對戰介面、商城、排行榜、個人設定)              │
-└────────────────┬────────────────────────────┬────────────────────┘
-                 │ HTTP(S)                    │ WebSocket
-                 ↓                            ↓
-    ┌────────────────────────┐    ┌────────────────────────┐
-    │  🔐 後端（驗證系統）   │    │ 🎮 遊戲伺服器          │
-    │   localhost:3000       │    │  localhost:4000        │
-    │                        │    │                        │
-    │ backend/              │    │ server/               │
-    │ ├─ index.py (Flask)  │    │ ├─ app.py (WebSocket) │
-    │ ├─ auth.py           │    │ ├─ match_manager.py   │
-    │ └─ user.py           │    │ ├─ game_room.py       │
-    │                        │    │ ├─ db.py             │
-    │ 功能：                │    │ └─ questions.py      │
-    │ • 註冊／登入／驗證      │    │                        │
-    │ • 玩家數據管理        │    │ 功能：                │
-    │ • 商城（裝扮／技能）   │    │ • 實時對戰            │
-    │ • 改名（卡片＋免費）  │    │ • 配對管理            │
-    │ • 禮包入帳            │    │ • 題目分配            │
-    │ • 對戰結果同步        │    │ • 分數計算            │
-    │ • 排行榜              │    │ • 技能使用            │
-    └────────────────────────┘    └────────────────────────┘
-             ↕ HTTP
-             ↓
-    ┌────────────────────────┐
-    │  🗄️ Supabase 雲資料庫  │
-    │  (PostgreSQL)           │
-    │                        │
-    │ 表：                   │
-    │ • users (玩家數據)     │
-    │ • questions (題庫)    │
-    │ • battle_records (戰績)│
-    └────────────────────────┘
+```mermaid
+graph TD
+    FE["🌐 前端 Browser\nindex.html · main.js · style.css\n登入 · 大廳 · 對戰 · 商城 · 排行榜 · 個人設定 · 管理員後台"]
 
-    ┌────────────────────────┐
-    │  🤖 題目生成服務       │
-    │   localhost:5000       │
-    │                        │
-    │ generate/             │
-    │ ├─ app.py             │
-    │ ├─ services/          │
-    │ │  ├─ gemini_service  │
-    │ │  └─ supabase_service│
-    │                        │
-    │ 功能（僅管理員）：     │
-    │ • 呼叫 Gemini API     │
-    │ • 生成題目            │
-    │ • 上傳到 Supabase    │
-    └────────────────────────┘
+    BE["🔐 後端 :3000\nbackend/\n─────────────\nindex.py · auth.py · user.py\n─────────────\n註冊／登入／驗證\n商城購買 · 技能庫存\n改名 · 禮包入帳\n對戰統計 · 排行榜"]
+
+    GS["🎮 遊戲伺服器 :4000\nserver/\n─────────────\napp.py · match_manager.py\ngame_room.py · db.py\n─────────────\n配對管理 · 題目發送\n答案結算 · 技能處理\n斷線偵測"]
+
+    GEN["🤖 題目生成服務 :5000\ngenerate/\n─────────────\napp.py\nservices/gemini_service\nservices/supabase_service\n─────────────\nGemini AI 生成題目\n題目審核／編輯／刪除\n（僅管理員）"]
+
+    DB[("🗄️ Supabase\nPostgreSQL\n─────────────\nusers\nquestions\nbattle_records")]
+
+    FE -- "HTTP/REST\n/auth/* · /user/*" --> BE
+    FE -- "WebSocket\nws://:4000/ws" --> GS
+    FE -- "HTTP/REST\n/generate · /questions\n（管理員）" --> GEN
+
+    BE -- "Supabase SDK" --> DB
+    GS -- "Supabase SDK" --> DB
+    GEN -- "Supabase SDK" --> DB
 ```
 
 ---
