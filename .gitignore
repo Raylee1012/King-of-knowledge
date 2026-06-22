@@ -1,35 +1,6 @@
-# 環境變數，包含機密資訊不推上 GitHub
+# 環境變數
 .env
 
-# Node.js 套件
-node_modules/
-
-# Node.js 套件設定（已不使用）
-package.json
-package-lock.json
-
-# 虛擬環境，不推上 GitHub
+# Python
 .venv/
-
-# Python 編譯檔案
 **/__pycache__/
-*.pyc
-*.pyo
-
-# Node.js 舊版本（保留本機參考用）
-backend/index.js
-backend/auth.js
-backend/user.js
-backend/env
-
-# Windows 系統檔案
-Thumbs.db
-desktop.ini
-
-# Mac 系統檔案
-.DS_Store
-
-server/env
-server/__pycache__/
-.vscode/
-.claude/
