@@ -651,49 +651,45 @@ graph TD
     end
 
     %% 前端內部
-    FE_PAGE --> FE_STATE
-    FE_PAGE --> FE_FN
+    FE_PAGE --- FE_STATE
+    FE_PAGE --- FE_FN
 
-    %% 前端 → BE
+    %% 前端 → 後端
     FE_PAGE -->|"HTTP/REST"| BE_AUTH
     FE_PAGE -->|"HTTP/REST"| BE_USER
     FE_PAGE -->|"GET /config"| BE_PAGES
+    FE_PAGE -->|"管理員專用"| GEN_API
 
-    %% 前端 → GS
-    FE_WS -->|"WebSocket ws://:4000/ws"| GS_WS
+    %% 前端 → 遊戲伺服器
+    FE_WS -->|"WebSocket :4000"| GS_WS
     FE_PAGE -->|"GET /daily-theme"| GS_HTTP
 
-    %% 前端 → GEN（管理員）
-    FE_PAGE -->|"HTTP/REST\n管理員專用"| GEN_API
+    %% 後端 → Supabase
+    BE_AUTH -->|"SDK"| DB_AUTH
+    BE_AUTH -->|"httpx admin"| DB_AUTH
+    BE_AUTH -->|"SDK"| DB_USERS
+    BE_USER -->|"SDK"| DB_USERS
+    BE_USER -->|"SDK"| DB_BR
+    BE_USER -->|"Storage SDK"| DB_ST
 
-    %% BE → Supabase
-    BE_AUTH -->|"supabase-py SDK"| DB_AUTH
-    BE_AUTH -->|"supabase-py SDK"| DB_USERS
-    BE_AUTH -->|"httpx admin API"| DB_AUTH
-    BE_USER -->|"supabase-py SDK"| DB_USERS
-    BE_USER -->|"supabase-py SDK"| DB_BR
-    BE_USER -->|"Storage SDK\nupload avatar"| DB_ST
-
-    %% BE → 外部
-    BE_AUTH -->|"smtplib SMTP SSL"| GMAIL
+    %% 後端 → 外部
+    BE_AUTH -->|"SMTP SSL"| GMAIL
     GMAIL -.->|"信件背景圖"| CLOUDINARY
 
-    %% GS 內部
+    %% 遊戲伺服器內部
     GS_WS --> GS_MM
-    GS_MM -->|"配對成功 → start_room"| GS_GR
+    GS_MM -->|"配對成功"| GS_GR
     GS_WS --> GS_GR
-    GS_DB -->|"題庫快取\n啟動時載入"| GS_GR
+    GS_DB -->|"題庫快取"| GS_GR
+    GS_DB -->|"HTTP"| DB_Q
 
-    %% GS → DB
-    GS_DB -->|"requests HTTP"| DB_Q
-    GS_GR -->|"game_end → FE 呼叫\n/user/update-stats"| BE_USER
+    %% 遊戲結束回呼
+    GS_GR -.->|"update-stats"| BE_USER
 
-    %% GEN 內部
+    %% 題目生成
     GEN_API --> GEN_SVC
-
-    %% GEN → 外部 / DB
     GEN_SVC -->|"REST API"| GEMINI
-    GEN_SVC -->|"requests HTTP"| DB_Q
+    GEN_SVC -->|"HTTP"| DB_Q
     GEN_API -->|"verify_admin"| DB_USERS
 ```
 
