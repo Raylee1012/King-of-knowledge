@@ -4,3 +4,9 @@
 # Python
 .venv/
 **/__pycache__/
+
+# 系統架構圖
+architecture/
+
+# Claude
+.claude/
