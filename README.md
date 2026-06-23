@@ -44,6 +44,8 @@
   * renameCards：改名卡張數（整數）
   * topicStats：各主題答題統計 { category: { correct, wrong } }
   * nicknameRemainingFree：本月剩餘免費改名次數
+  * avatarMode：'emoji' | 'image'（目前使用的頭像類型）
+  * customAvatarDataUrl：自訂頭像的 URL 或 base64（image 模式）
 
 - shopData：商城數據（頭像框、稱號、特效、技能、道具價格）
 
@@ -59,7 +61,8 @@
 - deductSkill(skillId)：從 state.owned.skills 移除一個並呼叫後端
 - buyItem(tab, id)：購買裝扮／道具
 - renderShop(tab)：渲染商城（技能顯示「已有 N 個」，改名卡顯示「已有 N 張」）
-- confirmRenameCard()：改名（優先免費次數，不足自動消耗改名卡，再不足扣 500 金幣）
+- confirmRenameCard()：改名（優先免費次數 → 自動消耗改名卡 → 若兩者皆無則顯示錯誤，不扣金幣）
+- uploadAvatarToCloud(dataUrl)：裁切後上傳頭像到 Supabase Storage，並更新 DB 的 avatar_url
 - renderRank()：渲染排行榜（每次切換到排行榜畫面、改名後、對戰結束後自動呼叫）
 - checkDailyGift()：每日禮包（API 呼叫成功後才顯示 Popup）
 - showWelcomeModal()：歡迎禮包（同上，Popup 前先入帳）
@@ -169,16 +172,22 @@ API 路由：
 1. GET /user/profile/<user_id> - 取得玩家資訊
    - 返回：{ id, custom_id, email, coins, nickname, level, xp, wins, losses,
             total_answered, avg_accuracy, total_score, owned_frames, owned_tags,
-            owned_effects, owned_skills, active_effect, topic_stats,
+            owned_effects, owned_skills, active_effect, avatar_url, topic_stats,
             nickname_remaining_free, rename_cards, pending_levelup_coins }
    - owned_skills 包含重複項（每買一個就多一筆，方便計數）
    - rename_cards：整數欄位，改名卡張數
+   - avatar_url：Supabase Storage 公開 URL（自訂頭像）
    - pending_levelup_coins：對戰斷線未領升等禮包的暫存金幣
 
 2. POST /user/nickname - 修改暱稱
    - 請求：{ user_id, new_nickname, use_card: true }
-   - 優先順序：免費次數（每月3次）→ 自動消耗 rename_cards → 扣 500 金幣
-   - 響應：{ message, used_rename_card, rename_cards, remaining_coins }
+   - 優先順序：免費次數（每月3次）→ 自動消耗 rename_cards → 兩者皆無則回傳 400 錯誤（不扣金幣）
+   - 響應：{ message, used_rename_card, remaining_free, rename_cards }
+
+2.5. POST /user/avatar - 上傳自訂頭像
+   - 請求：{ user_id, avatar_data: base64 WebP }
+   - 流程：解碼 → 上傳 Supabase Storage（avatars/{user_id}.webp）→ 更新 DB avatar_url
+   - 響應：{ avatar_url }
 
 3. POST /user/buy-item - 購買裝扮／道具
    - 請求：{ user_id, item_type, item_id, price }
@@ -441,16 +450,18 @@ main.js 接收響應：
 發送 GET 請求到 backend:3000/user/profile/<user_id>
    ↓
 backend/user.py 返回玩家資訊：
-   - 等級、金幣、暱稱、勝負統計、擁有的裝扮、技能庫存、改名卡張數等
+   - 等級、金幣、暱稱、勝負統計、擁有的裝扮、技能庫存、改名卡張數
+   - avatar_url（自訂頭像 Supabase Storage URL，空字串代表未上傳）
+   - nicknameRemainingFree（本月剩餘免費改名次數）
    ↓
-main.js 接收數據，更新 state 變數
+main.js 接收數據，更新 state 變數（含 avatarMode / customAvatarDataUrl）
    ↓
 顯示遊戲大廳介面（showScreen('dashboardScreen')）
    ↓
 禮包檢查（依序）：
    - autoClaimMissedGifts()：補領未入帳的升等禮包
-   - showWelcomeModal()：首次登入禮包（API 先呼叫成功才顯示 Popup）
-   - checkDailyGift()：每日登入禮包（同上）
+   - showWelcomeModal()：首次登入禮包（API 先入帳成功才顯示 Popup）
+   - checkDailyGift()：每日登入禮包（同上，Popup 前先確保金幣已入帳）
 ```
 
 ### **階段 3：遊戲大廳**
@@ -460,7 +471,8 @@ main.js 接收數據，更新 state 變數
 - 查看排行榜：呼叫 renderRank()，從 /user/rank 取得即時數據
 - 進入商城：購買頭像框、稱號、特效、技能（庫存制）、改名卡
 - 個人設定：裝備外觀道具、帳號管理、改名
-  * 改名流程：免費次數（每月3次）→ 自動消耗改名卡 → 扣 500 金幣
+  * 改名流程：免費次數（每月3次）→ 自動消耗改名卡 → 兩者皆無則顯示錯誤
+  * 頭像：可使用表情符號或上傳自訂圖片（裁切為 WebP，存於 Supabase Storage）
 - 開始對戰：選擇隨機配對、建立房號、加入房號或 AI 練習
 ```
 
@@ -555,14 +567,16 @@ main.js 接收遊戲結束訊息（endBattle()）：
    - 顯示結算介面（勝負、分數、獲得的金幣和經驗）
    - 呼叫 POST /user/update-stats 上報對戰結果
    ↓
-backend/user.py 處理對戰結果：
+backend/user.py 處理對戰結果（POST /user/update-stats）：
    - 更新 wins / losses / total_score / total_answered / avg_accuracy
-   - 計算獲得的金幣和 XP
-   - 檢查是否升等（升等存入 pending_levelup_coins，前端領取後清零）
-   - 合併 topic_stats
+   - 計算金幣獎勵：勝 100+20×答對數，敗 -(50+20×對手答對數)；房號配對不計金幣
+   - 計算 XP：勝 20+5×答對數（bot 3×），敗至少給基礎 XP 鼓勵繼續
+   - 升等判斷：xp >= xp_max 時 level+1、xp_max+500，升等金幣存入 pending_levelup_coins
+   - 每升 10 級額外給 400 里程碑金幣
+   - 合併 topic_stats（各主題 correct/wrong 累加）
    - 寫入 battle_records
    ↓
-後端返回更新後的數據（含 topic_stats）
+後端返回更新後的數據（coins、xp、level、coin_delta、xp_gain、leveled_up、topic_stats 等）
    ↓
 main.js 同步所有 state 欄位，呼叫 renderRank() 刷新排行榜
    ↓
@@ -597,12 +611,14 @@ GameRoom 的 handle_disconnect()：
 graph TD
     subgraph FE["🌐 前端 Browser"]
         FE_PAGE["index.html · main.js · style.css\n─────────────────────────────\n登入 · 註冊 · 忘記密碼 · 重設密碼\n大廳 · 商城 · 個人設定\n排行榜 · 對戰視窗 · 管理員後台"]
+        FE_STATE["state 全域物件（main.js）\n─────────────────────────────\nuserId · playerName · customId · email\ncoins · level · xp · xpMax\nwins · losses · totalAnswered\navgAccuracy · totalScore\nowned.frames / tags / effects / skills[]\nrenameCards（整數）\ntopicStats{ cat:{ correct, wrong } }\nnicknameRemainingFree\navatarMode: emoji|image\ncustomAvatarDataUrl"]
+        FE_FN["main.js 關鍵函數\n─────────────────────────────\nhandleLogin / handleRegister\nsyncUserData · loadUserProfile\nautoClaimMissedGifts · showWelcomeModal\ncheckDailyGift · showLevelUpOverlay\nbuyItem · renderShop · renderRank\nconfirmRenameCard（free→卡→Error）\nuploadAvatarToCloud → Storage\nuseSkill50 · useSkillTime · deductSkill\nhandleRandomMatch · submitAnswer\nendBattle · startCoinSync（30s 輪詢）"]
         FE_WS["WebSocket Client\nbattleWs"]
     end
 
     subgraph BE["🔐 Auth & User Server :3000  ·  backend/"]
-        BE_AUTH["auth.py（掛載於 /auth）\n─────────────────────────────\nPOST /register → 建帳 + 寄驗證信\nPOST /verify → 驗證碼驗證\nGET  /verify-link → 連結驗證\nPOST /login → 帳號密碼登入\nPOST /forgot-password → 寄重設信\nGET  /reset-info → 查詢重設 token\nPOST /reset-password → 更新密碼\nPOST /change-password → 更改密碼"]
-        BE_USER["user.py（掛載於 /user）\n─────────────────────────────\nGET  /profile/:id\nGET  /coins/:id\nPOST /nickname\nPOST /active-effect\nPOST /welcome-gift · /daily-gift · /levelup-gift\nPOST /spend-coins · /buy-item · /use-skill\nPOST /update-stats → 寫入分數 + battle_records\nDELETE /delete\nGET  /rank · /recent-battles · /avg-topic-stats"]
+        BE_AUTH["auth.py（掛載於 /auth）\n─────────────────────────────\nPOST /register → 建帳 + 寄驗證信\nPOST /verify → 驗證碼驗證\nGET  /verify-link → 連結驗證\nPOST /login → 帳號密碼登入\nPOST /forgot-password → 寄重設信\nGET  /reset-info → 查詢重設 token\nPOST /reset-password → 更新密碼\nPOST /change-password → 更改密碼\nDELETE /delete-account → 刪除帳號"]
+        BE_USER["user.py（掛載於 /user）\n─────────────────────────────\nGET  /profile/:id → 完整玩家資料含 avatar_url\nGET  /coins/:id → 輕量金幣查詢\nPOST /nickname → free→卡→Error（不扣金幣）\nPOST /avatar → base64 WebP → Storage → avatar_url\nPOST /active-effect → 裝備特效\nPOST /welcome-gift · /daily-gift · /levelup-gift\nPOST /spend-coins · /buy-item · /use-skill\nPOST /update-stats → 結算金幣/XP/等級/topic_stats\nDELETE /delete → 刪除帳號+Auth\nGET  /rank · /recent-battles · /avg-topic-stats"]
         BE_PAGES["index.py\n─────────────────────────────\nGET /config → Gemini Key + Supabase URL/Key\n/verified · /verify-expired · /already-verified\n/reset-password（重設密碼表單頁）\n/reset-expired"]
     end
 
@@ -610,8 +626,8 @@ graph TD
         GS_WS["app.py — WebSocket /ws\n─────────────────────────────\njoin_bot    → 建 Bot 房直接開始\njoin_queue  → 加入隨機配對佇列\ncreate_room → 建立房號等待對手\njoin_room   → 加入指定房號\ncancel_queue / quit_match\nsubmit_answer → 提交答案\nuse_item      → 使用 50/50 道具"]
         GS_HTTP["app.py — HTTP\n─────────────────────────────\nGET /daily-theme → 依日期 seed\n  固定選 3 個今日主題分類\nGET /health → 服務狀態 + 題庫數"]
         GS_MM["MatchManager\n─────────────────────────────\nrandom_queue：隨機配對佇列\n  ≥2 人時出列，產生 6 位房號\nroom_waiting：房號等待字典\n  create_room / join_room 呼叫"]
-        GS_GR["GameRoom\n─────────────────────────────\n10 題 × 10 秒限時\n今日主題答對 ×2 分\n計分：150 + 速度加成（最多 50）\n50/50：隨機刪一個錯誤選項\nBot AI：2~8 秒後隨機作答\n結束廣播 topicStats 給前端"]
-        GS_DB["db.py\n─────────────────────────────\n分頁載入 questions（每批 1000 筆）\n隨機 shuffle 後快取於記憶體"]
+        GS_GR["GameRoom\n─────────────────────────────\nQUESTION_TIMEOUT = 10 秒/題\nRESULT_DELAY = 1.5 秒\nQUESTIONS_PER_GAME = 10 題\n今日主題答對 ×2 分\n計分：150 + (50 - used_sec/10 × 50)\n50/50：隨機刪一個錯誤選項\nBot AI：2~8 秒後隨機作答\n結束廣播：scores · winner · topicStats\n斷線：通知對手 → 對手自動獲勝"]
+        GS_DB["db.py + questions.py\n─────────────────────────────\ndb.py：分頁載入 questions 表\n  每批 1000 筆，直到無資料\n  隨機 shuffle 後快取記憶體\nquestions.py：本地備份題庫\n  Supabase 不可用時備選\n  { q, opts[4], ans, category }"]
     end
 
     subgraph GEN["🤖 Generate Server :5000  ·  generate/"]
@@ -621,16 +637,21 @@ graph TD
 
     subgraph DB["☁️ Supabase  ·  PostgreSQL + Auth"]
         DB_AUTH["Supabase Auth\n─────────────────────────────\nsign_up / sign_in_with_password\nadmin users API（httpx）\n  PUT  更新 email_confirm / password\n  DELETE 刪除帳號"]
-        DB_USERS[("users\n─────────────────────────────\nid · custom_id · email · nickname\ncoins · level · xp · xp_max\nwins · losses · total_answered\navg_accuracy · total_score\ntopic_stats（JSONB）\nowned_skills · owned_frames\nowned_tags · owned_effects\nactive_effect · rename_cards\nwelcome_claimed · daily_claimed_at\npending_levelup_coins\nverify_token · reset_token\nis_verified · is_admin\nnickname_change_count\nnickname_last_reset · created_at")]
+        DB_USERS[("users\n─────────────────────────────\nid · custom_id · email · nickname\ncoins · level · xp · xp_max\nwins · losses · total_answered\navg_accuracy · total_score\ntopic_stats（JSONB）\nowned_skills · owned_frames\nowned_tags · owned_effects\nactive_effect · avatar_url\nrename_cards\nwelcome_claimed · daily_claimed_at\npending_levelup_coins\nverify_token · reset_token\nis_verified · is_admin\nnickname_change_count\nnickname_last_reset · created_at")]
         DB_Q[("questions\n─────────────────────────────\nid · category · question\nanswer_a · answer_b\nanswer_c · answer_d\ncorrect_answer")]
         DB_BR[("battle_records\n─────────────────────────────\nid · user_id · score\ncorrect · total · won\ncreated_at")]
+        DB_ST[("Storage: avatars/\n─────────────────────────────\n{user_id}.webp\npublic URL 存入 avatar_url")]
     end
 
     subgraph EXT["🌍 外部服務"]
-        GMAIL["Gmail SMTP :465\n─────────────\n帳號驗證信\n密碼重設信\n（smtplib SSL）"]
-        GEMINI["Gemini 2.5 Flash Lite\n─────────────\nAI 生成繁體中文\n四選一題目"]
-        CLOUDINARY["Cloudinary CDN\n─────────────\n信件星空背景圖"]
+        GMAIL["Gmail SMTP :465\n─────────────\n驗證信：6 位驗證碼（24h 有效）\n重設信：token 連結（1h 有效）\n歡迎信：驗證成功後發送\n（smtplib SSL）"]
+        GEMINI["Gemini 2.5 Flash Lite\n─────────────\nAI 生成繁體中文\n四選一題目 + 分類"]
+        CLOUDINARY["Cloudinary CDN\n─────────────\n信件星空背景圖\n（img src 嵌入 HTML 信件）"]
     end
+
+    %% 前端內部
+    FE_PAGE --> FE_STATE
+    FE_PAGE --> FE_FN
 
     %% 前端 → BE
     FE_PAGE -->|"HTTP/REST"| BE_AUTH
@@ -650,6 +671,7 @@ graph TD
     BE_AUTH -->|"httpx admin API"| DB_AUTH
     BE_USER -->|"supabase-py SDK"| DB_USERS
     BE_USER -->|"supabase-py SDK"| DB_BR
+    BE_USER -->|"Storage SDK\nupload avatar"| DB_ST
 
     %% BE → 外部
     BE_AUTH -->|"smtplib SMTP SSL"| GMAIL
@@ -659,6 +681,7 @@ graph TD
     GS_WS --> GS_MM
     GS_MM -->|"配對成功 → start_room"| GS_GR
     GS_WS --> GS_GR
+    GS_DB -->|"題庫快取\n啟動時載入"| GS_GR
 
     %% GS → DB
     GS_DB -->|"requests HTTP"| DB_Q
@@ -735,6 +758,7 @@ python app.py  # 運行在 http://localhost:5000
 - **實時通信**：WebSocket 實現毫秒級對戰同步
 - **完整流程**：登入 → 禮包 → 大廳 → 配對 → 對戰 → 結算 → 更新數據
 - **技能庫存制**：技能以陣列重複項計數，每次使用消耗一個，無每局次數限制
-- **改名三段式**：免費次數 → 改名卡 → 金幣，全自動判斷
+- **改名兩段式**：免費次數（每月3次）→ 改名卡，兩者皆無則提示購買，不扣金幣
+- **自訂頭像**：前端裁切為 WebP → 上傳 Supabase Storage → DB 記錄 avatar_url，跨裝置同步
 - **禮包安全機制**：API 先入帳再顯示 Popup，關閉瀏覽器也不會漏領
 - **模組化設計**：驗證、遊戲、題目生成各自獨立服務

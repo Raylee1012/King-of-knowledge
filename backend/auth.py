@@ -170,122 +170,122 @@ def register():
     email = data.get('email')          # 取出 email 欄位
     password = data.get('password')    # 取出 password 欄位
 
-    if not custom_id or not nickname or not email or not password:
-        return jsonify({'error': '請填寫所有欄位'}), 400
+    if not custom_id or not nickname or not email or not password:  # 判斷是否有任何必填欄位為空
+        return jsonify({'error': '請填寫所有欄位'}), 400  # 回傳欄位不完整錯誤
 
-    email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
-    if not re.match(email_regex, email):
-        return jsonify({'error': 'Email格式不正確'}), 400
+    email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'  # 定義基本 Email 格式的正規表達式
+    if not re.match(email_regex, email):  # 判斷 email 是否符合格式
+        return jsonify({'error': 'Email格式不正確'}), 400  # 回傳 Email 格式錯誤
 
-    id_regex = r'^[a-zA-Z0-9]{4,20}$'
-    if not re.match(id_regex, custom_id):
-        return jsonify({'error': 'ID只能使用英文和數字，長度4-20字'}), 400
+    id_regex = r'^[a-zA-Z0-9]{4,20}$'  # 定義帳號 ID 只允許英數字且長度 4–20 的正規表達式
+    if not re.match(id_regex, custom_id):  # 判斷 custom_id 是否符合格式
+        return jsonify({'error': 'ID只能使用英文和數字，長度4-20字'}), 400  # 回傳 ID 格式錯誤
 
-    if len(password) < 6:
-        return jsonify({'error': '密碼至少需要6位數'}), 400
+    if len(password) < 6:  # 判斷密碼長度是否不足 6 位
+        return jsonify({'error': '密碼至少需要6位數'}), 400  # 回傳密碼過短錯誤
 
-    existing = supabase.table('users').select('id').eq('custom_id', custom_id).execute()
-    if existing.data:
-        return jsonify({'error': '帳號 ID 已存在，請換一個'}), 400
+    existing = supabase.table('users').select('id').eq('custom_id', custom_id).execute()  # 查詢 users 資料表是否已有相同 custom_id
+    if existing.data:  # 判斷 custom_id 是否已被使用
+        return jsonify({'error': '帳號 ID 已存在，請換一個'}), 400  # 回傳 ID 重複錯誤
 
-    existing_nick = supabase.table('users').select('id').eq('nickname', nickname).execute()
-    if existing_nick.data:
-        return jsonify({'error': '暱稱已被使用，請換一個'}), 400
+    existing_nick = supabase.table('users').select('id').eq('nickname', nickname).execute()  # 查詢 users 資料表是否已有相同暱稱
+    if existing_nick.data:  # 判斷暱稱是否已被使用
+        return jsonify({'error': '暱稱已被使用，請換一個'}), 400  # 回傳暱稱重複錯誤
 
     try:
-        auth_response = supabase.auth.sign_up({'email': email, 'password': password})
-        if auth_response.user is None:
-            return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400
+        auth_response = supabase.auth.sign_up({'email': email, 'password': password})  # 呼叫 Supabase Auth 建立新帳號
+        if auth_response.user is None:  # 判斷 Auth 是否回傳有效使用者物件
+            return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400  # 回傳 Email 重複錯誤
     except Exception:
-        return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400
+        return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400  # 回傳 Auth 建立帳號失敗錯誤
 
-    user_id = auth_response.user.id
+    user_id = auth_response.user.id  # 取得 Supabase Auth 分配的使用者 UUID
 
-    expire_at = int(time.time() * 1000) + 5 * 60 * 1000
-    raw_token = secrets.token_hex(32)
-    token = f'{raw_token}.{expire_at}'
+    expire_at = int(time.time() * 1000) + 5 * 60 * 1000  # 計算驗證連結到期時間（目前毫秒時間戳 + 5 分鐘）
+    raw_token = secrets.token_hex(32)  # 產生 64 字元隨機十六進位字串作為 token 主體
+    token = f'{raw_token}.{expire_at}'  # 組合 token：隨機字串 + 到期時間戳，方便驗證時解析
 
     try:
-        supabase.table('users').insert({
-            'id': user_id,
-            'custom_id': custom_id,
-            'nickname': nickname,
-            'email': email,
-            'is_verified': False,
-            'verify_token': token,
-            'coins': 0
+        supabase.table('users').insert({  # 在 users 資料表新增一筆使用者資料
+            'id': user_id,  # 對應 Supabase Auth 的 UUID
+            'custom_id': custom_id,  # 玩家自訂帳號 ID
+            'nickname': nickname,  # 玩家暱稱
+            'email': email,  # 電子信箱
+            'is_verified': False,  # 預設尚未驗證
+            'verify_token': token,  # 儲存驗證 token 供連結驗證使用
+            'coins': 0  # 初始金幣為 0
         }).execute()
     except Exception:
-        admin_delete_user(user_id)
-        return jsonify({'error': '帳號 ID 已存在，請換一個'}), 400
+        admin_delete_user(user_id)  # 插入失敗時刪除已建立的 Auth 帳號，避免殘留
+        return jsonify({'error': '帳號 ID 已存在，請換一個'}), 400  # 回傳資料庫插入衝突錯誤
 
-    code = random.randint(100000, 999999)
-    verification_codes[email] = {
-        'code': code,
-        'expire_at': int(time.time() * 1000) + 5 * 60 * 1000
+    code = random.randint(100000, 999999)  # 產生六位數隨機驗證碼
+    verification_codes[email] = {  # 將驗證碼與到期時間存入記憶體字典
+        'code': code,  # 六位數驗證碼
+        'expire_at': int(time.time() * 1000) + 5 * 60 * 1000  # 到期時間為目前時間 + 5 分鐘
     }
 
-    verify_link = f'{os.environ.get("BACKEND_URL")}/auth/verify-link?token={token}'
+    verify_link = f'{os.environ.get("BACKEND_URL")}/auth/verify-link?token={token}'  # 組合點擊驗證連結，帶上 token 參數
 
     try:
-        send_email(
-            email,
-            '知識王 帳號驗證',
-            get_email_template(verify_link, code),
-            '歡迎加入知識王！你的驗證碼是：' + str(code) + '，請在 5 分鐘內完成驗證。'
+        send_email(  # 呼叫寄信函式發送驗證信
+            email,  # 收件人信箱
+            '知識王 帳號驗證',  # 信件主旨
+            get_email_template(verify_link, code),  # HTML 信件內容
+            '歡迎加入知識王！你的驗證碼是：' + str(code) + '，請在 5 分鐘內完成驗證。'  # 純文字備用內容
         )
     except Exception:
-        delete_unverified_account(email)
-        if email in verification_codes:
-            del verification_codes[email]
-        return jsonify({'error': '驗證信寄送失敗'}), 400
+        delete_unverified_account(email)  # 寄信失敗時刪除剛建立的帳號，防止殘留未驗證帳號
+        if email in verification_codes:  # 判斷記憶體中是否還有該 email 的驗證碼紀錄
+            del verification_codes[email]  # 清除記憶體中的驗證碼，避免佔用
+        return jsonify({'error': '驗證信寄送失敗'}), 400  # 回傳寄信失敗錯誤
 
-    return jsonify({'message': '註冊成功，請查收驗證信'}), 200
+    return jsonify({'message': '註冊成功，請查收驗證信'}), 200  # 回傳註冊成功並提示查收信箱
 
 
 @auth_bp.route('/verify', methods=['POST'])
 def verify():
-    data = request.get_json()
-    email = data.get('email')
-    code = data.get('code')
+    data = request.get_json()  # 取得前端傳來的 JSON 資料
+    email = data.get('email')  # 取出 email 欄位
+    code = data.get('code')  # 取出使用者輸入的驗證碼
 
-    if not email or not code:
-        return jsonify({'error': '請填寫所有欄位'}), 400
+    if not email or not code:  # 判斷 email 或驗證碼是否為空
+        return jsonify({'error': '請填寫所有欄位'}), 400  # 回傳欄位不完整錯誤
 
-    record = verification_codes.get(email)
+    record = verification_codes.get(email)  # 從記憶體字典取出該 email 的驗證碼紀錄
 
-    if not record:
-        return jsonify({'error': '驗證碼不存在'}), 400
+    if not record:  # 判斷是否找不到對應的驗證碼紀錄
+        return jsonify({'error': '驗證碼不存在'}), 400  # 回傳驗證碼不存在錯誤
 
-    if int(time.time() * 1000) > record['expire_at']:
-        del verification_codes[email]
-        delete_unverified_account(email)
-        return jsonify({'error': '驗證碼已過期，請重新註冊'}), 400
+    if int(time.time() * 1000) > record['expire_at']:  # 判斷目前時間是否已超過驗證碼到期時間
+        del verification_codes[email]  # 清除過期的驗證碼紀錄
+        delete_unverified_account(email)  # 刪除對應的未驗證帳號
+        return jsonify({'error': '驗證碼已過期，請重新註冊'}), 400  # 回傳驗證碼過期錯誤
 
-    if str(record['code']) != str(code):
-        return jsonify({'error': '驗證碼錯誤'}), 400
+    if str(record['code']) != str(code):  # 判斷使用者輸入的驗證碼是否與記錄不符
+        return jsonify({'error': '驗證碼錯誤'}), 400  # 回傳驗證碼錯誤
 
-    user_response = supabase.table('users').select('id, is_verified').eq('email', email).single().execute()
-    user_id = user_response.data['id']
-    already_verified = user_response.data['is_verified']
+    user_response = supabase.table('users').select('id, is_verified').eq('email', email).single().execute()  # 查詢 users 資料表取得使用者 id 與驗證狀態
+    user_id = user_response.data['id']  # 取得使用者 UUID
+    already_verified = user_response.data['is_verified']  # 取得是否已驗證的布林值
 
-    del verification_codes[email]
+    del verification_codes[email]  # 驗證成功後清除記憶體中的驗證碼，防止重複使用
 
-    if already_verified:
-        return jsonify({
+    if already_verified:  # 判斷帳號是否已經驗證過
+        return jsonify({  # 回傳帳號已驗證過的狀態
             'message': '帳號已驗證過',
             'already_verified': True,
             'user_id': user_id
         }), 200
 
-    supabase.table('users').update({
-        'is_verified': True,
-        'verify_token': None
+    supabase.table('users').update({  # 更新 users 資料表將帳號標記為已驗證
+        'is_verified': True,  # 設定驗證旗標為 True
+        'verify_token': None  # 清空驗證 token，使連結無效
     }).eq('email', email).execute()
 
-    admin_update_user(user_id, {'email_confirm': True})
+    admin_update_user(user_id, {'email_confirm': True})  # 呼叫 admin API 將 Supabase Auth 的 email 確認狀態設為已確認
 
-    return jsonify({
+    return jsonify({  # 回傳驗證成功並帶回使用者 ID
         'message': '驗證成功，帳號已開通',
         'already_verified': False,
         'user_id': user_id
@@ -294,218 +294,218 @@ def verify():
 
 @auth_bp.route('/verify-link', methods=['GET'])
 def verify_link():
-    token = request.args.get('token')
+    token = request.args.get('token')  # 從 GET 請求的查詢參數取得 token
 
-    if not token:
-        return jsonify({'error': '無效的驗證連結'}), 400
+    if not token:  # 判斷 token 是否為空
+        return jsonify({'error': '無效的驗證連結'}), 400  # 回傳缺少 token 錯誤
 
-    parts = token.split('.')
-    if len(parts) != 2:
-        return jsonify({'error': '驗證連結無效'}), 400
+    parts = token.split('.')  # 以 '.' 分割 token，取得隨機字串與到期時間兩部分
+    if len(parts) != 2:  # 判斷 token 格式是否正確（必須剛好兩段）
+        return jsonify({'error': '驗證連結無效'}), 400  # 回傳格式不正確錯誤
 
-    _, expire_at = parts
+    _, expire_at = parts  # 解構取得到期時間字串（忽略隨機字串段）
 
     # 先查使用者（不論是否過期），讓後續邏輯可以判斷 is_verified
-    user_response = supabase.table('users').select('id, email, is_verified').eq('verify_token', token).execute()
-    user_data = user_response.data[0] if user_response.data else None
+    user_response = supabase.table('users').select('id, email, is_verified').eq('verify_token', token).execute()  # 查詢 users 資料表中符合此 verify_token 的使用者
+    user_data = user_response.data[0] if user_response.data else None  # 取得第一筆資料，若無結果則設為 None
 
     # 已驗證過：不管連結有沒有過期，都直接導向「已驗證」頁
-    if user_data and user_data['is_verified']:
-        return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/already-verified')
+    if user_data and user_data['is_verified']:  # 判斷帳號是否已驗證過
+        return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/already-verified')  # 跳轉到已驗證頁面
 
     # 連結過期：只在帳號尚未驗證時才刪除
-    if int(time.time() * 1000) > int(expire_at):
-        if user_data:
-            delete_unverified_account(user_data['email'])
-        return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/verify-expired')
+    if int(time.time() * 1000) > int(expire_at):  # 判斷目前時間是否已超過連結到期時間
+        if user_data:  # 判斷是否找到對應帳號
+            delete_unverified_account(user_data['email'])  # 刪除過期的未驗證帳號
+        return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/verify-expired')  # 跳轉到連結過期頁面
 
     # 找不到對應帳號：token 尚未過期卻找不到，代表已透過驗證碼完成驗證（token 已清空）
-    if not user_data:
-        return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/already-verified')
+    if not user_data:  # 判斷是否找不到符合 token 的帳號
+        return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/already-verified')  # 跳轉到已驗證頁面
 
-    supabase.table('users').update({
-        'is_verified': True,
-        'verify_token': None
+    supabase.table('users').update({  # 更新 users 資料表將帳號標記為已驗證
+        'is_verified': True,  # 設定驗證旗標為 True
+        'verify_token': None  # 清空驗證 token，使連結失效
     }).eq('id', user_data['id']).execute()
 
-    admin_update_user(user_data['id'], {'email_confirm': True})
+    admin_update_user(user_data['id'], {'email_confirm': True})  # 呼叫 admin API 將 Supabase Auth 的 email 確認狀態設為已確認
 
     return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/verified')  # 跳轉到後端驗證成功頁面
 
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    identifier = data.get('identifier')
-    password = data.get('password')
+    data = request.get_json()  # 取得前端傳來的 JSON 資料
+    identifier = data.get('identifier')  # 取出登入識別碼（可以是 email 或 custom_id）
+    password = data.get('password')  # 取出密碼
 
-    if not identifier or not password:
-        return jsonify({'error': '請填寫所有欄位'}), 400
+    if not identifier or not password:  # 判斷識別碼或密碼是否為空
+        return jsonify({'error': '請填寫所有欄位'}), 400  # 回傳欄位不完整錯誤
 
-    email = identifier
+    email = identifier  # 預設將識別碼當作 email 使用
 
-    if '@' not in identifier:
-        user_response = supabase.table('users').select('email').eq('custom_id', identifier).execute()
-        if not user_response.data:
-            return jsonify({'error': '找不到使用者'}), 400
-        email = user_response.data[0]['email']
+    if '@' not in identifier:  # 判斷識別碼是否不含 '@'，表示使用者輸入的是 custom_id
+        user_response = supabase.table('users').select('email').eq('custom_id', identifier).execute()  # 查詢 users 資料表以 custom_id 找出對應的 email
+        if not user_response.data:  # 判斷是否找不到該 custom_id
+            return jsonify({'error': '找不到使用者'}), 400  # 回傳找不到使用者錯誤
+        email = user_response.data[0]['email']  # 取得對應的 email 供後續登入使用
 
     try:
-        auth_response = supabase.auth.sign_in_with_password({'email': email, 'password': password})
-        if auth_response.user is None:
-            return jsonify({'error': '帳號或密碼錯誤'}), 400
+        auth_response = supabase.auth.sign_in_with_password({'email': email, 'password': password})  # 呼叫 Supabase Auth 以 email + 密碼登入
+        if auth_response.user is None:  # 判斷 Auth 是否回傳有效使用者物件
+            return jsonify({'error': '帳號或密碼錯誤'}), 400  # 回傳帳密錯誤
     except Exception:
-        return jsonify({'error': '帳號或密碼錯誤'}), 400
+        return jsonify({'error': '帳號或密碼錯誤'}), 400  # 回傳登入失敗錯誤
 
-    user_response = supabase.table('users').select('id, is_verified').eq('email', email).execute()
-    if not user_response.data or not user_response.data[0]['is_verified']:
-        return jsonify({'error': '帳號尚未驗證，請先查收信箱完成驗證', 'unverified': True, 'email': email}), 403
+    user_response = supabase.table('users').select('id, is_verified').eq('email', email).execute()  # 查詢 users 資料表確認驗證狀態
+    if not user_response.data or not user_response.data[0]['is_verified']:  # 判斷帳號是否不存在或尚未完成信箱驗證
+        return jsonify({'error': '帳號尚未驗證，請先查收信箱完成驗證', 'unverified': True, 'email': email}), 403  # 回傳帳號未驗證錯誤
 
-    return jsonify({
+    return jsonify({  # 回傳登入成功並附上使用者基本資訊
         'message': '登入成功',
         'user': {
-            'id': auth_response.user.id,
-            'email': auth_response.user.email,
-            'email_confirmed_at': str(auth_response.user.email_confirmed_at)
+            'id': auth_response.user.id,  # 使用者 UUID
+            'email': auth_response.user.email,  # 使用者 email
+            'email_confirmed_at': str(auth_response.user.email_confirmed_at)  # email 確認時間轉為字串
         }
     }), 200
 
 
 @auth_bp.route('/forgot-password', methods=['POST'])
 def forgot_password():
-    data = request.get_json()
-    identifier = data.get('identifier')
+    data = request.get_json()  # 取得前端傳來的 JSON 資料
+    identifier = data.get('identifier')  # 取出識別碼（email 或 custom_id）
 
-    if not identifier:
-        return jsonify({'error': '請填寫帳號或信箱'}), 400
+    if not identifier:  # 判斷識別碼是否為空
+        return jsonify({'error': '請填寫帳號或信箱'}), 400  # 回傳欄位不完整錯誤
 
     # 判斷是 custom_id 還是 email
-    if '@' not in identifier:
-        id_res = supabase.table('users').select('email').eq('custom_id', identifier).execute()
-        if not id_res.data:
-            return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200
-        email = id_res.data[0]['email']
+    if '@' not in identifier:  # 判斷識別碼是否不含 '@'，表示輸入的是 custom_id
+        id_res = supabase.table('users').select('email').eq('custom_id', identifier).execute()  # 查詢 users 資料表以 custom_id 找出對應 email
+        if not id_res.data:  # 判斷是否找不到該 custom_id（故意不揭露帳號不存在，仍回傳成功）
+            return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200  # 回傳假成功避免帳號列舉攻擊
+        email = id_res.data[0]['email']  # 取得對應的 email
     else:
-        email = identifier
+        email = identifier  # 識別碼本身就是 email
 
-    user_response = supabase.table('users').select('id, email').eq('email', email).execute()
+    user_response = supabase.table('users').select('id, email').eq('email', email).execute()  # 查詢 users 資料表確認該 email 是否存在
 
-    if not user_response.data:
-        return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200
+    if not user_response.data:  # 判斷是否找不到該 email（故意不揭露帳號不存在）
+        return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200  # 回傳假成功避免帳號列舉攻擊
 
-    expire_at = int(time.time() * 1000) + 5 * 60 * 1000
-    raw_token = secrets.token_hex(32)
-    reset_token = f'{raw_token}.{expire_at}'
+    expire_at = int(time.time() * 1000) + 5 * 60 * 1000  # 計算重設連結到期時間（目前毫秒時間戳 + 5 分鐘）
+    raw_token = secrets.token_hex(32)  # 產生 64 字元隨機十六進位字串
+    reset_token = f'{raw_token}.{expire_at}'  # 組合 reset_token：隨機字串 + 到期時間戳
 
-    supabase.table('users').update({
-        'reset_token': reset_token
+    supabase.table('users').update({  # 更新 users 資料表儲存重設 token
+        'reset_token': reset_token  # 寫入新的 reset_token
     }).eq('email', email).execute()
 
-    reset_link = f'{os.environ.get("FRONTEND_URL", "http://localhost:5500")}/index.html?reset_token={reset_token}'
+    reset_link = f'{os.environ.get("FRONTEND_URL", "http://localhost:5500")}/index.html?reset_token={reset_token}'  # 組合前端重設密碼連結，帶上 token 參數
 
-    send_email(
-        email,
-        '知識王 密碼重設',
-        get_reset_email_template(reset_link),
-        '你已申請重設知識王密碼，請查看 HTML 版本完成操作。如非本人操作請忽略此信。'
+    send_email(  # 呼叫寄信函式發送重設密碼信
+        email,  # 收件人信箱
+        '知識王 密碼重設',  # 信件主旨
+        get_reset_email_template(reset_link),  # HTML 信件內容
+        '你已申請重設知識王密碼，請查看 HTML 版本完成操作。如非本人操作請忽略此信。'  # 純文字備用內容
     )
 
-    return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200
+    return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200  # 回傳寄信成功狀態
 
 
 @auth_bp.route('/reset-info', methods=['GET'])
 def reset_info():
-    token = request.args.get('token', '')
-    parts = token.split('.')
-    if len(parts) != 2:
-        return jsonify({'error': '無效的連結'}), 400
+    token = request.args.get('token', '')  # 從 GET 查詢參數取得 reset_token，預設空字串
+    parts = token.split('.')  # 以 '.' 分割 token 取得兩段資料
+    if len(parts) != 2:  # 判斷 token 格式是否正確
+        return jsonify({'error': '無效的連結'}), 400  # 回傳 token 格式無效錯誤
     try:
-        expire_at = int(parts[1])
+        expire_at = int(parts[1])  # 將第二段轉為整數取得到期時間戳
     except ValueError:
-        return jsonify({'error': '無效的連結'}), 400
-    if int(time.time() * 1000) > expire_at:
-        return jsonify({'error': '連結已過期'}), 400
+        return jsonify({'error': '無效的連結'}), 400  # 回傳無法解析到期時間的錯誤
+    if int(time.time() * 1000) > expire_at:  # 判斷目前時間是否已超過到期時間
+        return jsonify({'error': '連結已過期'}), 400  # 回傳連結過期錯誤
 
-    res = supabase.table('users').select('nickname, custom_id, email').eq('reset_token', token).execute()
-    if not res.data:
-        return jsonify({'error': '無效的連結'}), 400
+    res = supabase.table('users').select('nickname, custom_id, email').eq('reset_token', token).execute()  # 查詢 users 資料表以 reset_token 找出對應使用者的暱稱、帳號與信箱
+    if not res.data:  # 判斷是否找不到符合 token 的帳號
+        return jsonify({'error': '無效的連結'}), 400  # 回傳找不到帳號錯誤
 
-    u = res.data[0]
-    email = u['email']
-    masked_email = email[:2] + '***' + email[email.index('@'):]
-    return jsonify({
-        'nickname': u['nickname'],
-        'custom_id': u['custom_id'],
-        'email': masked_email
+    u = res.data[0]  # 取得查詢結果的第一筆資料
+    email = u['email']  # 取出原始 email
+    masked_email = email[:2] + '***' + email[email.index('@'):]  # 將 email 前段遮蔽，僅保留前兩字元與 @ 後段
+    return jsonify({  # 回傳使用者資訊供前端顯示（email 已遮蔽）
+        'nickname': u['nickname'],  # 玩家暱稱
+        'custom_id': u['custom_id'],  # 玩家帳號 ID
+        'email': masked_email  # 遮蔽後的 email
     }), 200
 
 
 @auth_bp.route('/reset-password', methods=['POST'])
 def reset_password():
-    data = request.get_json()
-    token = data.get('token')
-    new_password = data.get('new_password')
+    data = request.get_json()  # 取得前端傳來的 JSON 資料
+    token = data.get('token')  # 取出重設密碼 token
+    new_password = data.get('new_password')  # 取出使用者輸入的新密碼
 
-    if not token or not new_password:
-        return jsonify({'error': '請填寫所有欄位'}), 400
+    if not token or not new_password:  # 判斷 token 或新密碼是否為空
+        return jsonify({'error': '請填寫所有欄位'}), 400  # 回傳欄位不完整錯誤
 
-    if len(new_password) < 6:
-        return jsonify({'error': '密碼至少需要6位數'}), 400
+    if len(new_password) < 6:  # 判斷新密碼長度是否不足 6 位
+        return jsonify({'error': '密碼至少需要6位數'}), 400  # 回傳密碼過短錯誤
 
-    parts = token.split('.')
-    if len(parts) != 2:
-        return jsonify({'error': '重設密碼連結無效'}), 400
+    parts = token.split('.')  # 以 '.' 分割 token 取得兩段資料
+    if len(parts) != 2:  # 判斷 token 格式是否正確
+        return jsonify({'error': '重設密碼連結無效'}), 400  # 回傳 token 格式無效錯誤
 
-    _, expire_at = parts
+    _, expire_at = parts  # 解構取得到期時間字串（忽略隨機字串段）
 
-    if int(time.time() * 1000) > int(expire_at):
-        return jsonify({'error': '重設密碼連結已過期，請重新申請'}), 400
+    if int(time.time() * 1000) > int(expire_at):  # 判斷目前時間是否已超過連結到期時間
+        return jsonify({'error': '重設密碼連結已過期，請重新申請'}), 400  # 回傳連結過期錯誤
 
-    user_response = supabase.table('users').select('id, email').eq('reset_token', token).execute()
+    user_response = supabase.table('users').select('id, email').eq('reset_token', token).execute()  # 查詢 users 資料表以 reset_token 找出對應使用者
 
-    if not user_response.data:
-        return jsonify({'error': '重設密碼連結無效'}), 400
+    if not user_response.data:  # 判斷是否找不到符合 token 的帳號
+        return jsonify({'error': '重設密碼連結無效'}), 400  # 回傳找不到帳號錯誤
 
-    user_data = user_response.data[0]
+    user_data = user_response.data[0]  # 取得查詢結果的第一筆使用者資料
 
-    admin_update_user(user_data['id'], {'password': new_password})
+    admin_update_user(user_data['id'], {'password': new_password})  # 呼叫 admin API 更新 Supabase Auth 中的使用者密碼
 
-    supabase.table('users').update({
-        'reset_token': None
+    supabase.table('users').update({  # 更新 users 資料表清除已使用的 reset_token
+        'reset_token': None  # 清空 reset_token，使連結失效
     }).eq('id', user_data['id']).execute()
 
-    return jsonify({'message': '密碼重設成功，請重新登入'}), 200
+    return jsonify({'message': '密碼重設成功，請重新登入'}), 200  # 回傳密碼重設成功狀態
 
 
 @auth_bp.route('/change-password', methods=['POST'])
 def change_password():
-    data = request.get_json()
-    user_id = data.get('user_id')
-    old_password = data.get('old_password')
-    new_password = data.get('new_password')
+    data = request.get_json()  # 取得前端傳來的 JSON 資料
+    user_id = data.get('user_id')  # 取出使用者 UUID
+    old_password = data.get('old_password')  # 取出舊密碼
+    new_password = data.get('new_password')  # 取出新密碼
 
-    if not user_id or not old_password or not new_password:
-        return jsonify({'error': '請填寫所有欄位'}), 400
+    if not user_id or not old_password or not new_password:  # 判斷必填欄位是否有任何為空
+        return jsonify({'error': '請填寫所有欄位'}), 400  # 回傳欄位不完整錯誤
 
-    if len(new_password) < 6:
-        return jsonify({'error': '新密碼至少需要6位數'}), 400
+    if len(new_password) < 6:  # 判斷新密碼長度是否不足 6 位
+        return jsonify({'error': '新密碼至少需要6位數'}), 400  # 回傳新密碼過短錯誤
 
-    if old_password == new_password:
-        return jsonify({'error': '新密碼不能和舊密碼相同'}), 400
+    if old_password == new_password:  # 判斷新舊密碼是否相同
+        return jsonify({'error': '新密碼不能和舊密碼相同'}), 400  # 回傳新舊密碼相同錯誤
 
-    user_response = supabase.table('users').select('email').eq('id', user_id).execute()
-    if not user_response.data:
-        return jsonify({'error': '找不到使用者'}), 400
+    user_response = supabase.table('users').select('email').eq('id', user_id).execute()  # 查詢 users 資料表以 user_id 取得對應 email
+    if not user_response.data:  # 判斷是否找不到該使用者
+        return jsonify({'error': '找不到使用者'}), 400  # 回傳找不到使用者錯誤
 
-    email = user_response.data[0]['email']
+    email = user_response.data[0]['email']  # 取得使用者的 email 供後續驗證舊密碼使用
 
     try:
-        auth_response = supabase.auth.sign_in_with_password({'email': email, 'password': old_password})
-        if auth_response.user is None:
-            return jsonify({'error': '舊密碼錯誤'}), 400
+        auth_response = supabase.auth.sign_in_with_password({'email': email, 'password': old_password})  # 呼叫 Supabase Auth 以舊密碼登入，驗證舊密碼是否正確
+        if auth_response.user is None:  # 判斷登入是否成功
+            return jsonify({'error': '舊密碼錯誤'}), 400  # 回傳舊密碼錯誤
     except Exception:
-        return jsonify({'error': '舊密碼錯誤'}), 400
+        return jsonify({'error': '舊密碼錯誤'}), 400  # 回傳驗證舊密碼失敗錯誤
 
-    admin_update_user(user_id, {'password': new_password})
+    admin_update_user(user_id, {'password': new_password})  # 呼叫 admin API 將 Supabase Auth 中的密碼更新為新密碼
 
-    return jsonify({'message': '密碼修改成功'}), 200
+    return jsonify({'message': '密碼修改成功'}), 200  # 回傳密碼修改成功狀態
