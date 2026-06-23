@@ -38,6 +38,7 @@ sock = Sock(app)  # 為 Flask 應用添加 WebSocket 支援
 match_manager = MatchManager()  # 建立配對管理器實例
 rooms = {}  # 儲存所有遊戲房間的字典
 questions = []  # 儲存所有題庫的列表
+pending_rematch = {}  # 儲存等待再來一局的資料 {room_id: {'players': [ws1, ws2], 'votes': set()}}
 
 
 def get_daily_categories(count=3):
@@ -96,6 +97,13 @@ def websocket(ws):  # WebSocket 連接處理函式
             room = rooms[ws.room_id]  # 取得房間對象
             room.handle_disconnect(ws.id)  # 在房間中處理斷開連接
             rooms.pop(ws.room_id, None)  # 從房間字典中移除房間
+        # 清理再來一局等待狀態
+        if ws.room_id and ws.room_id in pending_rematch:
+            data = pending_rematch.pop(ws.room_id, None)
+            if data:
+                opponent = next((p for p in data['players'] if p.id != ws.id), None)
+                if opponent:
+                    send(opponent, {'type': 'rematch_declined'})
 
 
 def get_player_name(msg):  # 從訊息中取得玩家名稱的函式
@@ -108,6 +116,7 @@ def handle_message(ws, msg):  # 訊息處理函式
     if msg_type == 'join_bot':  # 如果是加入 AI 機器人對戰
         ws.player_name = get_player_name(msg)  # 設定玩家名稱
         ws.user_id = msg.get('userId')  # 設定玩家用戶 ID
+        ws.equipped_emoji = msg.get('equippedEmoji', '🧠')  # 設定玩家頭貼 emoji
 
         class Bot:  # 定義簡單機器人類別
             def __init__(self):
@@ -128,6 +137,7 @@ def handle_message(ws, msg):  # 訊息處理函式
     if msg_type == 'join_queue':  # 如果是加入隨機佇列
         ws.player_name = get_player_name(msg)  # 設定玩家名稱
         ws.user_id = msg.get('userId')  # 設定玩家用戶 ID
+        ws.equipped_emoji = msg.get('equippedEmoji', '🧠')  # 設定玩家頭貼 emoji
         send(ws, {'type': 'queued'})  # 發送已加入佇列的確認
         match_manager.enqueue_random(ws, lambda p1, p2, room_id: start_room(p1, p2, room_id))  # 加入隨機配對佇列
         return  # 函式結束
@@ -135,6 +145,7 @@ def handle_message(ws, msg):  # 訊息處理函式
     if msg_type == 'create_room':  # 如果是建立房間
         ws.player_name = get_player_name(msg)  # 設定玩家名稱
         ws.user_id = msg.get('userId')  # 設定玩家用戶 ID
+        ws.equipped_emoji = msg.get('equippedEmoji', '🧠')  # 設定玩家頭貼 emoji
         room_id = gen_room_id()  # 產生隨機房間 ID
         send(ws, {'type': 'room_created', 'roomId': room_id})  # 發送房間已建立訊息和房號
         match_manager.create_room(ws, room_id, lambda p1, p2, rid: start_room(p1, p2, rid))  # 在配對管理器中建立房間
@@ -143,6 +154,7 @@ def handle_message(ws, msg):  # 訊息處理函式
     if msg_type == 'join_room':  # 如果是加入現有房間
         ws.player_name = get_player_name(msg)  # 設定玩家名稱
         ws.user_id = msg.get('userId')  # 設定玩家用戶 ID
+        ws.equipped_emoji = msg.get('equippedEmoji', '🧠')  # 設定玩家頭貼 emoji
         room_id = str(msg.get('roomId', '')).strip()  # 取得房號並去除空白
         if not room_id:  # 如果房號為空
             send(ws, {'type': 'error', 'message': '請輸入房號'})  # 發送錯誤訊息
@@ -180,6 +192,37 @@ def handle_message(ws, msg):  # 訊息處理函式
         room.use_item(ws.id, msg.get('item'))  # 在房間中使用道具
         return  # 函式結束
 
+    if msg_type == 'rematch_request':  # 玩家要求再來一局
+        room_id = ws.room_id
+        if not room_id or room_id not in pending_rematch:
+            return
+        data = pending_rematch[room_id]
+        players = data['players']
+        opponent = next((p for p in players if p.id != ws.id), None)
+        if not opponent:
+            return
+        data['votes'].add(ws.id)
+        if len(data['votes']) == 1:
+            # 通知對手，有人想再來一局
+            send(opponent, {'type': 'rematch_requested'})
+        elif len(data['votes']) >= 2:
+            # 雙方同意，開啟新局
+            pending_rematch.pop(room_id, None)
+            new_room_id = gen_room_id()
+            start_room(players[0], players[1], new_room_id)
+        return
+
+    if msg_type == 'rematch_decline':  # 玩家拒絕再來一局
+        room_id = ws.room_id
+        if not room_id or room_id not in pending_rematch:
+            return
+        data = pending_rematch.pop(room_id, None)
+        if data:
+            opponent = next((p for p in data['players'] if p.id != ws.id), None)
+            if opponent:
+                send(opponent, {'type': 'rematch_declined'})
+        return
+
     print(f"[Server] 未知訊息: {msg_type}")  # 列印未知訊息類型
 
 
@@ -194,7 +237,14 @@ def start_room(p1, p2, room_id):  # 啟動遊戲房間函式
     ensure_questions_loaded()  # 確保題庫已載入
     p1.room_id = room_id  # 設定玩家 1 的房間 ID
     p2.room_id = room_id  # 設定玩家 2 的房間 ID
-    room = GameRoom(room_id, p1, p2, questions, get_daily_categories(), lambda: rooms.pop(room_id, None))  # 建立遊戲房間
+
+    def on_game_end():
+        rooms.pop(room_id, None)
+        # 非機器人對戰才開放再來一局
+        if not getattr(p1, 'is_bot', False) and not getattr(p2, 'is_bot', False):
+            pending_rematch[room_id] = {'players': [p1, p2], 'votes': set()}
+
+    room = GameRoom(room_id, p1, p2, questions, get_daily_categories(), on_game_end)  # 建立遊戲房間
     rooms[room_id] = room  # 將房間添加到房間字典
     room.start()  # 啟動遊戲
     print(f"[Server] 遊戲開始 room={room_id}: {p1.player_name} vs {p2.player_name} (題庫{len(questions)}題)")  # 列印遊戲開始訊息

@@ -7,6 +7,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <link rel="stylesheet" href="style.css">
 
 </head>
@@ -393,7 +396,7 @@
     <div class="vs-divider">VS</div>
     <div class="fighter opponent">
       <div class="fighter-info">
-        <div class="avatar avatar-sm avatar-opp">🤖</div>
+        <div class="avatar avatar-sm avatar-opp" id="oppAvatar">🤖</div>
         <div>
           <div class="fighter-name" id="oppName">電腦挑戰者</div>
           <div class="fighter-opp">對手</div>
@@ -435,9 +438,20 @@
     <div class="stat-box"><div class="stat-val" id="statXpEarned">+0</div><div class="stat-label">獲得 XP</div></div>
   </div>
   <div class="result-actions">
-    <button class="btn btn-gold" onclick="startBattle(currentBattleMode)">⚔️ 再次挑戰</button>
-    <button class="btn btn-outline" onclick="showScreen('homeScreen')">🏠 回首頁</button>
-    <button class="btn btn-blue" onclick="showScreen('analyticsScreen')">📊 查看分析</button>
+    <button class="btn btn-gold" id="playAgainBtn" onclick="requestRematch()">⚔️ 再次挑戰</button>
+    <button class="btn btn-outline" onclick="leaveResultScreen('homeScreen')">🏠 回首頁</button>
+    <button class="btn btn-blue" onclick="leaveResultScreen('analyticsScreen')">📊 查看分析</button>
+  </div>
+  <!-- 再來一局邀請覆蓋層 -->
+  <div id="rematchInviteOverlay" class="rematch-invite-overlay">
+    <div class="rematch-invite-box">
+      <div class="rematch-invite-icon">⚔️</div>
+      <div class="rematch-invite-title">對手邀請再來一局！</div>
+      <div class="rematch-invite-btns">
+        <button class="btn btn-gold" onclick="acceptRematch()">✅ 接受</button>
+        <button class="btn btn-outline" onclick="declineRematch()">❌ 拒絕</button>
+      </div>
+    </div>
   </div>
 </div>
 </div>

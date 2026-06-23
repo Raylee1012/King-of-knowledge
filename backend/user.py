@@ -83,7 +83,7 @@ def _get_rename_cards(user_id):
 def get_profile(user_id):
     # 查詢玩家資料
     user_response = supabase.table('users').select(
-        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect, topic_stats, welcome_claimed, pending_levelup_coins, avatar_url'
+        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect, topic_stats, welcome_claimed, pending_levelup_coins, avatar_url, equipped_emoji'
     ).eq('id', user_id).execute()  # 條件：找這個 id 的玩家
 
     # 找不到玩家
@@ -128,6 +128,7 @@ def get_profile(user_id):
         'active_effect': user_data.get('active_effect'),                   # 目前裝備的特效
         'topic_stats': user_data.get('topic_stats') or {},                 # 主題統計
         'avatar_url': user_data.get('avatar_url') or '',                   # 自訂頭像 URL
+        'equipped_emoji': user_data.get('equipped_emoji') or '🧠',        # 目前裝備的 emoji 頭貼
         'welcome_claimed': user_data.get('welcome_claimed') or False,      # 是否已領取新手禮包
         'daily_claimed_at': _get_daily_claimed_at(user_id),               # 上次領取每日禮包時間
         'pending_levelup_coins': int(user_data.get('pending_levelup_coins') or 0),  # 待領取的升等獎勵
@@ -706,6 +707,24 @@ def save_active_effect():
 
     return jsonify({'message': '特效已更新', 'active_effect': effect_id}), 200  # 回傳更新成功與目前裝備的特效 ID
 
+# 儲存已裝備的 emoji 頭貼
+# 路徑：POST /user/equipped-emoji
+# 傳入：{ user_id, emoji }
+@user_bp.route('/equipped-emoji', methods=['POST'])
+def save_equipped_emoji():
+    data = request.get_json()  # 取得前端傳來的 JSON 資料
+    user_id = data.get('user_id')  # 取出 user_id 欄位
+    emoji = data.get('emoji', '🧠')  # 取出 emoji，預設 🧠
+
+    if not user_id:  # 判斷 user_id 是否缺少
+        return jsonify({'error': '缺少 user_id'}), 400  # 回傳 400 錯誤
+
+    supabase.table('users').update(
+        {'equipped_emoji': emoji}  # 更新玩家目前裝備的 emoji
+    ).eq('id', user_id).execute()  # 條件：找這個 id 的玩家
+
+    return jsonify({'message': 'emoji 已更新', 'equipped_emoji': emoji}), 200  # 回傳更新成功
+
 # 排行榜 API
 # 路徑：GET /user/rank
 # 參數：user_id（可選，標記自己並查詢自己的排名）
@@ -714,10 +733,14 @@ def save_active_effect():
 def get_rank():
     user_id = request.args.get('user_id')  # 當前玩家 ID
 
-    # 查詢足夠多的玩家，確保能涵蓋前 3 名的所有並列情況
+    # 查詢總玩家數
+    total_response = supabase.table('users').select('id', count='exact').execute()
+    total_players = total_response.count or 0
+
+    # 查詢前 50 名玩家，確保能涵蓋前 3 名的所有並列情況
     rank_response = supabase.table('users').select(
         'id, nickname, custom_id, total_score, wins, level'
-    ).order('total_score', desc=True).order('wins', desc=True).limit(200).execute()  # 查詢前 200 名玩家，依積分降序排列，同分比勝場
+    ).order('total_score', desc=True).order('wins', desc=True).limit(50).execute()  # 查詢前 50 名玩家，依積分降序排列，同分比勝場
 
     players = rank_response.data or []  # 取得玩家清單，若查無結果則為空陣列
 
@@ -774,8 +797,9 @@ def get_rank():
             }
 
     return jsonify({
-        'rank': result,  # 排行榜列表
-        'myRank': my_rank  # 當前玩家排名（未登入時為 null）
+        'rank': result,        # 排行榜列表
+        'myRank': my_rank,     # 當前玩家排名（未登入時為 null）
+        'total': total_players # 全服總玩家數
     }), 200  # 回傳排行榜資料
 
 

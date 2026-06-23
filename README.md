@@ -45,6 +45,7 @@
   * topicStats：各主題答題統計 { category: { correct, wrong } }
   * nicknameRemainingFree：本月剩餘免費改名次數
   * avatarMode：'emoji' | 'image'（目前使用的頭像類型）
+  * equippedEmoji：目前裝備的 emoji 頭貼（預設 🧠，與 DB equipped_emoji 同步）
   * customAvatarDataUrl：自訂頭像的 URL 或 base64（image 模式）
 
 - shopData：商城數據（頭像框、稱號、特效、技能、道具價格）
@@ -62,6 +63,7 @@
 - buyItem(tab, id)：購買裝扮／道具
 - renderShop(tab)：渲染商城（技能顯示「已有 N 個」，改名卡顯示「已有 N 張」）
 - confirmRenameCard()：改名（優先免費次數 → 自動消耗改名卡 → 若兩者皆無則顯示錯誤，不扣金幣）
+- selectAvatar(emoji)：選擇 emoji 頭貼，同步 state、localStorage、DB（POST /user/equipped-emoji）
 - uploadAvatarToCloud(dataUrl)：裁切後上傳頭像到 Supabase Storage，並更新 DB 的 avatar_url
 - renderRank()：渲染排行榜（每次切換到排行榜畫面、改名後、對戰結束後自動呼叫）
 - checkDailyGift()：每日禮包（API 呼叫成功後才顯示 Popup）
@@ -172,8 +174,8 @@ API 路由：
 1. GET /user/profile/<user_id> - 取得玩家資訊
    - 返回：{ id, custom_id, email, coins, nickname, level, xp, wins, losses,
             total_answered, avg_accuracy, total_score, owned_frames, owned_tags,
-            owned_effects, owned_skills, active_effect, avatar_url, topic_stats,
-            nickname_remaining_free, rename_cards, pending_levelup_coins }
+            owned_effects, owned_skills, active_effect, avatar_url, equipped_emoji,
+            topic_stats, nickname_remaining_free, rename_cards, pending_levelup_coins }
    - owned_skills 包含重複項（每買一個就多一筆，方便計數）
    - rename_cards：整數欄位，改名卡張數
    - avatar_url：Supabase Storage 公開 URL（自訂頭像）
@@ -237,6 +239,11 @@ API 路由：
     - 回傳前 3 名（含所有並列）+ 自己的排名資料
     - 響應：{ rank: [...], myRank: {...} }
 
+11. POST /user/equipped-emoji - 儲存 emoji 頭貼到 DB
+    - 請求：{ user_id, emoji }
+    - 供 selectAvatar() 呼叫，讓對手對戰時可從 DB 讀取真實 emoji
+    - 響應：{ message, equipped_emoji }
+
 關鍵常數：
 - FREE_NICKNAME_CHANGE_LIMIT = 3：每月免費改名次數
 - NICKNAME_CHANGE_COST = 500：無卡片且超過免費次數時的費用
@@ -266,19 +273,20 @@ API 路由：
 
 3. @sock.route('/ws') - WebSocket 連接處理
    - 為每個連接分配唯一 ID（7 位隨機字元）
-   - 初始化：ws.player_name, ws.user_id, ws.room_id
+   - 初始化：ws.player_name, ws.user_id, ws.room_id, ws.equipped_emoji
    - 持續接收客戶端訊息，呼叫 handle_message()
    - 連接斷開時：從配對佇列移除玩家、通知對手、刪除空房間
 
 4. handle_message(ws, msg) - 訊息處理分發器
    處理訊息類型：
-   - 'join_bot'：加入 AI 練習
-   - 'join_random'：加入隨機匹配佇列
-   - 'create_room'：建立房間
-   - 'join_room'：加入指定房間
+   - 'join_bot'：加入 AI 練習（讀取 equippedEmoji 存入 ws.equipped_emoji）
+   - 'join_queue'：加入隨機匹配佇列（同上）
+   - 'create_room'：建立房間（同上）
+   - 'join_room'：加入指定房間（同上）
    - 'submit_answer'：提交答案
    - 'use_item'：使用對戰技能
-   - 'forfeit'：認輸
+   - 'cancel_queue'：取消配對
+   - 'quit_match'：主動退出對戰
 ```
 
 #### `match_manager.py` - 配對管理器
@@ -329,7 +337,9 @@ class GameRoom:
         - self.topic_stats：[{}, {}] 兩位玩家各自的主題統計
 
     def start()
-        - 發送 'game_start' 訊息給兩位玩家（含 myName、opponentName）
+        - 發送 'game_start' 訊息給兩位玩家
+          含 myName、opponentName、opponentUserId、opponentEmoji
+        - 前端憑 opponentUserId 抓 /user/profile 顯示真實頭像；Bot 則 opponentUserId=null
         - 1.5 秒後呼叫 _send_question() 發送第一題
 
     def _send_question()
@@ -611,22 +621,22 @@ GameRoom 的 handle_disconnect()：
 graph TD
     subgraph FE["🌐 前端 Browser"]
         FE_PAGE["index.html · main.js · style.css\n登入 · 大廳 · 商城\n對戰 · 管理員後台"]
-        FE_STATE["state { userId, coins, level, xp\nowned, skills[], renameCards\ntopicStats, avatarMode }"]
-        FE_FN["handleLogin · syncUserData\nbuyItem · endBattle\nuploadAvatarToCloud · renderRank"]
+        FE_STATE["state { userId, coins, level, xp\nowned, skills[], renameCards\ntopicStats, avatarMode, equippedEmoji }"]
+        FE_FN["handleLogin · syncUserData\nbuyItem · endBattle · selectAvatar\nuploadAvatarToCloud · renderRank"]
         FE_WS["WebSocket battleWs"]
     end
 
     subgraph BE["🔐 後端 :3000 · backend/"]
         BE_AUTH["auth.py  /auth\nregister · verify · login\nforgot / reset / change password"]
-        BE_USER["user.py  /user\nprofile · avatar · nickname\nbuy · skills · gifts · update-stats · rank"]
+        BE_USER["user.py  /user\nprofile · avatar · nickname · equipped-emoji\nbuy · skills · gifts · update-stats · rank"]
         BE_PAGES["index.py\nGET /config\n/verified · /reset-password"]
     end
 
     subgraph GS["🎮 遊戲伺服器 :4000 · server/"]
-        GS_WS["app.py  WebSocket /ws\njoin_bot · join_queue\ncreate/join room · submit_answer"]
+        GS_WS["app.py  WebSocket /ws\njoin_bot · join_queue · create/join room\nsubmit_answer · equippedEmoji 傳遞"]
         GS_HTTP["app.py  HTTP\nGET /daily-theme\nGET /health"]
         GS_MM["MatchManager\nrandom_queue · room_waiting\n≥2人配對 → 產生房號"]
-        GS_GR["GameRoom\n10題 × 10秒 · 今日主題 ×2\n計分 150 + 速度加成\n50/50 · Bot AI · 斷線處理"]
+        GS_GR["GameRoom\n10題 × 10秒 · 今日主題 ×2\n計分 150 + 速度加成\n50/50 · Bot AI · 斷線 · opponentUserId/Emoji"]
         GS_DB["db.py + questions.py\n分頁載入 questions\nshuffle 後快取記憶體"]
     end
 
@@ -637,7 +647,7 @@ graph TD
 
     subgraph DB["☁️ Supabase · PostgreSQL + Auth"]
         DB_AUTH["Supabase Auth\nsign_up · sign_in\nadmin API（httpx）"]
-        DB_USERS[("users\ncoins · level · xp · owned\ntopic_stats · avatar_url\nrename_cards · pending_levelup_coins")]
+        DB_USERS[("users\ncoins · level · xp · owned\ntopic_stats · avatar_url · equipped_emoji\nrename_cards · pending_levelup_coins")]
         DB_Q[("questions\ncategory · opts[4] · correct_answer")]
         DB_BR[("battle_records\nscore · correct · won")]
         DB_ST[("Storage: avatars/\n{user_id}.webp → public URL")]

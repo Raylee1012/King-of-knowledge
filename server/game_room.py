@@ -34,6 +34,8 @@ class GameRoom:  # 遊戲房間類別
                 'playerIndex': i,  # 玩家索引（0 或 1）
                 'myName': p.player_name,  # 我的名稱
                 'opponentName': opp.player_name,  # 對手名稱
+                'opponentUserId': getattr(opp, 'user_id', None),  # 對手用戶 ID（Bot 無此欄位）
+                'opponentEmoji': getattr(opp, 'equipped_emoji', '🧠'),  # 對手 emoji 頭貼（Bot 為 🤖）
                 'totalQuestions': QUESTIONS_PER_GAME,  # 總題數
             })
 

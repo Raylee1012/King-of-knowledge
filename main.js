@@ -138,6 +138,24 @@ function showScreen(id) {
   }
 }
 
+// ─── MATH RENDER ─────────────────────────────────────────
+const KATEX_OPTS = {
+  delimiters: [
+    { left: '$$', right: '$$', display: true },
+    { left: '$',  right: '$',  display: false },
+    { left: '\\[', right: '\\]', display: true },
+    { left: '\\(', right: '\\)', display: false }
+  ],
+  throwOnError: false
+};
+
+function renderMath(el, text) {
+  el.textContent = text;
+  if (typeof renderMathInElement === 'function') {
+    renderMathInElement(el, KATEX_OPTS);
+  }
+}
+
 // ─── PLAYER BAR ──────────────────────────────────────────
 function escapeHTML(str) {
   return String(str).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[ch]));
@@ -248,14 +266,15 @@ function startBattle(mode = 'bot') {
   battleWs.onopen = () => {
     // 連線成功後才進入對戰畫面，並依模式發送對應訊息
     showScreen('battleScreen');
+    const joinBase = { userName: state.playerName, userId: state.userId, equippedEmoji: state.equippedEmoji || '🧠' };
     if (mode === 'bot') {
-      battleWs.send(JSON.stringify({ type: 'join_bot', userName: state.playerName, userId: state.userId }));
+      battleWs.send(JSON.stringify({ type: 'join_bot', ...joinBase }));
     } else if (mode === 'queue') {
-      battleWs.send(JSON.stringify({ type: 'join_queue', userName: state.playerName, userId: state.userId }));
+      battleWs.send(JSON.stringify({ type: 'join_queue', ...joinBase }));
     } else if (mode === 'create_room') {
-      battleWs.send(JSON.stringify({ type: 'create_room', userName: state.playerName, userId: state.userId }));
+      battleWs.send(JSON.stringify({ type: 'create_room', ...joinBase }));
     } else if (mode === 'join_room') {
-      battleWs.send(JSON.stringify({ type: 'join_room', roomId: currentRoomId, userName: state.playerName, userId: state.userId }));
+      battleWs.send(JSON.stringify({ type: 'join_room', roomId: currentRoomId, ...joinBase }));
     }
   };
 
@@ -387,16 +406,70 @@ function handleBattleMessage(msg) {
     return;
   }
 
+  if (msg.type === 'rematch_requested') {
+    // 對手邀請再來一局，顯示詢問覆蓋層
+    const overlay = document.getElementById('rematchInviteOverlay');
+    if (overlay) overlay.style.display = 'flex';
+    return;
+  }
+
+  if (msg.type === 'rematch_declined') {
+    showDeclineAndExit('對手婉拒了再來一局，遊戲結束！');
+    return;
+  }
+
   if (msg.type === 'game_start') {
+    // 若從結果頁收到 game_start（即再來一局），重設對戰 UI
+    const onResultScreen = document.getElementById('resultScreen')?.classList.contains('active');
+    if (onResultScreen) {
+      const bd = state.battleData;
+      bd.round = 0; bd.playerScore = 0; bd.oppScore = 0; bd.correct = 0; bd.oppCorrect = 0;
+      bd.total = 0; bd.combo = 0; bd.answering = false; bd.topicStats = {};
+      if (bd.timer) clearInterval(bd.timer);
+      resetSkillBtns();
+      updateScoreDisplay();
+      renderAvatarElement(document.getElementById('battleAvatar'));
+      document.getElementById('battleName').textContent = state.playerName;
+      showScreen('battleScreen');
+    }
     battleGameStarted = true;
-    // 遊戲開始，隱藏等待屏幕
     hideWaitingScreen();
-    // 遊戲開始，設定對手名稱
-    const oppName = msg.playerIndex === 0 ? msg.opponentName : msg.myName;
-    const myName = msg.playerIndex === 0 ? msg.myName : msg.opponentName;
     document.getElementById('oppName').textContent = msg.opponentName;
     document.getElementById('battleName').textContent = state.playerName;
-    bd.playerIndex = msg.playerIndex;  // 記錄我是 player 0 還是 1
+    bd.playerIndex = msg.playerIndex;
+
+    // 渲染對手頭像
+    const oppAvatarEl = document.getElementById('oppAvatar');
+    if (oppAvatarEl) {
+      if (msg.opponentUserId) {
+        // 真人對手：抓 profile 取得頭像
+        fetch(`${API_BASE}/user/profile/${msg.opponentUserId}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(profile => {
+            oppAvatarEl.innerHTML = '';
+            if (profile?.avatar_url) {
+              oppAvatarEl.classList.add('avatar-has-image');
+              const img = document.createElement('img');
+              img.className = 'custom-avatar-img';
+              img.src = profile.avatar_url;
+              img.alt = 'avatar';
+              oppAvatarEl.appendChild(img);
+            } else {
+              oppAvatarEl.classList.remove('avatar-has-image');
+              oppAvatarEl.textContent = profile?.equipped_emoji || msg.opponentEmoji || '🧠';
+            }
+          })
+          .catch(() => {
+            oppAvatarEl.classList.remove('avatar-has-image');
+            oppAvatarEl.textContent = msg.opponentEmoji || '🧠';
+          });
+      } else {
+        // Bot：固定顯示 🤖
+        oppAvatarEl.classList.remove('avatar-has-image');
+        oppAvatarEl.innerHTML = '';
+        oppAvatarEl.textContent = '🤖';
+      }
+    }
     return;
   }
 
@@ -414,14 +487,12 @@ function handleBattleMessage(msg) {
     if (msg.isDaily) {
       const emoji = DAILY_EMOJI[msg.category] || '📌';
       badge.textContent = `${emoji} ${msg.category} ⚡x2`;
-      badge.style.background = 'linear-gradient(135deg,#f59e0b,#ef4444)';
-      badge.style.color = '#fff';
+      badge.classList.add('daily');
     } else {
       badge.textContent = msg.category || '知識王';
-      badge.style.background = '';
-      badge.style.color = '';
+      badge.classList.remove('daily');
     }
-    document.getElementById('questionText').textContent = msg.question;
+    renderMath(document.getElementById('questionText'), msg.question);
 
     // 顯示選項
     const grid = document.getElementById('optionsGrid');
@@ -430,7 +501,13 @@ function handleBattleMessage(msg) {
     msg.options.forEach((opt, i) => {
       const btn = document.createElement('button');
       btn.className = 'option-btn';
-      btn.innerHTML = `<span class="option-label">${labels[i]}</span>${opt}`;
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'option-label';
+      labelSpan.textContent = labels[i];
+      const textSpan = document.createElement('span');
+      btn.appendChild(labelSpan);
+      btn.appendChild(textSpan);
+      renderMath(textSpan, opt);
       btn.onclick = () => answerQuestion(i, btn);
       grid.appendChild(btn);
     });
@@ -489,7 +566,7 @@ function handleBattleMessage(msg) {
     // 道具使用成功
     const btns = document.getElementById('optionsGrid').querySelectorAll('.option-btn');
     if (btns[msg.removedOptionIdx]) {
-      btns[msg.removedOptionIdx].style.opacity = '.2';
+      btns[msg.removedOptionIdx].classList.add('option-removed');
       btns[msg.removedOptionIdx].disabled = true;
     }
     return;
@@ -622,17 +699,21 @@ async function endBattle(won, playerScore, oppScore) {
   const finalOppScore = oppScore !== undefined ? oppScore : bd.oppScore;
   const finalWon = won !== undefined ? won : finalPlayerScore > finalOppScore;
 
-  // 關閉 WebSocket 連線
-  if (battleWs) {
-    suppressBattleError();
-    battleWs.close();
-    battleWs = null;
+  // 非房號對戰才立即關閉 WebSocket；房號對戰保留連線以等待再來一局邀請
+  const isRoomMode = currentBattleMode === 'create_room' || currentBattleMode === 'join_room';
+  if (!isRoomMode) {
+    if (battleWs) {
+      suppressBattleError();
+      battleWs.close();
+      battleWs = null;
+    }
   }
 
   const acc = bd.total > 0 ? Math.round(bd.correct / bd.total * 100) : 0;  // 計算準確率
 
   let xpGain = 0;
   let serverCoinDelta = null;
+  const prevLevel = state.level;  // 升等動畫用：記錄舊等級
   // 未真正開始對戰（伺服器未連上），不寫入任何記錄
   if (!battleGameStarted) {
     showScreen('battleModeScreen');
@@ -731,7 +812,72 @@ async function endBattle(won, playerScore, oppScore) {
   document.getElementById('statAccuracy').textContent = acc + '%';
   document.getElementById('statCoinsEarned').textContent = (coinDelta >= 0 ? '+' : '') + coinDelta;
   document.getElementById('statXpEarned').textContent = (xpGain >= 0 ? '+' : '') + xpGain;
+  // 重設再次挑戰按鈕狀態
+  const playAgainBtn = document.getElementById('playAgainBtn');
+  if (playAgainBtn) { playAgainBtn.disabled = false; playAgainBtn.textContent = '⚔️ 再次挑戰'; }
+  // 隱藏再來一局邀請覆蓋層
+  const rematchOverlay = document.getElementById('rematchInviteOverlay');
+  if (rematchOverlay) rematchOverlay.style.display = 'none';
   showScreen('resultScreen');
+}
+
+function requestRematch() {
+  const isRoomMode = currentBattleMode === 'create_room' || currentBattleMode === 'join_room';
+  if (!isRoomMode) {
+    // 非房號模式直接重新開局
+    startBattle(currentBattleMode);
+    return;
+  }
+  if (!battleWs || battleWs.readyState !== WebSocket.OPEN) {
+    showToast('連線已中斷，無法邀請再來一局');
+    return;
+  }
+  battleWs.send(JSON.stringify({ type: 'rematch_request' }));
+  const btn = document.getElementById('playAgainBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 等待對手...'; }
+}
+
+function acceptRematch() {
+  document.getElementById('rematchInviteOverlay').style.display = 'none';
+  if (battleWs && battleWs.readyState === WebSocket.OPEN) {
+    battleWs.send(JSON.stringify({ type: 'rematch_request' }));
+  }
+  showToast('已接受！等待新局開始...');
+}
+
+function declineRematch() {
+  document.getElementById('rematchInviteOverlay').style.display = 'none';
+  if (battleWs && battleWs.readyState === WebSocket.OPEN) {
+    battleWs.send(JSON.stringify({ type: 'rematch_decline' }));
+  }
+  showDeclineAndExit('已拒絕再來一局，感謝遊玩！');
+}
+
+function showDeclineAndExit(message) {
+  const banner = document.createElement('div');
+  banner.className = 'decline-banner';
+  banner.textContent = message;
+  document.body.appendChild(banner);
+  setTimeout(() => {
+    banner.classList.add('decline-banner-out');
+    setTimeout(() => banner.remove(), 400);
+  }, 2000);
+  setTimeout(() => {
+    if (document.getElementById('resultScreen')?.classList.contains('active')) {
+      leaveResultScreen('battleModeScreen');
+    }
+  }, 2200);
+}
+
+function leaveResultScreen(target) {
+  // 離開結果畫面時，若仍在房號模式則關閉 WS
+  const isRoomMode = currentBattleMode === 'create_room' || currentBattleMode === 'join_room';
+  if (isRoomMode && battleWs) {
+    suppressBattleError();
+    battleWs.close();
+    battleWs = null;
+  }
+  showScreen(target);
 }
 
 // ─── SKILLS ──────────────────────────────────────────────
@@ -1262,22 +1408,15 @@ async function initCharts() {
 let currentShopTab = 'frames';
 function switchShop(tab) {
   currentShopTab = tab;
-  // 淡出商店內容
   const shopContent = document.getElementById('shopContent');
-  shopContent.style.opacity = '0';
-  shopContent.style.transform = 'translateY(10px)';
-  shopContent.style.transition = 'opacity .2s ease, transform .2s ease';
+  shopContent.classList.add('fading');
   setTimeout(() => {
     document.querySelectorAll('#shopScreen .nav-btn').forEach((b, i) => {
       b.classList.remove('active');
       if (['frames', 'tags', 'effects', 'skills', 'items'][i] === tab) b.classList.add('active');
     });
-    renderShop(tab);  // 重新渲染商店內容
-    // 淡入商店內容
-    setTimeout(() => {
-      shopContent.style.opacity = '1';
-      shopContent.style.transform = 'translateY(0)';
-    }, 10);
+    renderShop(tab);
+    setTimeout(() => shopContent.classList.remove('fading'), 10);
   }, 200);
 }
 
@@ -1518,25 +1657,114 @@ function showLevelUpOverlay(level, base, milestone) {
     if (d?.coins != null) { state.coins = d.coins; state.pendingLevelupCoins = 0; updatePlayerBar(); }
   }).catch(() => {});
 
-  document.getElementById('levelUpNum').textContent = level;
+  document.getElementById('levelUpNum').textContent = level - 1 || level;
   document.getElementById('levelUpGiftBtn').style.display = 'flex';
   document.getElementById('levelUpRewardWrap').style.display = 'none';
   document.getElementById('levelUpHint').style.display = 'none';
 
   const raysEl = document.getElementById('levelUpRays');
   raysEl.innerHTML = '';
-  const count = 16;
+  const count = 20;
   for (let i = 0; i < count; i++) {
     const angle = (360 / count) * i;
-    const len = 180 + Math.random() * 160;
+    const len = 200 + Math.random() * 200;
     const ray = document.createElement('div');
     ray.className = 'levelup-ray';
-    ray.style.cssText = `rotate:${angle}deg;translate:-50% 0;height:${len}px;--ray-opacity:${0.4 + Math.random() * 0.5};animation-delay:${i * 0.03}s`;
+    ray.style.cssText = `rotate:${angle}deg;translate:-50% 0;height:${len}px;--ray-opacity:${0.35 + Math.random() * 0.55};animation-delay:${i * 0.025}s`;
     raysEl.appendChild(ray);
+  }
+
+  const burstColors = ['#ffd700','#ff6b35','#00d4ff','#e040fb','#00e676','#ff1744','#fff'];
+
+  // 衝擊波環
+  for (let i = 0; i < 4; i++) {
+    const wave = document.createElement('div');
+    wave.className = 'levelup-shockwave';
+    wave.style.setProperty('--wave-delay', (i * 0.16) + 's');
+    raysEl.appendChild(wave);
+    setTimeout(() => wave.remove(), 1600 + i * 180);
+  }
+
+  // 漂浮閃爍粒子
+  for (let i = 0; i < 24; i++) {
+    const spark = document.createElement('div');
+    spark.className = 'levelup-sparkle';
+    const size = 3 + Math.random() * 5;
+    spark.style.left = `${5 + Math.random() * 90}%`;
+    spark.style.top = `${10 + Math.random() * 80}%`;
+    spark.style.width = `${size}px`;
+    spark.style.height = `${size}px`;
+    spark.style.setProperty('--spark-delay', `${Math.random() * 2.5}s`);
+    spark.style.setProperty('--spark-dur', `${1.8 + Math.random() * 2}s`);
+    raysEl.appendChild(spark);
+    setTimeout(() => spark.remove(), 6000);
+  }
+
+  // 落下彩紙
+  for (let i = 0; i < 32; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'levelup-confetti';
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.background = burstColors[Math.floor(Math.random() * burstColors.length)];
+    piece.style.setProperty('--fall-delay', `${Math.random() * 3}s`);
+    piece.style.setProperty('--fall-dur', `${1.8 + Math.random() * 2.2}s`);
+    piece.style.setProperty('--fall-x', `${(Math.random() - .5) * 200}px`);
+    raysEl.appendChild(piece);
+    setTimeout(() => piece.remove(), 6500);
   }
 
   const overlay = document.getElementById('levelUpOverlay');
   overlay.style.display = 'flex';
+
+  // 全屏金色閃光
+  const flash = document.createElement('div');
+  flash.className = 'levelup-flash';
+  document.body.appendChild(flash);
+  setTimeout(() => flash.remove(), 800);
+
+  // 中心爆發粒子（與卡片彈入同步，delay 280ms）
+  setTimeout(() => {
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    for (let i = 0; i < 30; i++) {
+      const p = document.createElement('div');
+      p.className = 'levelup-burst';
+      const angle = (Math.PI * 2 / 30) * i + (Math.random() - .5) * .28;
+      const dist = 80 + Math.random() * 230;
+      const size = 6 + Math.random() * 11;
+      p.style.left = cx + 'px';
+      p.style.top = cy + 'px';
+      p.style.width = size + 'px';
+      p.style.height = size + 'px';
+      p.style.background = burstColors[Math.floor(Math.random() * burstColors.length)];
+      p.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+      p.style.setProperty('--bur-delay', (Math.random() * .09) + 's');
+      p.style.setProperty('--bur-dur', (.72 + Math.random() * .42) + 's');
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 1400);
+    }
+  }, 280);
+
+  // 數字從舊等級計數到新等級，結束時 punch
+  const prevLevel = level - 1 || level;
+  const numEl = document.getElementById('levelUpNum');
+  const duration = 700;
+  const startTime = performance.now() + 400;
+  function tickCounter(now) {
+    if (now < startTime) { requestAnimationFrame(tickCounter); return; }
+    const t = Math.min((now - startTime) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    numEl.textContent = Math.round(prevLevel + (level - prevLevel) * ease);
+    if (t < 1) {
+      requestAnimationFrame(tickCounter);
+    } else {
+      numEl.classList.remove('punch');
+      void numEl.offsetWidth;
+      numEl.classList.add('punch');
+    }
+  }
+  requestAnimationFrame(tickCounter);
 }
 
 function openLevelUpGift(event) {
@@ -1802,14 +2030,19 @@ async function renderRank() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
 
+    const rank = data.rank || [];
+    if (rank.length === 0) {
+      listEl.innerHTML = '<p class="rank-empty">暫無資料</p>';
+      return;
+    }
+
     const medals = ['🥇', '🥈', '🥉'];
-    const rankColor = (rank) => rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : 'var(--text2)';
+    const rankColor = (r) => r === 1 ? '#ffd700' : r === 2 ? '#c0c0c0' : r === 3 ? '#cd7f32' : 'var(--text2)';
 
     const renderRow = (r) => {
       const isTop3 = r.rank <= 3;
-      const cardClass = ['card', isTop3 ? 'rank-top3' : 'rank-dim', r.isYou ? 'rank-you' : ''].filter(Boolean).join(' ');
-      return `
-      <div class="${cardClass}">
+      const cls = ['card rank-row', isTop3 ? 'rank-top3' : 'rank-normal', r.isYou ? 'rank-you' : ''].filter(Boolean).join(' ');
+      return `<div class="${cls}">
         <div class="rank-row-inner">
           <div class="rank-num ${isTop3 ? 'top3' : ''}" style="color:${rankColor(r.rank)}">
             ${isTop3 ? medals[r.rank - 1] : r.rank}
@@ -1817,7 +2050,7 @@ async function renderRank() {
           <div class="rank-avatar ${isTop3 ? 'top3' : ''}">🧠</div>
           <div class="rank-info">
             <div class="rank-name ${isTop3 ? 'top3' : ''}">
-              ${r.name}${r.isYou ? ' <span class="rank-you-tag">(你)</span>' : ''}
+              ${escapeHTML(r.name)}${r.isYou ? ' <span class="rank-you-tag">(你)</span>' : ''}
             </div>
             <div class="rank-meta">Lv.${r.level} · ${r.wins} 勝</div>
           </div>
@@ -1829,51 +2062,24 @@ async function renderRank() {
       </div>`;
     };
 
-    const rank = data.rank;
-    const sep  = '<div class="rank-sep">⋮</div>';
-    const top3 = rank.filter(r => r.rank <= 3);
-    const rest  = rank.filter(r => r.rank > 3);
+    const total = data.total || 0;
+    const sep = '<div class="rank-sep">⋮</div>';
+    let html = rank.map(r => renderRow(r)).join('');
 
-    // 前三名（含所有並列，全部列出）
-    let html = top3.map(r => renderRow(r)).join('');
-
-    const meIdx    = rank.findIndex(r => r.isYou);
-    const meInTop3 = meIdx !== -1 && meIdx < top3.length;
-
-    if (meInTop3) {
-      // 自己在前三名：只顯示前三名那組，不需要後續任何內容
-
+    const meInList = rank.some(r => r.isYou);
+    if (meInList) {
+      // 自己在前 50 名：若全服總人數 > 50，後面還有人
+      if (total > 50) html += sep;
     } else {
-      // 緊接前三名後的 3 筆（自己不在前三名時才顯示）
-      const afterTop3  = rest.slice(0, 3);
-      html += afterTop3.map(r => renderRow(r)).join('');
-      const shownCount = top3.length + afterTop3.length;
-
-      if (meIdx !== -1 && meIdx < shownCount) {
-        // 自己在 afterTop3 區間（第 4~6 名）：後面還有人才加 ⋮
-        if (rest.length > 3) html += sep;
-
-      } else if (meIdx !== -1 && meIdx >= shownCount) {
-        // 自己在更後面：補自己前後的脈絡
-        const contextStart = Math.max(shownCount, meIdx - 1);
-        const contextEnd   = Math.min(rank.length - 1, meIdx + 2);
-
-        if (contextStart > shownCount) html += sep;
-        for (let i = contextStart; i <= contextEnd; i++) html += renderRow(rank[i]);
-        if (contextEnd < rank.length - 1) html += sep;
-
-      } else {
-        // 自己不在名單內（超過 200 名或無積分）
-        if (data.myRank) {
-          html += sep;
-          html += renderRow(data.myRank);
-        } else {
-          html += '<div class="card rank-no-data">尚未有積分，快去對戰吧！</div>';
-        }
+      // 自己在 50 名外
+      if (rank.length === 50) html += sep;    // 前 50 筆與自己之間有間隔
+      if (data.myRank) {
+        html += renderRow(data.myRank);
+        if (data.myRank.rank < total) html += sep;  // 自己後面還有更多人
       }
     }
 
-    listEl.innerHTML = html || '<p class="rank-empty">暫無資料</p>';
+    listEl.innerHTML = html;
 
   } catch (e) {
     listEl.innerHTML = `<p class="rank-error">載入失敗：${e.message}</p>`;
@@ -2397,6 +2603,14 @@ function selectAvatar(emoji) {
   renderAvatarElement(document.getElementById('editAvatar'));
   updateAvatarChoiceButtons();
   updatePlayerBar();
+  // 同步儲存到後端 DB，跨裝置 / 讓對手看到真實頭貼
+  if (state.userId) {
+    fetch(`${API_BASE}/user/equipped-emoji`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: state.userId, emoji })
+    }).catch(() => {});
+  }
 }
 
 function selectFrame(frame) {
@@ -2823,6 +3037,12 @@ async function loadUserProfile(userId) {
     if (profile.avatar_url) {
       state.customAvatarDataUrl = profile.avatar_url;
       state.avatarMode = 'image';
+      saveLocalAvatarPrefs();
+    }
+    // 同步 emoji 頭貼（DB 優先，但若已有自訂圖片則不覆蓋模式）
+    if (profile.equipped_emoji && !state.customAvatarDataUrl) {
+      state.equippedEmoji = profile.equipped_emoji;
+      state.avatarMode = 'emoji';
       saveLocalAvatarPrefs();
     }
 
