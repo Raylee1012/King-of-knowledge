@@ -1,0 +1,14 @@
+# 共用
+flask
+flask-cors
+python-dotenv
+
+# 帳號 / 題庫管理後端
+supabase
+httpx
+requests
+
+# 對戰伺服器
+flask-sock
+gevent
+gevent-websocket

@@ -1,0 +1,6 @@
+# 環境變數
+**/.env
+
+# Python
+.venv/
+**/__pycache__/
