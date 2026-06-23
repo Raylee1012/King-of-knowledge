@@ -608,6 +608,7 @@ GameRoom 的 handle_disconnect()：
 ## 🏗️ 系統架構圖
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': 'transparent', 'primaryColor': 'transparent', 'primaryBorderColor': '#ffffff', 'primaryTextColor': '#ffffff', 'lineColor': '#ffffff', 'clusterBkg': 'transparent', 'clusterBorder': '#ffffff', 'edgeLabelBackground': 'transparent', 'secondaryColor': 'transparent', 'tertiaryColor': 'transparent', 'titleColor': '#ffffff'}}}%%
 graph TD
     subgraph FE["🌐 前端 Browser"]
         FE_PAGE["index.html · main.js · style.css\n─────────────────────────────\n登入 · 註冊 · 忘記密碼 · 重設密碼\n大廳 · 商城 · 個人設定\n排行榜 · 對戰視窗 · 管理員後台"]
@@ -694,23 +695,6 @@ graph TD
     GEN_SVC -->|"REST API"| GEMINI
     GEN_SVC -->|"requests HTTP"| DB_Q
     GEN_API -->|"verify_admin"| DB_USERS
-
-    %% 節點白底樣式
-    classDef white fill:#fff,stroke:#555,color:#111
-    class FE_PAGE,FE_STATE,FE_FN,FE_WS white
-    class BE_AUTH,BE_USER,BE_PAGES white
-    class GS_WS,GS_HTTP,GS_MM,GS_GR,GS_DB white
-    class GEN_API,GEN_SVC white
-    class DB_AUTH,DB_USERS,DB_Q,DB_BR,DB_ST white
-    class GMAIL,GEMINI,CLOUDINARY white
-
-    %% 子圖白底樣式
-    style FE fill:#fff,stroke:#555
-    style BE fill:#fff,stroke:#555
-    style GS fill:#fff,stroke:#555
-    style GEN fill:#fff,stroke:#555
-    style DB fill:#fff,stroke:#555
-    style EXT fill:#fff,stroke:#555
 ```
 
 ---
