@@ -1,5 +1,5 @@
 # 環境變數
-.env
+**/.env
 
 # Python
 .venv/
