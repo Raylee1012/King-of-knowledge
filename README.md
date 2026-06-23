@@ -608,85 +608,73 @@ GameRoom 的 handle_disconnect()：
 ## 🏗️ 系統架構圖
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'background': 'transparent', 'primaryColor': 'transparent', 'primaryBorderColor': '#ffffff', 'primaryTextColor': '#ffffff', 'lineColor': '#ffffff', 'clusterBkg': 'transparent', 'clusterBorder': '#ffffff', 'edgeLabelBackground': 'transparent', 'secondaryColor': 'transparent', 'tertiaryColor': 'transparent', 'titleColor': '#ffffff'}}}%%
 graph TD
     subgraph FE["🌐 前端 Browser"]
-        FE_PAGE["index.html · main.js · style.css\n─────────────────────────────\n登入 · 註冊 · 忘記密碼 · 重設密碼\n大廳 · 商城 · 個人設定\n排行榜 · 對戰視窗 · 管理員後台"]
-        FE_STATE["state 全域物件（main.js）\n─────────────────────────────\nuserId · playerName · customId · email\ncoins · level · xp · xpMax\nwins · losses · totalAnswered\navgAccuracy · totalScore\nowned.frames / tags / effects / skills[]\nrenameCards（整數）\ntopicStats{ cat:{ correct, wrong } }\nnicknameRemainingFree\navatarMode: emoji|image\ncustomAvatarDataUrl"]
-        FE_FN["main.js 關鍵函數\n─────────────────────────────\nhandleLogin / handleRegister\nsyncUserData · loadUserProfile\nautoClaimMissedGifts · showWelcomeModal\ncheckDailyGift · showLevelUpOverlay\nbuyItem · renderShop · renderRank\nconfirmRenameCard（free→卡→Error）\nuploadAvatarToCloud → Storage\nuseSkill50 · useSkillTime · deductSkill\nhandleRandomMatch · submitAnswer\nendBattle · startCoinSync（30s 輪詢）"]
-        FE_WS["WebSocket Client\nbattleWs"]
+        FE_PAGE["index.html · main.js · style.css\n登入 · 大廳 · 商城 · 對戰 · 管理員"]
+        FE_STATE["state { userId, coins, level, xp\nowned, skills[], renameCards\ntopicStats, avatarMode }"]
+        FE_FN["handleLogin · syncUserData\nbuyItem · endBattle\nuploadAvatarToCloud · renderRank"]
+        FE_WS["WebSocket battleWs"]
     end
 
-    subgraph BE["🔐 Auth & User Server :3000  ·  backend/"]
-        BE_AUTH["auth.py（掛載於 /auth）\n─────────────────────────────\nPOST /register → 建帳 + 寄驗證信\nPOST /verify → 驗證碼驗證\nGET  /verify-link → 連結驗證\nPOST /login → 帳號密碼登入\nPOST /forgot-password → 寄重設信\nGET  /reset-info → 查詢重設 token\nPOST /reset-password → 更新密碼\nPOST /change-password → 更改密碼\nDELETE /delete-account → 刪除帳號"]
-        BE_USER["user.py（掛載於 /user）\n─────────────────────────────\nGET  /profile/:id → 完整玩家資料含 avatar_url\nGET  /coins/:id → 輕量金幣查詢\nPOST /nickname → free→卡→Error（不扣金幣）\nPOST /avatar → base64 WebP → Storage → avatar_url\nPOST /active-effect → 裝備特效\nPOST /welcome-gift · /daily-gift · /levelup-gift\nPOST /spend-coins · /buy-item · /use-skill\nPOST /update-stats → 結算金幣/XP/等級/topic_stats\nDELETE /delete → 刪除帳號+Auth\nGET  /rank · /recent-battles · /avg-topic-stats"]
-        BE_PAGES["index.py\n─────────────────────────────\nGET /config → Gemini Key + Supabase URL/Key\n/verified · /verify-expired · /already-verified\n/reset-password（重設密碼表單頁）\n/reset-expired"]
+    subgraph BE["🔐 後端 :3000 · backend/"]
+        BE_AUTH["auth.py  /auth\nregister · verify · login\nforgot / reset / change password"]
+        BE_USER["user.py  /user\nprofile · avatar · nickname\nbuy · skills · gifts · update-stats · rank"]
+        BE_PAGES["index.py\nGET /config\n/verified · /reset-password"]
     end
 
-    subgraph GS["🎮 Battle Server :4000  ·  server/"]
-        GS_WS["app.py — WebSocket /ws\n─────────────────────────────\njoin_bot    → 建 Bot 房直接開始\njoin_queue  → 加入隨機配對佇列\ncreate_room → 建立房號等待對手\njoin_room   → 加入指定房號\ncancel_queue / quit_match\nsubmit_answer → 提交答案\nuse_item      → 使用 50/50 道具"]
-        GS_HTTP["app.py — HTTP\n─────────────────────────────\nGET /daily-theme → 依日期 seed\n  固定選 3 個今日主題分類\nGET /health → 服務狀態 + 題庫數"]
-        GS_MM["MatchManager\n─────────────────────────────\nrandom_queue：隨機配對佇列\n  ≥2 人時出列，產生 6 位房號\nroom_waiting：房號等待字典\n  create_room / join_room 呼叫"]
-        GS_GR["GameRoom\n─────────────────────────────\nQUESTION_TIMEOUT = 10 秒/題\nRESULT_DELAY = 1.5 秒\nQUESTIONS_PER_GAME = 10 題\n今日主題答對 ×2 分\n計分：150 + (50 - used_sec/10 × 50)\n50/50：隨機刪一個錯誤選項\nBot AI：2~8 秒後隨機作答\n結束廣播：scores · winner · topicStats\n斷線：通知對手 → 對手自動獲勝"]
-        GS_DB["db.py + questions.py\n─────────────────────────────\ndb.py：分頁載入 questions 表\n  每批 1000 筆，直到無資料\n  隨機 shuffle 後快取記憶體\nquestions.py：本地備份題庫\n  Supabase 不可用時備選\n  { q, opts[4], ans, category }"]
+    subgraph GS["🎮 遊戲伺服器 :4000 · server/"]
+        GS_WS["app.py  WebSocket /ws\njoin_bot · join_queue\ncreate/join room · submit_answer"]
+        GS_HTTP["app.py  HTTP\nGET /daily-theme\nGET /health"]
+        GS_MM["MatchManager\nrandom_queue · room_waiting\n≥2人配對 → 產生房號"]
+        GS_GR["GameRoom\n10題 × 10秒 · 今日主題 ×2\n計分 150 + 速度加成\n50/50 · Bot AI · 斷線處理"]
+        GS_DB["db.py + questions.py\n分頁載入 questions\nshuffle 後快取記憶體"]
     end
 
-    subgraph GEN["🤖 Generate Server :5000  ·  generate/"]
-        GEN_API["app.py\n─────────────────────────────\nGET    /config → 連線測試\nPOST   /generate → AI 生題 + 存入\nGET    /questions → 分頁查詢\nPATCH  /questions/:id → 編輯單題\nDELETE /questions → 批量刪除\n⚠ 全端點需 X-User-Id 管理員驗證"]
-        GEN_SVC["services/\n─────────────────────────────\ngemini_service.py\n  build_prompt → call_gemini\n  validate（格式 + 欄位） → retry ×2\nsupabase_service.py\n  save / get / update / delete questions"]
+    subgraph GEN["🤖 生題伺服器 :5000 · generate/"]
+        GEN_API["app.py  管理員專用\nPOST /generate · GET /questions\nPATCH / DELETE /questions"]
+        GEN_SVC["gemini_service.py\nbuild_prompt → call_gemini → validate\nsupabase_service.py  save / get / update"]
     end
 
-    subgraph DB["☁️ Supabase  ·  PostgreSQL + Auth"]
-        DB_AUTH["Supabase Auth\n─────────────────────────────\nsign_up / sign_in_with_password\nadmin users API（httpx）\n  PUT  更新 email_confirm / password\n  DELETE 刪除帳號"]
-        DB_USERS[("users\n─────────────────────────────\nid · custom_id · email · nickname\ncoins · level · xp · xp_max\nwins · losses · total_answered\navg_accuracy · total_score\ntopic_stats（JSONB）\nowned_skills · owned_frames\nowned_tags · owned_effects\nactive_effect · avatar_url\nrename_cards\nwelcome_claimed · daily_claimed_at\npending_levelup_coins\nverify_token · reset_token\nis_verified · is_admin\nnickname_change_count\nnickname_last_reset · created_at")]
-        DB_Q[("questions\n─────────────────────────────\nid · category · question\nanswer_a · answer_b\nanswer_c · answer_d\ncorrect_answer")]
-        DB_BR[("battle_records\n─────────────────────────────\nid · user_id · score\ncorrect · total · won\ncreated_at")]
-        DB_ST[("Storage: avatars/\n─────────────────────────────\n{user_id}.webp\npublic URL 存入 avatar_url")]
+    subgraph DB["☁️ Supabase · PostgreSQL + Auth"]
+        DB_AUTH["Supabase Auth\nsign_up · sign_in\nadmin API（httpx）"]
+        DB_USERS[("users\ncoins · level · xp · owned\ntopic_stats · avatar_url\nrename_cards · pending_levelup_coins")]
+        DB_Q[("questions\ncategory · opts[4] · correct_answer")]
+        DB_BR[("battle_records\nscore · correct · won")]
+        DB_ST[("Storage: avatars/\n{user_id}.webp → public URL")]
     end
 
     subgraph EXT["🌍 外部服務"]
-        GMAIL["Gmail SMTP :465\n─────────────\n驗證信：6 位驗證碼（24h 有效）\n重設信：token 連結（1h 有效）\n歡迎信：驗證成功後發送\n（smtplib SSL）"]
-        GEMINI["Gemini 2.5 Flash Lite\n─────────────\nAI 生成繁體中文\n四選一題目 + 分類"]
-        CLOUDINARY["Cloudinary CDN\n─────────────\n信件星空背景圖\n（img src 嵌入 HTML 信件）"]
+        GMAIL["Gmail SMTP :465\n驗證信 · 重設信 · 歡迎信"]
+        GEMINI["Gemini 2.5 Flash Lite\nAI 生成四選一題目"]
+        CLOUDINARY["Cloudinary CDN\n信件背景圖"]
     end
 
-    %% 前端內部
     FE_PAGE --- FE_STATE
     FE_PAGE --- FE_FN
 
-    %% 前端 → 後端
     FE_PAGE -->|"HTTP/REST"| BE_AUTH
     FE_PAGE -->|"HTTP/REST"| BE_USER
     FE_PAGE -->|"GET /config"| BE_PAGES
     FE_PAGE -->|"管理員專用"| GEN_API
-
-    %% 前端 → 遊戲伺服器
     FE_WS -->|"WebSocket :4000"| GS_WS
     FE_PAGE -->|"GET /daily-theme"| GS_HTTP
 
-    %% 後端 → Supabase
     BE_AUTH -->|"SDK"| DB_AUTH
     BE_AUTH -->|"httpx admin"| DB_AUTH
     BE_AUTH -->|"SDK"| DB_USERS
     BE_USER -->|"SDK"| DB_USERS
     BE_USER -->|"SDK"| DB_BR
     BE_USER -->|"Storage SDK"| DB_ST
-
-    %% 後端 → 外部
     BE_AUTH -->|"SMTP SSL"| GMAIL
-    GMAIL -.->|"信件背景圖"| CLOUDINARY
+    GMAIL -.->|"背景圖"| CLOUDINARY
 
-    %% 遊戲伺服器內部
     GS_WS --> GS_MM
     GS_MM -->|"配對成功"| GS_GR
     GS_WS --> GS_GR
     GS_DB -->|"題庫快取"| GS_GR
     GS_DB -->|"HTTP"| DB_Q
-
-    %% 遊戲結束回呼
     GS_GR -.->|"update-stats"| BE_USER
 
-    %% 題目生成
     GEN_API --> GEN_SVC
     GEN_SVC -->|"REST API"| GEMINI
     GEN_SVC -->|"HTTP"| DB_Q
