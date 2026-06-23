@@ -1,7 +1,11 @@
-from flask import Flask, jsonify, request, redirect  # Flask 框架，jsonify 把 dict 轉成 JSON 回傳
-from flask_cors import CORS  # 允許跨域請求，讓前端可以呼叫後端 API
-from dotenv import load_dotenv  # 讀取 .env 檔案裡的環境變數
-import os  # Python 內建模組，用來讀取環境變數
+from flask import Flask, jsonify, request, redirect
+# Flask：建立 WSGI 應用程式實例，是整個後端服務的核心框架
+# jsonify：將 Python dict 序列化成 JSON 格式的 HTTP 回應，自動加上 Content-Type: application/json
+# request：讀取傳入的 HTTP 請求內容（body、query string、headers），用於 /config 路由讀取參數
+# redirect：產生 302 跳轉回應，用於重設密碼頁面中將過期 token 引導到錯誤提示頁
+from flask_cors import CORS  # Flask-CORS 擴充套件，替每個回應加上 Access-Control-Allow-* 標頭，允許前端（localhost:5500）跨來源呼叫後端 API
+from dotenv import load_dotenv  # python-dotenv 套件，將 .env 檔案裡的 KEY=VALUE 載入到 os.environ，讓 Flask 在本地開發時能讀取 Supabase 金鑰等機密設定
+import os  # Python 標準庫，用於讀取環境變數（os.environ.get）與組合 .env 的絕對路徑（os.path.join / os.path.dirname）
 
 # 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)
@@ -41,7 +45,7 @@ def config():  # 函式名稱，對應到這個路由的處理邏輯
 @app.route('/verified')  # 定義 GET /verified 路由
 def verified():  # 函式名稱，對應到這個路由的處理邏輯
     frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5500') + '/index.html'  # 前端網址
-    return f'''
+    return f'''  # 回傳星空風格 HTML 頁面，5 秒倒數後自動跳轉前端登入頁
     <!DOCTYPE html>
     <html lang="zh-TW">
       <head>
@@ -153,7 +157,7 @@ def verified():  # 函式名稱，對應到這個路由的處理邏輯
 @app.route('/verify-expired')  # 定義 GET /verify-expired 路由
 def verify_expired():  # 驗證連結已過期的提示頁面
     frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5500') + '/index.html'  # 前端網址，倒數結束後跳轉
-    return f'''
+    return f'''  # 回傳星空風格 HTML 頁面，提示驗證連結已過期並倒數跳轉
     <!DOCTYPE html>
     <html lang="zh-TW">
       <head>
@@ -265,7 +269,7 @@ def verify_expired():  # 驗證連結已過期的提示頁面
 @app.route('/already-verified')  # 定義 GET /already-verified 路由
 def already_verified():  # 帳號已驗證的提示頁面（防止重複點擊驗證連結）
     frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5500') + '/index.html'  # 前端網址，倒數結束後跳轉
-    return f'''
+    return f'''  # 回傳星空風格 HTML 頁面，提示帳號已驗證過並倒數跳轉
     <!DOCTYPE html>
     <html lang="zh-TW">
       <head>
@@ -393,7 +397,7 @@ def reset_password_page():  # 從 URL 取得 token，驗證有效性後顯示密
     else:  # token 中沒有 . 分隔符，格式完全錯誤
         return redirect(backend_url + '/reset-expired')  # 跳轉到過期提示頁
 
-    return f'''
+    return f'''  # 回傳重設密碼表單頁面，玩家填寫新密碼後呼叫 /auth/reset-password API
     <!DOCTYPE html>
     <html lang="zh-TW">
       <head>
@@ -513,7 +517,7 @@ def reset_password_page():  # 從 URL 取得 token，驗證有效性後顯示密
 @app.route('/reset-expired')  # 定義 GET /reset-expired 路由
 def reset_expired():  # 密碼重設連結已過期的提示頁面
     frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5500') + '/index.html'  # 前端網址，倒數結束後跳轉
-    return f'''
+    return f'''  # 回傳星空風格 HTML 頁面，提示重設連結已過期並倒數跳轉
     <!DOCTYPE html>
     <html lang="zh-TW">
       <head>

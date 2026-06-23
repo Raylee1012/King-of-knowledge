@@ -1,15 +1,19 @@
-from flask import Blueprint, request, jsonify, redirect  # Blueprint 將路由拆分到不同檔案管理；request 讀取請求；jsonify 回傳 JSON；redirect 跳轉頁面
-from supabase import create_client  # 從 supabase 套件取出 create_client 函式
-import httpx  # 用來發送 HTTP 請求，直接呼叫 Supabase admin API
-import smtplib  # Python 內建 SMTP 寄信模組
-from email.mime.text import MIMEText  # 建立 HTML 格式的 Email
-from email.mime.multipart import MIMEMultipart  # 建立多部分的 Email（包含 HTML）
-import os  # 讀取環境變數
-import secrets  # 產生隨機 token
-import time  # 取得現在時間戳記
-import re  # 正規表達式，用來驗證格式
-import random  # 產生隨機驗證碼
-from dotenv import load_dotenv  # 讀取 .env 檔案裡的環境變數
+from flask import Blueprint, request, jsonify, redirect
+# Blueprint：將此檔案的路由獨立成一個藍圖，在 index.py 以 url_prefix='/auth' 掛載
+# request：讀取 HTTP 請求的 body（get_json）、query string（args）等
+# jsonify：將 Python dict 序列化成 JSON 格式的 HTTP 回應物件
+# redirect：產生 302 跳轉回應，用於驗證成功 / 失敗後引導到對應頁面
+from supabase import create_client  # 建立 Supabase 客戶端實例，提供 .table()、.auth、.storage 等操作介面
+import httpx  # 同步 HTTP 客戶端，用於直接呼叫 Supabase Admin REST API（supabase-py 未封裝的管理員功能）
+import smtplib  # Python 標準庫，提供 SMTP 協議支援，用於透過 Gmail SMTP SSL（port 465）寄送驗證 / 重設密碼信
+from email.mime.text import MIMEText  # 將純文字或 HTML 字串包裝成 MIME 文字部分，附加到信件物件
+from email.mime.multipart import MIMEMultipart  # 建立 multipart/alternative 格式的信件容器，同時包含純文字與 HTML 版本
+import os  # Python 標準庫，用於讀取環境變數（os.environ.get）與組合檔案路徑（os.path）
+import secrets  # Python 標準庫，產生密碼學強度的隨機字串（token_hex），用於驗證 / 重設密碼連結
+import time  # Python 標準庫，取得目前的 Unix 時間戳記（time.time），用於計算 token 到期時間
+import re  # Python 標準庫，提供正規表達式功能，用於驗證 email 格式與 custom_id 格式
+import random  # Python 標準庫，產生隨機整數，用於生成六位數的 email 驗證碼
+from dotenv import load_dotenv  # python-dotenv 套件，將 .env 檔案裡的 KEY=VALUE 載入到 os.environ，方便本地開發不需手動設定環境變數
 
 # 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)
@@ -65,7 +69,7 @@ def delete_unverified_account(email):
 
 def send_email(to_email, subject, html_content, plain_text=None):
     """寄送 Email 的函式，使用 Gmail SMTP"""
-    import uuid
+    import uuid  # Python 標準庫，產生全球唯一識別碼（UUID4），用於設定 Message-ID 標頭讓每封信都有唯一編號，降低被 Gmail 等服務誤判為垃圾信的機率
     msg = MIMEMultipart('alternative')  # 建立多部分 Email 物件
     msg['Subject'] = subject  # 設定信件主旨
     msg['From'] = f'知識王 <{os.environ.get("GMAIL_USER")}>'  # 設定寄件人
@@ -163,7 +167,7 @@ def get_reset_email_template(reset_link):
 
 
 @auth_bp.route('/register', methods=['POST'])  # 定義 POST /register 路由
-def register():
+def register():  # 處理玩家註冊請求：驗證欄位 → 建立 Auth → 插入 users 表 → 寄驗證信
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     custom_id = data.get('custom_id')  # 取出 custom_id 欄位
     nickname = data.get('nickname')    # 取出 nickname 欄位
@@ -192,11 +196,11 @@ def register():
     if existing_nick.data:  # 判斷暱稱是否已被使用
         return jsonify({'error': '暱稱已被使用，請換一個'}), 400  # 回傳暱稱重複錯誤
 
-    try:
+    try:  # 嘗試在 Supabase Auth 建立新帳號
         auth_response = supabase.auth.sign_up({'email': email, 'password': password})  # 呼叫 Supabase Auth 建立新帳號
         if auth_response.user is None:  # 判斷 Auth 是否回傳有效使用者物件
             return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400  # 回傳 Email 重複錯誤
-    except Exception:
+    except Exception:  # Auth 建立帳號失敗（email 可能已被其他帳號使用）
         return jsonify({'error': '註冊失敗，Email 可能已存在'}), 400  # 回傳 Auth 建立帳號失敗錯誤
 
     user_id = auth_response.user.id  # 取得 Supabase Auth 分配的使用者 UUID
@@ -205,7 +209,7 @@ def register():
     raw_token = secrets.token_hex(32)  # 產生 64 字元隨機十六進位字串作為 token 主體
     token = f'{raw_token}.{expire_at}'  # 組合 token：隨機字串 + 到期時間戳，方便驗證時解析
 
-    try:
+    try:  # 嘗試在 users 資料表插入玩家資料
         supabase.table('users').insert({  # 在 users 資料表新增一筆使用者資料
             'id': user_id,  # 對應 Supabase Auth 的 UUID
             'custom_id': custom_id,  # 玩家自訂帳號 ID
@@ -215,7 +219,7 @@ def register():
             'verify_token': token,  # 儲存驗證 token 供連結驗證使用
             'coins': 0  # 初始金幣為 0
         }).execute()
-    except Exception:
+    except Exception:  # 插入失敗（通常是 custom_id 唯一性衝突）
         admin_delete_user(user_id)  # 插入失敗時刪除已建立的 Auth 帳號，避免殘留
         return jsonify({'error': '帳號 ID 已存在，請換一個'}), 400  # 回傳資料庫插入衝突錯誤
 
@@ -227,14 +231,14 @@ def register():
 
     verify_link = f'{os.environ.get("BACKEND_URL")}/auth/verify-link?token={token}'  # 組合點擊驗證連結，帶上 token 參數
 
-    try:
+    try:  # 嘗試寄送驗證信，失敗則刪除剛建立的帳號
         send_email(  # 呼叫寄信函式發送驗證信
             email,  # 收件人信箱
             '知識王 帳號驗證',  # 信件主旨
             get_email_template(verify_link, code),  # HTML 信件內容
             '歡迎加入知識王！你的驗證碼是：' + str(code) + '，請在 5 分鐘內完成驗證。'  # 純文字備用內容
         )
-    except Exception:
+    except Exception:  # 寄信失敗（SMTP 連線問題或無效 email），回滾帳號
         delete_unverified_account(email)  # 寄信失敗時刪除剛建立的帳號，防止殘留未驗證帳號
         if email in verification_codes:  # 判斷記憶體中是否還有該 email 的驗證碼紀錄
             del verification_codes[email]  # 清除記憶體中的驗證碼，避免佔用
@@ -243,8 +247,8 @@ def register():
     return jsonify({'message': '註冊成功，請查收驗證信'}), 200  # 回傳註冊成功並提示查收信箱
 
 
-@auth_bp.route('/verify', methods=['POST'])
-def verify():
+@auth_bp.route('/verify', methods=['POST'])  # 定義 POST /verify 路由（驗證碼方式）
+def verify():  # 處理玩家在遊戲頁面輸入驗證碼的開通請求
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     email = data.get('email')  # 取出 email 欄位
     code = data.get('code')  # 取出使用者輸入的驗證碼
@@ -292,8 +296,8 @@ def verify():
     }), 200
 
 
-@auth_bp.route('/verify-link', methods=['GET'])
-def verify_link():
+@auth_bp.route('/verify-link', methods=['GET'])  # 定義 GET /verify-link 路由（點擊信件連結方式）
+def verify_link():  # 處理玩家點擊驗證信連結後的開通請求，含過期與重複點擊判斷
     token = request.args.get('token')  # 從 GET 請求的查詢參數取得 token
 
     if not token:  # 判斷 token 是否為空
@@ -333,8 +337,8 @@ def verify_link():
     return redirect(os.environ.get('BACKEND_URL', 'http://localhost:3000') + '/verified')  # 跳轉到後端驗證成功頁面
 
 
-@auth_bp.route('/login', methods=['POST'])
-def login():
+@auth_bp.route('/login', methods=['POST'])  # 定義 POST /login 路由
+def login():  # 處理玩家登入請求，支援 email 或 custom_id 兩種識別碼
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     identifier = data.get('identifier')  # 取出登入識別碼（可以是 email 或 custom_id）
     password = data.get('password')  # 取出密碼
@@ -350,11 +354,11 @@ def login():
             return jsonify({'error': '找不到使用者'}), 400  # 回傳找不到使用者錯誤
         email = user_response.data[0]['email']  # 取得對應的 email 供後續登入使用
 
-    try:
+    try:  # 嘗試以 email + 密碼向 Supabase Auth 登入
         auth_response = supabase.auth.sign_in_with_password({'email': email, 'password': password})  # 呼叫 Supabase Auth 以 email + 密碼登入
         if auth_response.user is None:  # 判斷 Auth 是否回傳有效使用者物件
             return jsonify({'error': '帳號或密碼錯誤'}), 400  # 回傳帳密錯誤
-    except Exception:
+    except Exception:  # Supabase Auth 拋出例外（帳號不存在或密碼錯誤）
         return jsonify({'error': '帳號或密碼錯誤'}), 400  # 回傳登入失敗錯誤
 
     user_response = supabase.table('users').select('id, is_verified').eq('email', email).execute()  # 查詢 users 資料表確認驗證狀態
@@ -371,8 +375,8 @@ def login():
     }), 200
 
 
-@auth_bp.route('/forgot-password', methods=['POST'])
-def forgot_password():
+@auth_bp.route('/forgot-password', methods=['POST'])  # 定義 POST /forgot-password 路由
+def forgot_password():  # 處理忘記密碼請求，寄送含重設連結的郵件（故意不揭露帳號是否存在）
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     identifier = data.get('identifier')  # 取出識別碼（email 或 custom_id）
 
@@ -385,7 +389,7 @@ def forgot_password():
         if not id_res.data:  # 判斷是否找不到該 custom_id（故意不揭露帳號不存在，仍回傳成功）
             return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200  # 回傳假成功避免帳號列舉攻擊
         email = id_res.data[0]['email']  # 取得對應的 email
-    else:
+    else:  # 識別碼含有 '@'，視為直接輸入 email
         email = identifier  # 識別碼本身就是 email
 
     user_response = supabase.table('users').select('id, email').eq('email', email).execute()  # 查詢 users 資料表確認該 email 是否存在
@@ -413,15 +417,15 @@ def forgot_password():
     return jsonify({'message': '重設密碼信已寄出，請查收信箱'}), 200  # 回傳寄信成功狀態
 
 
-@auth_bp.route('/reset-info', methods=['GET'])
-def reset_info():
+@auth_bp.route('/reset-info', methods=['GET'])  # 定義 GET /reset-info 路由
+def reset_info():  # 驗證重設 token 有效性並回傳玩家資訊（email 遮蔽），供前端顯示確認畫面
     token = request.args.get('token', '')  # 從 GET 查詢參數取得 reset_token，預設空字串
     parts = token.split('.')  # 以 '.' 分割 token 取得兩段資料
     if len(parts) != 2:  # 判斷 token 格式是否正確
         return jsonify({'error': '無效的連結'}), 400  # 回傳 token 格式無效錯誤
-    try:
+    try:  # 嘗試將 token 第二段轉為整數，取得到期時間戳
         expire_at = int(parts[1])  # 將第二段轉為整數取得到期時間戳
-    except ValueError:
+    except ValueError:  # token 第二段無法轉為整數，格式損毀
         return jsonify({'error': '無效的連結'}), 400  # 回傳無法解析到期時間的錯誤
     if int(time.time() * 1000) > expire_at:  # 判斷目前時間是否已超過到期時間
         return jsonify({'error': '連結已過期'}), 400  # 回傳連結過期錯誤
@@ -440,8 +444,8 @@ def reset_info():
     }), 200
 
 
-@auth_bp.route('/reset-password', methods=['POST'])
-def reset_password():
+@auth_bp.route('/reset-password', methods=['POST'])  # 定義 POST /reset-password 路由
+def reset_password():  # 處理玩家重設密碼請求，驗證 token 有效性後呼叫 admin API 更新密碼
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     token = data.get('token')  # 取出重設密碼 token
     new_password = data.get('new_password')  # 取出使用者輸入的新密碼
@@ -477,8 +481,8 @@ def reset_password():
     return jsonify({'message': '密碼重設成功，請重新登入'}), 200  # 回傳密碼重設成功狀態
 
 
-@auth_bp.route('/change-password', methods=['POST'])
-def change_password():
+@auth_bp.route('/change-password', methods=['POST'])  # 定義 POST /change-password 路由
+def change_password():  # 處理已登入玩家修改密碼的請求，需先驗證舊密碼
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')  # 取出使用者 UUID
     old_password = data.get('old_password')  # 取出舊密碼
@@ -499,11 +503,11 @@ def change_password():
 
     email = user_response.data[0]['email']  # 取得使用者的 email 供後續驗證舊密碼使用
 
-    try:
+    try:  # 嘗試以舊密碼登入，藉此驗證舊密碼正確性
         auth_response = supabase.auth.sign_in_with_password({'email': email, 'password': old_password})  # 呼叫 Supabase Auth 以舊密碼登入，驗證舊密碼是否正確
         if auth_response.user is None:  # 判斷登入是否成功
             return jsonify({'error': '舊密碼錯誤'}), 400  # 回傳舊密碼錯誤
-    except Exception:
+    except Exception:  # Supabase Auth 拋出例外（舊密碼不正確）
         return jsonify({'error': '舊密碼錯誤'}), 400  # 回傳驗證舊密碼失敗錯誤
 
     admin_update_user(user_id, {'password': new_password})  # 呼叫 admin API 將 Supabase Auth 中的密碼更新為新密碼

@@ -1,9 +1,12 @@
-from flask import Blueprint, request, jsonify  # Blueprint 將路由拆分到不同檔案管理；request 讀取請求；jsonify 回傳 JSON
-from supabase import create_client  # 從 supabase 套件取出 create_client 函式
-import httpx  # 用來發送 HTTP 請求，直接呼叫 Supabase admin API
-import os  # 讀取環境變數
-import base64  # 解碼 base64 圖片資料
-from dotenv import load_dotenv  # 讀取 .env 檔案裡的環境變數
+from flask import Blueprint, request, jsonify
+# Blueprint：將此檔案的路由獨立成一個藍圖，在 index.py 以 url_prefix='/user' 掛載
+# request：讀取 HTTP 請求的 body（get_json）與 query string（args），例如 user_id、item_type 等參數
+# jsonify：將 Python dict 序列化成 JSON 格式的 HTTP 回應物件，並自動設定 Content-Type: application/json
+from supabase import create_client  # 建立 Supabase 客戶端實例，提供 .table()、.auth、.storage 等操作介面
+import httpx  # 同步 HTTP 客戶端，用於直接呼叫 Supabase Admin REST API 執行刪除帳號等管理員操作
+import os  # Python 標準庫，用於讀取環境變數（os.environ.get）與組合檔案路徑（os.path）
+import base64  # Python 標準庫，將前端傳來的 base64 字串解碼為二進位圖片資料，再上傳到 Supabase Storage
+from dotenv import load_dotenv  # python-dotenv 套件，將 .env 檔案裡的 KEY=VALUE 載入到 os.environ，方便本地開發不需手動設定環境變數
 
 # 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)  # 載入同目錄下的 .env 設定，已有值時不覆蓋
@@ -37,8 +40,8 @@ def admin_delete_user(user_id):
 # 取得玩家資料 API
 # 輕量金幣查詢 API
 # 路徑：GET /user/coins/<user_id>
-@user_bp.route('/coins/<user_id>', methods=['GET'])
-def get_coins(user_id):
+@user_bp.route('/coins/<user_id>', methods=['GET'])  # 定義 GET /coins/<user_id> 路由
+def get_coins(user_id):  # 快速查詢指定玩家的金幣數量，不回傳完整 profile
     res = supabase.table('users').select('coins').eq('id', user_id).execute()  # 查詢 users 表中指定 id 的金幣欄位
     if not res.data:  # 判斷是否查無此玩家
         return jsonify({'error': '找不到使用者'}), 400  # 回傳 400 錯誤：找不到玩家
@@ -46,33 +49,33 @@ def get_coins(user_id):
 
 def _get_daily_claimed_at(user_id):
     """單獨查詢 daily_claimed_at，欄位不存在時回傳 None。"""
-    try:
+    try:  # 嘗試查詢 daily_claimed_at，欄位不存在時靜默回傳 None
         res = supabase.table('users').select('daily_claimed_at').eq('id', user_id).execute()  # 查詢 users 表中指定玩家的每日禮包領取時間
         if res.data:  # 判斷是否有查到資料
             return res.data[0].get('daily_claimed_at')  # 回傳每日禮包最後領取時間
-    except Exception:
+    except Exception:  # daily_claimed_at 欄位尚未建立時靜默忽略
         pass  # 欄位不存在時靜默忽略，避免整體查詢崩潰
     return None  # 查無資料或欄位不存在時回傳 None
 
 
 def _get_owned_skills(user_id):
     """單獨查詢 owned_skills，欄位不存在時回傳空陣列避免讓整個 profile 查詢失敗。"""
-    try:
+    try:  # 嘗試查詢 owned_skills，欄位不存在時靜默回傳空陣列
         res = supabase.table('users').select('owned_skills').eq('id', user_id).execute()  # 查詢 users 表中指定玩家的已擁有技能清單
         if res.data:  # 判斷是否有查到資料
             return res.data[0].get('owned_skills') or []  # 回傳技能清單，若為 null 則改為空陣列
-    except Exception:
+    except Exception:  # owned_skills 欄位尚未建立時靜默忽略
         pass  # 欄位不存在時靜默忽略，避免整體 profile 查詢失敗
     return []  # 查無資料或欄位不存在時回傳空陣列
 
 
 def _get_rename_cards(user_id):
     """單獨查詢 rename_cards，欄位不存在時回傳 0。"""
-    try:
+    try:  # 嘗試查詢 rename_cards，欄位不存在時靜默回傳 0
         res = supabase.table('users').select('rename_cards').eq('id', user_id).execute()  # 查詢 users 表中指定玩家的改名卡數量
         if res.data:  # 判斷是否有查到資料
             return int(res.data[0].get('rename_cards') or 0)  # 回傳改名卡數量，若為 null 則改為 0
-    except Exception:
+    except Exception:  # rename_cards 欄位尚未建立時靜默忽略
         pass  # 欄位不存在時靜默忽略
     return 0  # 查無資料或欄位不存在時回傳 0
 
@@ -80,7 +83,7 @@ def _get_rename_cards(user_id):
 # 路徑：GET /user/profile/<user_id>
 # 傳入：URL 參數 user_id
 @user_bp.route('/profile/<user_id>', methods=['GET'])  # 定義 GET /profile/<user_id> 路由
-def get_profile(user_id):
+def get_profile(user_id):  # 查詢並回傳玩家的完整個人資料，含金幣、等級、道具庫存、統計等
     # 查詢玩家資料
     user_response = supabase.table('users').select(
         'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect, topic_stats, welcome_claimed, pending_levelup_coins, avatar_url, equipped_emoji'
@@ -139,7 +142,7 @@ def get_profile(user_id):
 # 路徑：POST /user/nickname
 # 傳入：{ user_id, new_nickname }
 @user_bp.route('/nickname', methods=['POST'])  # 定義 POST /nickname 路由
-def update_nickname():
+def update_nickname():  # 處理改名請求：免費次數 → 改名卡 → 金幣，兩者皆無則回傳錯誤
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')            # 取出 user_id 欄位
     new_nickname = data.get('new_nickname')  # 取出 new_nickname 欄位
@@ -260,8 +263,8 @@ def update_nickname():
 # 新手禮包 API
 # 路徑：POST /user/welcome-gift
 # 傳入：{ user_id }
-@user_bp.route('/welcome-gift', methods=['POST'])
-def claim_welcome_gift():
+@user_bp.route('/welcome-gift', methods=['POST'])  # 定義 POST /welcome-gift 路由
+def claim_welcome_gift():  # 處理新手禮包領取，每個帳號只能領一次，成功後入帳 500 金幣
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')  # 取出 user_id 欄位
     if not user_id:  # 判斷 user_id 是否缺少
@@ -281,17 +284,17 @@ def claim_welcome_gift():
 # 每日禮包領取 API
 # 路徑：POST /user/daily-gift
 # 傳入：{ user_id }
-@user_bp.route('/daily-gift', methods=['POST'])
-def claim_daily_gift():
+@user_bp.route('/daily-gift', methods=['POST'])  # 定義 POST /daily-gift 路由
+def claim_daily_gift():  # 處理每日禮包領取，同一天只能領一次，成功後入帳 300 金幣
     from datetime import datetime, timezone, date  # 載入日期時間模組
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')  # 取出 user_id 欄位
     if not user_id:  # 判斷 user_id 是否缺少
         return jsonify({'error': '缺少 user_id'}), 400  # 回傳 400 錯誤：缺少玩家 ID
 
-    try:
+    try:  # 嘗試一併查詢 daily_claimed_at，欄位不存在時降級只查金幣
         res = supabase.table('users').select('coins, daily_claimed_at').eq('id', user_id).execute()  # 查詢玩家的金幣與每日禮包上次領取時間
-    except Exception:
+    except Exception:  # daily_claimed_at 欄位尚未建立，降級只查金幣
         res = supabase.table('users').select('coins').eq('id', user_id).execute()  # daily_claimed_at 欄位不存在時退回只查金幣
     if not res.data:  # 判斷是否查無此玩家
         return jsonify({'error': '找不到使用者'}), 400  # 回傳 400 錯誤：找不到玩家
@@ -306,10 +309,10 @@ def claim_daily_gift():
     reward = 300  # 每日禮包固定獎勵 300 金幣
     new_coins = res.data[0]['coins'] + reward  # 計算加上獎勵後的總金幣
     update_data = {'coins': new_coins}  # 準備要更新的資料（先放金幣）
-    try:
+    try:  # 嘗試同時更新金幣與領取時間，欄位不存在時降級只更新金幣
         update_data['daily_claimed_at'] = now_iso  # 將領取時間加入更新資料
         supabase.table('users').update(update_data).eq('id', user_id).execute()  # 更新玩家金幣與每日禮包領取時間
-    except Exception:
+    except Exception:  # daily_claimed_at 欄位尚未建立，降級只更新金幣
         supabase.table('users').update({'coins': new_coins}).eq('id', user_id).execute()  # daily_claimed_at 欄位不存在時退回只更新金幣
 
     return jsonify({'coins': new_coins, 'reward': reward}), 200  # 回傳領取後的金幣與獎勵數量
@@ -317,8 +320,8 @@ def claim_daily_gift():
 
 # 升等禮包領取 API
 # 路徑：POST /user/levelup-gift
-@user_bp.route('/levelup-gift', methods=['POST'])
-def claim_levelup_gift():
+@user_bp.route('/levelup-gift', methods=['POST'])  # 定義 POST /levelup-gift 路由
+def claim_levelup_gift():  # 處理升等禮包領取，消耗 pending_levelup_coins 轉入玩家金幣
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')  # 取出 user_id 欄位
     if not user_id:  # 判斷 user_id 是否缺少
@@ -340,7 +343,7 @@ def claim_levelup_gift():
 # 路徑：POST /user/spend-coins
 # 傳入：{ user_id, amount }
 @user_bp.route('/spend-coins', methods=['POST'])  # 定義 POST /spend-coins 路由
-def spend_coins():
+def spend_coins():  # 處理直接扣除金幣的請求，驗證金額格式與餘額是否足夠
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')  # 取出 user_id 欄位
     amount = data.get('amount')    # 取出 amount 欄位（要扣多少金幣）
@@ -378,7 +381,7 @@ def spend_coins():
 # 路徑：POST /user/buy-item
 # 傳入：{ user_id, item_type, item_id, price }
 @user_bp.route('/buy-item', methods=['POST'])  # 定義 POST /buy-item 路由
-def buy_item():
+def buy_item():  # 處理購買道具請求：扣金幣 → 加入對應 owned 陣列（技能可重複）
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')      # 取出 user_id 欄位
     item_type = data.get('item_type')  # 取出道具類型（frames、tags、effects）
@@ -395,7 +398,7 @@ def buy_item():
 
     # 改名卡：用整數欄位追蹤數量
     if item_type == 'items' and item_id == 'item-rename':  # 判斷是否購買改名卡（特殊道具，用整數欄位而非陣列追蹤）
-        try:
+        try:  # 嘗試查詢玩家金幣與改名卡數量，欄位不存在時回傳 500
             res = supabase.table('users').select('coins, rename_cards').eq('id', user_id).execute()  # 查詢玩家的金幣與目前改名卡數量
             if not res.data:  # 判斷是否查無此玩家
                 return jsonify({'error': '找不到使用者'}), 400  # 回傳 400 錯誤：找不到玩家
@@ -407,15 +410,15 @@ def buy_item():
             new_cards = current_cards + 1  # 計算增加一張改名卡後的總數
             supabase.table('users').update({'coins': new_coins, 'rename_cards': new_cards}).eq('id', user_id).execute()  # 更新玩家金幣並增加一張改名卡
             return jsonify({'message': '購買成功', 'remaining_coins': new_coins, 'rename_cards': new_cards}), 200  # 回傳購買成功與剩餘金幣及改名卡數量
-        except Exception:
+        except Exception:  # rename_cards 欄位尚未建立或查詢失敗
             return jsonify({'error': '購買失敗，請確認 rename_cards 欄位已建立'}), 500  # 回傳 500 錯誤：資料庫欄位尚未建立
 
     # 查詢玩家目前的金幣和已擁有的道具
-    try:
+    try:  # 嘗試查詢玩家金幣與對應道具清單，欄位不存在時回傳 500
         user_response = supabase.table('users').select(
             f'coins, owned_{item_type}'  # 只查需要的欄位
         ).eq('id', user_id).execute()  # 查詢玩家的金幣與對應道具類型的擁有清單
-    except Exception:
+    except Exception:  # owned_{item_type} 欄位尚未建立或欄位名稱錯誤
         return jsonify({'error': f'欄位 owned_{item_type} 尚未建立，請先在資料庫新增此欄位'}), 500  # 回傳 500 錯誤：對應道具欄位不存在
 
     if not user_response.data:  # 找不到玩家
@@ -451,7 +454,7 @@ def buy_item():
 # 路徑：POST /user/use-skill
 # 傳入：{ user_id, skill_id }
 @user_bp.route('/use-skill', methods=['POST'])
-def use_skill():
+def use_skill():  # 處理使用技能請求，從 owned_skills 陣列移除一個符合的技能 ID
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id  = data.get('user_id')  # 取出 user_id 欄位
     skill_id = data.get('skill_id')  # 取出 skill_id 欄位（要使用的技能 ID）
@@ -477,8 +480,8 @@ def use_skill():
 # 路徑：POST /user/update-stats
 # 傳入：{ user_id, won, score, correct, total, opp_correct }
 @user_bp.route('/update-stats', methods=['POST'])
-def update_stats():
-    try:
+def update_stats():  # 處理對戰結束的統計更新：勝敗場、XP、金幣、等級、題目分類統計
+    try:  # 包覆整個處理流程，捕捉任何未預期的伺服器錯誤並回傳 500
         data = request.get_json()  # 取得前端傳來的 JSON 資料
         if not data:  # 判斷是否無法解析前端傳來的 JSON
             print("[update_stats] 錯誤：無法解析 JSON")
@@ -646,7 +649,7 @@ def update_stats():
         print(f"[update_stats] 返回成功: {response_data}")
         return jsonify(response_data), 200  # 回傳所有更新後的統計資料
 
-    except Exception as err:
+    except Exception as err:  # 捕捉整個 update_stats 過程中的任何例外，回傳 500 並印出堆疊
         import traceback  # 載入 traceback 模組用於列印完整錯誤堆疊
         error_msg = str(err)  # 將錯誤物件轉成字串
         traceback.print_exc()  # 在伺服器終端機印出完整的錯誤堆疊
@@ -657,7 +660,7 @@ def update_stats():
 # 路徑：DELETE /user/delete
 # 傳入：{ user_id, password }，需要輸入密碼確認才能刪除
 @user_bp.route('/delete', methods=['DELETE'])  # 定義 DELETE /delete 路由
-def delete_account():
+def delete_account():  # 處理帳號刪除請求，需輸入密碼二次確認，成功後刪除 users 表與 Auth 帳號
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')    # 取出 user_id 欄位
     password = data.get('password')  # 取出 password 欄位
@@ -675,11 +678,11 @@ def delete_account():
     user_data = user_response.data[0]  # 取得第一筆資料
 
     # 用密碼嘗試登入，驗證密碼是否正確
-    try:
+    try:  # 嘗試以輸入的密碼登入，藉此驗證密碼正確性後才允許刪除
         auth_response = supabase.auth.sign_in_with_password({'email': user_data['email'], 'password': password})  # 用玩家 email 和輸入的密碼向 Supabase Auth 驗證登入
         if auth_response.user is None:  # 登入失敗
             return jsonify({'error': '密碼錯誤'}), 400  # 400 客戶端錯誤：密碼不正確
-    except Exception:
+    except Exception:  # Supabase Auth 拋出例外（密碼不正確或帳號異常）
         return jsonify({'error': '密碼錯誤'}), 400  # 400 客戶端錯誤：密碼不正確
 
     # 刪除 users 資料表的資料
@@ -693,7 +696,7 @@ def delete_account():
 # 路徑：POST /user/active-effect
 # 傳入：{ user_id, effect_id }（effect_id 為 null 表示取消）
 @user_bp.route('/active-effect', methods=['POST'])
-def save_active_effect():
+def save_active_effect():  # 儲存玩家目前裝備的特效 ID，null 表示取消裝備
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')  # 取出 user_id 欄位
     effect_id = data.get('effect_id')  # 可以是 null（取消特效）
@@ -711,7 +714,7 @@ def save_active_effect():
 # 路徑：POST /user/equipped-emoji
 # 傳入：{ user_id, emoji }
 @user_bp.route('/equipped-emoji', methods=['POST'])
-def save_equipped_emoji():
+def save_equipped_emoji():  # 儲存玩家目前裝備的 emoji 頭貼，同步到 DB 的 equipped_emoji 欄位
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')  # 取出 user_id 欄位
     emoji = data.get('emoji', '🧠')  # 取出 emoji，預設 🧠
@@ -730,7 +733,7 @@ def save_equipped_emoji():
 # 參數：user_id（可選，標記自己並查詢自己的排名）
 # 回傳：前 3 名（積分高者優先，同分比勝場）+ 當前玩家排名
 @user_bp.route('/rank', methods=['GET'])
-def get_rank():
+def get_rank():  # 查詢排行榜，依積分降序（同分比勝場），最多回傳 50 筆，並附上當前玩家排名
     user_id = request.args.get('user_id')  # 當前玩家 ID
 
     # 查詢總玩家數
@@ -808,13 +811,13 @@ def get_rank():
 # 路徑：GET /user/recent-battles
 # 參數：user_id, limit（預設 10）
 @user_bp.route('/recent-battles', methods=['GET'])
-def get_recent_battles():
+def get_recent_battles():  # 查詢玩家最近 N 場對戰紀錄，回傳各場得分與準確率供圖表使用
     user_id = request.args.get('user_id')  # 從 URL 參數取得 user_id
     limit = int(request.args.get('limit', 10))  # 從 URL 參數取得筆數限制，預設 10 筆
     if not user_id:  # 判斷 user_id 是否缺少
         return jsonify({'error': '缺少 user_id'}), 400  # 回傳 400 錯誤：缺少玩家 ID
 
-    try:
+    try:  # 嘗試查詢對戰紀錄，DB 連線問題或欄位異常時回傳 500
         res = supabase.table('battle_records').select(
             'score, correct, total, won, created_at'
         ).eq('user_id', user_id).order('created_at', desc=True).limit(limit).execute()  # 查詢玩家最近 N 場對戰紀錄，依時間降序（最新的在前）
@@ -823,14 +826,14 @@ def get_recent_battles():
         scores = [r['score'] for r in records]  # 提取每場得分清單（由舊到新）
         accuracy = [round(r['correct']/r['total']*100) if r['total'] > 0 else 0 for r in records]  # 計算每場準確率百分比，若總題數為 0 則給 0
         return jsonify({'scores': scores, 'accuracy': accuracy}), 200  # 回傳各場得分與準確率清單
-    except Exception as e:
+    except Exception as e:  # 查詢對戰紀錄失敗（DB 連線異常或欄位不存在）
         return jsonify({'error': str(e)}), 500  # 回傳 500 錯誤：查詢對戰紀錄失敗
 
 # 全體玩家各分類平均準確率
 # 路徑：GET /user/avg-topic-stats
 @user_bp.route('/avg-topic-stats', methods=['GET'])
-def get_avg_topic_stats():
-    try:
+def get_avg_topic_stats():  # 計算全體玩家各分類題目的平均準確率，供管理員或統計頁面使用
+    try:  # 嘗試查詢全體玩家分類統計，DB 異常時回傳 500
         res = supabase.table('users').select('topic_stats').not_.is_('topic_stats', 'null').execute()  # 查詢所有有分類統計資料的玩家（排除 topic_stats 為 null 的玩家）
         players = res.data or []  # 取得玩家清單，若查無結果則為空陣列
 
@@ -847,7 +850,7 @@ def get_avg_topic_stats():
                for cat, v in totals.items()}  # 計算各分類的全體平均準確率百分比，總題數為 0 時給 0
 
         return jsonify(avg), 200  # 回傳各分類的全體平均準確率
-    except Exception as e:
+    except Exception as e:  # 查詢分類統計失敗（DB 連線異常）
         return jsonify({'error': str(e)}), 500  # 回傳 500 錯誤：查詢分類統計失敗
 
 
@@ -855,7 +858,7 @@ def get_avg_topic_stats():
 # 路徑：POST /user/avatar
 # 傳入：{ user_id, avatar_data }（base64 WebP data URL）
 @user_bp.route('/avatar', methods=['POST'])
-def upload_avatar():
+def upload_avatar():  # 處理自訂頭像上傳：解碼 base64 → 上傳 Storage → 更新 DB avatar_url
     data = request.get_json()  # 取得前端傳來的 JSON 資料
     user_id = data.get('user_id')  # 取出 user_id 欄位
     avatar_data = data.get('avatar_data', '')  # 取出 base64 WebP 圖片資料，預設空字串
@@ -863,7 +866,7 @@ def upload_avatar():
     if not user_id or not avatar_data:  # 判斷必要參數是否都有填寫
         return jsonify({'error': '缺少參數'}), 400  # 回傳 400 錯誤：缺少必要參數
 
-    try:
+    try:  # 嘗試解碼並上傳頭像，失敗時回傳 500
         # 去掉 data URL 前綴，取得純 base64
         if ',' in avatar_data:  # 判斷是否包含 data URL 前綴（例如 data:image/webp;base64,）
             avatar_data = avatar_data.split(',', 1)[1]  # 切割取得逗號後的純 base64 字串
@@ -873,9 +876,9 @@ def upload_avatar():
         path = f'{user_id}.webp'  # 儲存路徑，以玩家 ID 命名確保唯一性
 
         # 嘗試先刪除舊檔（upsert 有時會失敗，刪了再上傳比較保險）
-        try:
+        try:  # 嘗試刪除舊頭像，upsert 有時不可靠，先刪再上傳比較穩定
             supabase.storage.from_(bucket).remove([path])  # 刪除 avatars bucket 中的舊頭像檔案
-        except Exception:
+        except Exception:  # 舊檔不存在時靜默忽略（第一次上傳必然失敗）
             pass  # 刪除失敗時靜默忽略（可能是第一次上傳，舊檔不存在）
 
         supabase.storage.from_(bucket).upload(
@@ -890,5 +893,5 @@ def upload_avatar():
         supabase.table('users').update({'avatar_url': public_url}).eq('id', user_id).execute()  # 將新頭像公開 URL 儲存到 users 表的 avatar_url 欄位
 
         return jsonify({'avatar_url': public_url}), 200  # 回傳頭像上傳成功及新的公開 URL
-    except Exception as e:
+    except Exception as e:  # 上傳頭像過程發生錯誤（base64 格式錯誤、Storage 連線異常等）
         return jsonify({'error': str(e)}), 500  # 回傳 500 錯誤：上傳頭像過程發生錯誤
