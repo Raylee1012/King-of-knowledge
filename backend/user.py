@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify  # Blueprint 將路由拆分到不
 from supabase import create_client  # 從 supabase 套件取出 create_client 函式
 import httpx  # 用來發送 HTTP 請求，直接呼叫 Supabase admin API
 import os  # 讀取環境變數
+import base64  # 解碼 base64 圖片資料
 from dotenv import load_dotenv  # 讀取 .env 檔案裡的環境變數
 
 # 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
@@ -82,7 +83,7 @@ def _get_rename_cards(user_id):
 def get_profile(user_id):
     # 查詢玩家資料
     user_response = supabase.table('users').select(
-        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect, topic_stats, welcome_claimed, pending_levelup_coins'
+        'id, custom_id, email, is_verified, coins, nickname, nickname_change_count, nickname_last_reset, is_admin, created_at, level, xp, xp_max, wins, losses, total_answered, avg_accuracy, total_score, owned_frames, owned_tags, owned_effects, active_effect, topic_stats, welcome_claimed, pending_levelup_coins, avatar_url'
     ).eq('id', user_id).execute()  # 條件：找這個 id 的玩家
 
     # 找不到玩家
@@ -126,6 +127,7 @@ def get_profile(user_id):
         'owned_skills': _get_owned_skills(user_id),                          # 已擁有的對戰技能
         'active_effect': user_data.get('active_effect'),                   # 目前裝備的特效
         'topic_stats': user_data.get('topic_stats') or {},                 # 主題統計
+        'avatar_url': user_data.get('avatar_url') or '',                   # 自訂頭像 URL
         'welcome_claimed': user_data.get('welcome_claimed') or False,      # 是否已領取新手禮包
         'daily_claimed_at': _get_daily_claimed_at(user_id),               # 上次領取每日禮包時間
         'pending_levelup_coins': int(user_data.get('pending_levelup_coins') or 0),  # 待領取的升等獎勵
@@ -187,25 +189,14 @@ def update_nickname():
                 return jsonify({
                     'message': '暱稱更新成功',
                     'used_rename_card': True,
-                    'rename_cards': rename_cards - 1
+                    'rename_cards': rename_cards - 1,
+                    'remaining_free': 0
                 }), 200
-            # 沒有改名卡，扣金幣
-            if user_data['coins'] < NICKNAME_CHANGE_COST:
-                return jsonify({'error': f'金幣不足，還差 {NICKNAME_CHANGE_COST - user_data["coins"]} 🪙'}), 400
-            new_coins = user_data['coins'] - NICKNAME_CHANGE_COST
-            supabase.table('users').update({
-                'nickname': new_nickname,
-                'coins': new_coins,
-                'nickname_change_count': current_count + 1,
-                'nickname_last_reset': reset_time
-            }).eq('id', user_id).execute()
-            return jsonify({
-                'message': '暱稱更新成功',
-                'used_rename_card': False,
-                'remaining_coins': new_coins
-            }), 200
+            # 沒有改名卡，不自動扣金幣，回傳錯誤
+            return jsonify({'error': '本月免費次數已用完，且沒有改名卡，請至商店購買'}), 400
 
         # 免費次數未用完，直接改名
+        remaining_free = max(0, FREE_NICKNAME_CHANGE_LIMIT - (current_count + 1))
         supabase.table('users').update({
             'nickname': new_nickname,
             'nickname_change_count': current_count + 1,
@@ -214,6 +205,7 @@ def update_nickname():
         return jsonify({
             'message': '暱稱更新成功',
             'used_rename_card': False,
+            'remaining_free': remaining_free,
             'remaining_coins': user_data['coins']
         }), 200
 
@@ -831,5 +823,48 @@ def get_avg_topic_stats():
                for cat, v in totals.items()}
 
         return jsonify(avg), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# 上傳自訂頭像
+# 路徑：POST /user/avatar
+# 傳入：{ user_id, avatar_data }（base64 WebP data URL）
+@user_bp.route('/avatar', methods=['POST'])
+def upload_avatar():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    avatar_data = data.get('avatar_data', '')
+
+    if not user_id or not avatar_data:
+        return jsonify({'error': '缺少參數'}), 400
+
+    try:
+        # 去掉 data URL 前綴，取得純 base64
+        if ',' in avatar_data:
+            avatar_data = avatar_data.split(',', 1)[1]
+        file_bytes = base64.b64decode(avatar_data)
+
+        bucket = 'avatars'
+        path = f'{user_id}.webp'
+
+        # 嘗試先刪除舊檔（upsert 有時會失敗，刪了再上傳比較保險）
+        try:
+            supabase.storage.from_(bucket).remove([path])
+        except Exception:
+            pass
+
+        supabase.storage.from_(bucket).upload(
+            path,
+            file_bytes,
+            file_options={'content-type': 'image/webp'}
+        )
+
+        public_url = supabase.storage.from_(bucket).get_public_url(path)
+
+        # 存 URL 到 users table
+        supabase.table('users').update({'avatar_url': public_url}).eq('id', user_id).execute()
+
+        return jsonify({'avatar_url': public_url}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500

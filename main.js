@@ -9,7 +9,7 @@ const state = {
   email: '',       // 登入後存放玩家的 email
   coins: 0, level: 1, xp: 0, xpMax: 100,
   playerName: '知識戰士', playerTag: '新手', playerTagClass: 'tag-rookie', playerTagIcon: '🌱',  // 預設新手稱號
-  equippedFrame: 'frame-none', equippedEmoji: '🧠', activeEffect: null,  // 預設無邊框
+  equippedFrame: 'frame-none', equippedEmoji: '🧠', avatarMode: 'emoji', customAvatarDataUrl: '', activeEffect: null,  // 預設無邊框
   owned: { frames: ['frame-none'], tags: ['tag-rookie'], effects: [] },  // 預設只有無邊框和新手稱號
   wins: 0, losses: 0,
   topicStats: {},
@@ -195,7 +195,7 @@ function updatePlayerBar() {
   document.getElementById('playerXPMax').textContent = state.xpMax;
   const pct = (state.xp/state.xpMax*100).toFixed(0);
   document.getElementById('xpBar').style.width = pct+'%';
-  document.getElementById('playerAvatar').textContent = state.equippedEmoji;
+  ['playerAvatar', 'playerAvatar3'].forEach(id => renderAvatarElement(document.getElementById(id)));
   const pf = document.getElementById('playerFrame');
   pf.className = 'avatar-frame ' + (state.equippedFrame !== 'frame-none' ? state.equippedFrame : '');
 }
@@ -232,7 +232,7 @@ function startBattle(mode = 'bot') {
   if (bd.timer) clearInterval(bd.timer);
   resetSkillBtns();
   updateScoreDisplay();
-  document.getElementById('battleAvatar').textContent = state.equippedEmoji;
+  renderAvatarElement(document.getElementById('battleAvatar'));
   document.getElementById('battleName').textContent = state.playerName;
 
   // 關閉舊的 WebSocket 連線
@@ -1623,6 +1623,11 @@ async function confirmRenameCard() {
 
   if (!newName) { errEl.textContent = '暱稱不能為空'; errEl.style.display = 'block'; return; }
   if (newName.length < 2 || newName.length > 20) { errEl.textContent = '暱稱長度需在 2-20 字之間'; errEl.style.display = 'block'; return; }
+  if (state.nicknameRemainingFree <= 0 && state.renameCards <= 0) {
+    errEl.textContent = '本月免費次數已用完，且沒有改名卡，請至商店購買';
+    errEl.style.display = 'block';
+    return;
+  }
 
   btn.textContent = '修改中...';
   btn.disabled = true;
@@ -1637,15 +1642,23 @@ async function confirmRenameCard() {
     if (!res.ok) { errEl.textContent = data.error || '修改失敗，請再試一次'; errEl.style.display = 'block'; return; }
 
     state.playerName = newName;
+    let renameToast;
     if (data.used_rename_card) {
       state.renameCards = data.rename_cards ?? Math.max(0, state.renameCards - 1);
+      renameToast = `✅ 名稱已更新！已消耗 1 張改名卡，剩餘 ${state.renameCards} 張`;
+    } else if (data.remaining_free !== undefined && data.remaining_free > 0) {
+      state.nicknameRemainingFree = data.remaining_free;
+      renameToast = `✅ 名稱已更新！本月免費次數剩餘 ${data.remaining_free} 次`;
     } else {
-      state.coins = data.remaining_coins ?? state.coins - 500;
-      state.nicknameRemainingFree = Math.max(0, state.nicknameRemainingFree - 1);
+      state.nicknameRemainingFree = 0;
+      renameToast = state.renameCards > 0
+        ? `✅ 名稱已更新！本月免費次數已全部用完，下次將自動使用改名卡（剩 ${state.renameCards} 張）`
+        : `✅ 名稱已更新！本月免費次數已全部用完，請至商店購買改名卡`;
     }
     updatePlayerBar();
+    updateStatsDisplay();
     closeModal('renameCardModal');
-    showToast('✅ 暱稱已更新！');
+    showToast(renameToast);
     renderRank();
   } catch (e) {
     errEl.textContent = '無法連線到伺服器';
@@ -2040,6 +2053,8 @@ setTimeout(() => {
 // ─── PROFILE ─────────────────────────────────────────────
 let profileEditState = {
   avatar: state.equippedEmoji,
+  avatarMode: state.avatarMode,
+  customAvatarDataUrl: state.customAvatarDataUrl,
   frame: state.equippedFrame,
   tag: state.playerTag,
   tagClass: state.playerTagClass,
@@ -2072,19 +2087,18 @@ function switchProfileTab(tab) {
 
 function updateProfileEditUI() {
   profileEditState.avatar = state.equippedEmoji;
+  profileEditState.avatarMode = state.avatarMode;
+  profileEditState.customAvatarDataUrl = state.customAvatarDataUrl;
   profileEditState.frame = state.equippedFrame;
   profileEditState.tagClass = state.playerTagClass;
   profileEditState.tagIcon = state.playerTagIcon;
   profileEditState.activeEffect = state.activeEffect || state.owned.activeEffect || null;
 
-  document.getElementById('editAvatar').textContent = profileEditState.avatar;
+  renderAvatarElement(document.getElementById('editAvatar'));
   document.getElementById('editFrame').className = `profile-frame ${profileEditState.frame !== 'frame-none' ? profileEditState.frame : ''}`;
   document.getElementById('playerNameInput').value = state.playerName;
 
-  document.querySelectorAll('.emoji-btn').forEach(b=>{
-    b.classList.remove('active');
-    if(b.textContent === profileEditState.avatar) b.classList.add('active');
-  });
+  updateAvatarChoiceButtons();
 
   document.querySelectorAll('.frame-select').forEach(b=>{
     b.classList.remove('active', 'disabled');
@@ -2128,14 +2142,260 @@ function updateProfileEditUI() {
   }
 }
 
+function getAvatarStorageKey(type) {
+  return `knowledgeKing:${state.userId || 'guest'}:${type}`;
+}
+
+function loadLocalAvatarPrefs() {
+  try {
+    const customAvatar = localStorage.getItem(getAvatarStorageKey('customAvatar')) || '';
+    const savedMode = localStorage.getItem(getAvatarStorageKey('avatarMode')) || 'emoji';
+    const savedEmoji = localStorage.getItem(getAvatarStorageKey('equippedEmoji'));
+    state.equippedEmoji = savedEmoji || '🧠';
+    state.customAvatarDataUrl = customAvatar;
+    state.avatarMode = customAvatar && savedMode === 'image' ? 'image' : 'emoji';
+  } catch (e) {
+    console.warn('讀取自訂頭像失敗:', e);
+  }
+}
+
+function saveLocalAvatarPrefs() {
+  try {
+    localStorage.setItem(getAvatarStorageKey('avatarMode'), state.avatarMode);
+    localStorage.setItem(getAvatarStorageKey('equippedEmoji'), state.equippedEmoji);
+    if (state.customAvatarDataUrl) {
+      localStorage.setItem(getAvatarStorageKey('customAvatar'), state.customAvatarDataUrl);
+    }
+  } catch (e) {
+    console.error('保存自訂頭像失敗:', e);
+    showToast('❌ 圖片太大，請換一張較小的圖片');
+  }
+}
+
+function renderAvatarElement(el) {
+  if (!el) return;
+  const useCustomImage = state.avatarMode === 'image' && state.customAvatarDataUrl;
+  el.classList.toggle('avatar-has-image', Boolean(useCustomImage));
+  el.innerHTML = '';
+  if (useCustomImage) {
+    const img = document.createElement('img');
+    img.className = 'custom-avatar-img';
+    img.alt = '自訂頭像';
+    img.src = state.customAvatarDataUrl;
+    el.appendChild(img);
+  } else {
+    el.textContent = state.equippedEmoji;
+  }
+}
+
+function updateAvatarChoiceButtons() {
+  document.querySelectorAll('.emoji-btn:not(.custom-avatar-btn)').forEach(b => {
+    b.classList.remove('active');
+    if (state.avatarMode === 'emoji' && b.textContent === state.equippedEmoji) b.classList.add('active');
+  });
+  const customBtn = document.getElementById('customAvatarBtn');
+  if (customBtn) customBtn.classList.toggle('active', state.avatarMode === 'image' && Boolean(state.customAvatarDataUrl));
+}
+
+function openCustomAvatarPicker() {
+  const input = document.getElementById('customAvatarInput');
+  if (input) input.click();
+}
+
+function initCustomAvatarControls() {
+  const btn = document.getElementById('customAvatarBtn');
+  const input = document.getElementById('customAvatarInput');
+  if (btn && btn.dataset.avatarBound !== '1') {
+    btn.dataset.avatarBound = '1';
+    btn.addEventListener('click', (e) => { e.preventDefault(); openCustomAvatarPicker(); });
+  }
+  if (input && input.dataset.avatarBound !== '1') {
+    input.dataset.avatarBound = '1';
+    input.addEventListener('change', handleCustomAvatarUpload);
+  }
+}
+
+async function handleCustomAvatarUpload(event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { showToast('❌ 請選擇圖片檔案'); return; }
+  try {
+    await openCustomAvatarEditor(file);
+  } catch (e) {
+    showToast('❌ 圖片讀取失敗，請換一張試試');
+  }
+}
+
+let customAvatarEditor = {
+  src: '', img: null, zoom: 1, offsetX: 0, offsetY: 0,
+  dragging: false, startClientX: 0, startClientY: 0, startOffsetX: 0, startOffsetY: 0
+};
+
+function revokeCustomAvatarEditorSrc() {
+  if (customAvatarEditor.src) URL.revokeObjectURL(customAvatarEditor.src);
+  customAvatarEditor.src = '';
+}
+
+function openCustomAvatarEditor(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      revokeCustomAvatarEditorSrc();
+      customAvatarEditor = { src: objectUrl, img, zoom: 1, offsetX: 0, offsetY: 0, dragging: false, startClientX: 0, startClientY: 0, startOffsetX: 0, startOffsetY: 0 };
+      const preview = document.getElementById('avatarEditorImage');
+      const zoomInput = document.getElementById('avatarZoomInput');
+      const zoomValue = document.getElementById('avatarZoomValue');
+      if (preview) preview.src = objectUrl;
+      if (zoomInput) zoomInput.value = '100';
+      if (zoomValue) zoomValue.textContent = '100%';
+      const modal = document.getElementById('customAvatarEditorModal');
+      if (modal) modal.style.display = 'flex';
+      updateAvatarEditorPreview();
+      resolve();
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('image-load-failed')); };
+    img.src = objectUrl;
+  });
+}
+
+function getAvatarEditorStageSize() {
+  const stage = document.getElementById('avatarEditorStage');
+  return stage ? stage.clientWidth || 260 : 260;
+}
+
+function getAvatarEditorMetrics() {
+  const img = customAvatarEditor.img;
+  const stageSize = getAvatarEditorStageSize();
+  if (!img) return null;
+  const baseScale = Math.max(stageSize / img.naturalWidth, stageSize / img.naturalHeight);
+  const zoom = customAvatarEditor.zoom || 1;
+  return { stageSize, displayWidth: img.naturalWidth * baseScale * zoom, displayHeight: img.naturalHeight * baseScale * zoom };
+}
+
+function clampAvatarEditorOffset() {
+  const metrics = getAvatarEditorMetrics();
+  if (!metrics) return;
+  const maxX = Math.max(0, (metrics.displayWidth - metrics.stageSize) / 2);
+  const maxY = Math.max(0, (metrics.displayHeight - metrics.stageSize) / 2);
+  customAvatarEditor.offsetX = Math.max(-maxX, Math.min(maxX, customAvatarEditor.offsetX));
+  customAvatarEditor.offsetY = Math.max(-maxY, Math.min(maxY, customAvatarEditor.offsetY));
+}
+
+function updateAvatarEditorPreview() {
+  const preview = document.getElementById('avatarEditorImage');
+  const zoomValue = document.getElementById('avatarZoomValue');
+  const metrics = getAvatarEditorMetrics();
+  if (!preview || !metrics) return;
+  clampAvatarEditorOffset();
+  const left = (metrics.stageSize - metrics.displayWidth) / 2 + customAvatarEditor.offsetX;
+  const top = (metrics.stageSize - metrics.displayHeight) / 2 + customAvatarEditor.offsetY;
+  preview.style.width = `${metrics.displayWidth}px`;
+  preview.style.height = `${metrics.displayHeight}px`;
+  preview.style.left = `${left}px`;
+  preview.style.top = `${top}px`;
+  if (zoomValue) zoomValue.textContent = `${Math.round(customAvatarEditor.zoom * 100)}%`;
+}
+
+function setAvatarEditorZoom(value) {
+  customAvatarEditor.zoom = Math.max(1, Math.min(3, Number(value) / 100 || 1));
+  updateAvatarEditorPreview();
+}
+
+function resetAvatarEditorPosition() {
+  customAvatarEditor.offsetX = 0;
+  customAvatarEditor.offsetY = 0;
+  const zoomInput = document.getElementById('avatarZoomInput');
+  if (zoomInput) zoomInput.value = Math.round((customAvatarEditor.zoom || 1) * 100);
+  updateAvatarEditorPreview();
+}
+
+function startAvatarEditorDrag(event) {
+  if (!customAvatarEditor.img) return;
+  customAvatarEditor.dragging = true;
+  customAvatarEditor.startClientX = event.clientX;
+  customAvatarEditor.startClientY = event.clientY;
+  customAvatarEditor.startOffsetX = customAvatarEditor.offsetX;
+  customAvatarEditor.startOffsetY = customAvatarEditor.offsetY;
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+}
+
+window.addEventListener('pointermove', (event) => {
+  if (!customAvatarEditor.dragging) return;
+  customAvatarEditor.offsetX = customAvatarEditor.startOffsetX + event.clientX - customAvatarEditor.startClientX;
+  customAvatarEditor.offsetY = customAvatarEditor.startOffsetY + event.clientY - customAvatarEditor.startClientY;
+  updateAvatarEditorPreview();
+});
+
+window.addEventListener('pointerup', () => { customAvatarEditor.dragging = false; });
+
+function confirmCustomAvatarCrop() {
+  const img = customAvatarEditor.img;
+  const metrics = getAvatarEditorMetrics();
+  if (!img || !metrics) return;
+  clampAvatarEditorOffset();
+  const outputSize = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = outputSize; canvas.height = outputSize;
+  const ctx = canvas.getContext('2d');
+  const scale = outputSize / metrics.stageSize;
+  const left = ((metrics.stageSize - metrics.displayWidth) / 2 + customAvatarEditor.offsetX) * scale;
+  const top = ((metrics.stageSize - metrics.displayHeight) / 2 + customAvatarEditor.offsetY) * scale;
+  ctx.drawImage(img, left, top, metrics.displayWidth * scale, metrics.displayHeight * scale);
+  const dataUrl = canvas.toDataURL('image/webp', 0.86);
+  state.customAvatarDataUrl = dataUrl;
+  state.avatarMode = 'image';
+  profileEditState.customAvatarDataUrl = dataUrl;
+  profileEditState.avatarMode = 'image';
+  saveLocalAvatarPrefs();
+  renderAvatarElement(document.getElementById('editAvatar'));
+  updateAvatarChoiceButtons();
+  updatePlayerBar();
+  closeCustomAvatarEditor();
+  showToast('⏳ 上傳頭像中...');
+  uploadAvatarToCloud(dataUrl);
+}
+
+async function uploadAvatarToCloud(dataUrl) {
+  if (!state.userId) return;
+  try {
+    const res = await fetch(`${API_BASE}/user/avatar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: state.userId, avatar_data: dataUrl })
+    });
+    if (res.ok) {
+      showToast('✅ 自訂頭像已儲存');
+    } else {
+      showToast('⚠️ 頭像上傳失敗，僅暫存本機');
+    }
+  } catch (e) {
+    showToast('⚠️ 頭像上傳失敗，僅暫存本機');
+  }
+}
+
+function closeCustomAvatarEditor() {
+  closeModal('customAvatarEditorModal');
+  setTimeout(() => {
+    const preview = document.getElementById('avatarEditorImage');
+    if (preview) preview.removeAttribute('src');
+    revokeCustomAvatarEditorSrc();
+    customAvatarEditor.img = null;
+    customAvatarEditor.dragging = false;
+  }, 230);
+}
+
 function selectAvatar(emoji) {
   profileEditState.avatar = emoji;
+  profileEditState.avatarMode = 'emoji';
   state.equippedEmoji = emoji;
-  document.getElementById('editAvatar').textContent = emoji;
-  document.querySelectorAll('.emoji-btn').forEach(b=>{
-    b.classList.remove('active');
-    if(b.textContent === emoji) b.classList.add('active');
-  });
+  state.avatarMode = 'emoji';
+  saveLocalAvatarPrefs();
+  renderAvatarElement(document.getElementById('editAvatar'));
+  updateAvatarChoiceButtons();
   updatePlayerBar();
 }
 
@@ -2200,7 +2460,7 @@ async function toggleEffect(effectId, forceEquip = false) {
   }
 }
 
-function toggleNameEdit() {
+async function toggleNameEdit() {
   const input = document.getElementById('playerNameInput');
   const btn = document.getElementById('editNameBtn');
   if (input.disabled) {
@@ -2211,14 +2471,55 @@ function toggleNameEdit() {
     btn.style.color = 'var(--green)';
   } else {
     const newName = input.value.trim();
-    if(!newName) { showToast('玩家名稱不能為空！'); return; }
-    state.playerName = newName;
-    updatePlayerBar();
-    input.disabled = true;
-    btn.textContent = '✏️ 修改';
-    btn.style.borderColor = '';
-    btn.style.color = '';
-    showToast('✅ 玩家名稱已保存！');
+    if (!newName) { showToast('玩家名稱不能為空！'); return; }
+    if (state.nicknameRemainingFree <= 0 && state.renameCards <= 0) {
+      showToast('❌ 本月免費次數已用完，且沒有改名卡，請至商店購買');
+      return;
+    }
+    btn.textContent = '儲存中...';
+    btn.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/user/nickname`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: state.userId, new_nickname: newName, use_card: true })
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(`❌ ${data.error || '修改失敗'}`); return; }
+      state.playerName = newName;
+      if (data.remaining_coins !== undefined) state.coins = data.remaining_coins;
+      if (data.remaining_free !== undefined) state.nicknameRemainingFree = data.remaining_free;
+      if (data.rename_cards !== undefined) state.renameCards = data.rename_cards;
+      updatePlayerBar();
+      updateStatsDisplay();
+      renderRank();
+      input.disabled = true;
+      btn.textContent = '✏️ 修改';
+      btn.style.borderColor = '';
+      btn.style.color = '';
+      const freeLeft = data.remaining_free ?? state.nicknameRemainingFree;
+      let resultMsg;
+      if (freeLeft > 0) {
+        resultMsg = `本月免費次數剩餘 ${freeLeft} 次`;
+      } else if (data.used_rename_card) {
+        const cardsLeft = data.rename_cards ?? state.renameCards;
+        resultMsg = `已消耗 1 張改名卡，剩餘 ${cardsLeft} 張`;
+      } else {
+        resultMsg = state.renameCards > 0
+          ? `本月免費次數已全部用完，下次將自動使用改名卡（剩 ${state.renameCards} 張）`
+          : `本月免費次數已全部用完，請至商店購買改名卡`;
+      }
+      showToast(`✅ 名稱已更新！${resultMsg}`);
+    } catch (e) {
+      showToast('❌ 無法連線到伺服器');
+    } finally {
+      btn.disabled = false;
+      if (!input.disabled) {
+        btn.textContent = '✓ 完成';
+        btn.style.borderColor = 'var(--green)';
+        btn.style.color = 'var(--green)';
+      }
+    }
   }
 }
 
@@ -2247,6 +2548,7 @@ function updateStatsDisplay() {
   if (emailDisplay) emailDisplay.textContent = state.email || '-';
 
   const topTopics = Object.entries(state.topicStats)
+    .map(([topic, val]) => [topic, typeof val === 'object' ? (val.correct||0)+(val.wrong||0) : (val||0)])
     .sort((a,b)=>b[1]-a[1])
     .slice(0,5)
     .map(([topic,count],i)=>
@@ -2516,6 +2818,13 @@ async function loadUserProfile(userId) {
     state.owned.skills = profile.owned_skills || [];              // 已擁有的對戰技能
     state.activeEffect = profile.active_effect || null;           // 目前裝備的特效
     state.owned.activeEffect = profile.active_effect || null;     // 同步 owned.activeEffect
+    loadLocalAvatarPrefs();
+    // 後端有頭像 URL 時，優先用後端的（跨裝置同步）
+    if (profile.avatar_url) {
+      state.customAvatarDataUrl = profile.avatar_url;
+      state.avatarMode = 'image';
+      saveLocalAvatarPrefs();
+    }
 
     state.topicStats = profile.topic_stats || {};  // 主題統計（從後端讀取）
     state.nicknameRemainingFree = profile.nickname_remaining_free ?? 3;  // 本月剩餘改名次數
@@ -2559,10 +2868,11 @@ function showLoginError(msg) {
 // 按下 Enter 鍵也可以登入
 document.addEventListener('DOMContentLoaded', () => {
   // Modal 移到 body 最上層，避免被 transform/overflow 影響 position:fixed
-  ['changePwdModal', 'deleteAccountModal'].forEach(id => {
+  ['customAvatarEditorModal', 'changePwdModal', 'deleteAccountModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) document.body.appendChild(el);
   });
+  initCustomAvatarControls();
   const pwdInput = document.getElementById('passwordInput');
   if (pwdInput) {
     pwdInput.addEventListener('keydown', (e) => {
