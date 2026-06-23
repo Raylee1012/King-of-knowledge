@@ -610,7 +610,7 @@ GameRoom 的 handle_disconnect()：
 ```mermaid
 graph TD
     subgraph FE["🌐 前端 Browser"]
-        FE_PAGE["index.html · main.js · style.css\n登入 · 大廳 · 商城 · 對戰 · 管理員"]
+        FE_PAGE["index.html · main.js · style.css\n登入 · 大廳 · 商城\n對戰 · 管理員後台"]
         FE_STATE["state { userId, coins, level, xp\nowned, skills[], renameCards\ntopicStats, avatarMode }"]
         FE_FN["handleLogin · syncUserData\nbuyItem · endBattle\nuploadAvatarToCloud · renderRank"]
         FE_WS["WebSocket battleWs"]
