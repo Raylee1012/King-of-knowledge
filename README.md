@@ -608,7 +608,7 @@ GameRoom 的 handle_disconnect()：
 ## 🏗️ 系統架構圖
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'background': '#ffffff', 'primaryColor': '#ffffff', 'primaryBorderColor': '#555555', 'primaryTextColor': '#111111', 'lineColor': '#333333', 'clusterBkg': '#ffffff', 'clusterBorder': '#555555', 'edgeLabelBackground': '#ffffff', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff', 'noteBkgColor': '#ffffff', 'noteTextColor': '#111111'}}}%%
+%%{init: {'theme': 'default', 'themeVariables': {'primaryColor': '#ffffff', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff', 'clusterBkg': '#ffffff', 'edgeLabelBackground': '#ffffff'}}}%%
 graph TD
     subgraph FE["🌐 前端 Browser"]
         FE_PAGE["index.html · main.js · style.css\n─────────────────────────────\n登入 · 註冊 · 忘記密碼 · 重設密碼\n大廳 · 商城 · 個人設定\n排行榜 · 對戰視窗 · 管理員後台"]
