@@ -17,7 +17,7 @@ const state = {
   recentAccuracy: [],
   nicknameRemainingFree: 3,
   renameCards: 0,
-  battleData: { round:0, playerScore:0, oppScore:0, correct:0, total:0, timer:null, timerVal:15, combo:0, answering:false, topicStats: {} },
+  battleData: { round:0, playerScore:0, oppScore:0, correct:0, total:0, timer:null, timerVal:10, timerMax:10, combo:0, answering:false, topicStats: {} },
   totalAnswered: 0,  // 累計答題數，從後端同步
   avgAccuracy: 0,    // 平均準確率，從後端同步
   totalScore: 0      // 累計積分，從後端同步
@@ -223,6 +223,8 @@ let currentQ = 0, questionOrder = [];
 let battleWs = null;       // 對戰 WebSocket 連線
 let battleStartTime = 0;   // 題目開始時間，用來計算作答秒數
 let currentBattleMode = null;  // 記錄當前對戰模式（'bot', 'queue', 'create_room', 'join_room'）
+let _pendingLevelUpData = null;    // 升等待播放資料，離開結果畫面時才顯示
+let _opponentUsedTimeSkill = false; // 對手是否使用了加時道具（本題）
 let currentRoomId = null;   // 記錄當前房間 ID
 let battleIntentionalClose = false; // 是否為故意關閉連線
 let battleSuppressErrorUntil = 0; // 抑制錯誤提示的時間戳
@@ -477,6 +479,7 @@ function handleBattleMessage(msg) {
     // 收到新題目
     bd.round = msg.index + 1;
     bd.answering = false;
+    hideWaitingSkillOverlay();  // 確保上題的等待遮罩被清除
     bd.currentQuestion = msg;  // 儲存題目資料
     battleStartTime = Date.now();  // 記錄題目開始時間
     document.getElementById('roundNum').textContent = bd.round;
@@ -516,6 +519,11 @@ function handleBattleMessage(msg) {
     return;
   }
 
+  if (msg.type === 'opponent_used_skill_time') {
+    _opponentUsedTimeSkill = true;
+    if (bd.answering) showWaitingSkillOverlay();  // 已答完，立即鎖畫面
+  }
+
   if (msg.type === 'opponent_answered') {
     // 對手已作答，顯示提示
     showToast('對手已作答！');
@@ -524,6 +532,7 @@ function handleBattleMessage(msg) {
 
   if (msg.type === 'question_result') {
     // 題目結算
+    hideWaitingSkillOverlay();
     if (bd.timer) clearInterval(bd.timer);
     const myResult = msg.results[bd.playerIndex];
     const oppResult = msg.results[1 - bd.playerIndex];
@@ -613,6 +622,7 @@ function startTimer(sec) {
   const bd = state.battleData;
   if (bd.timer) clearInterval(bd.timer);
   bd.timerVal = sec;
+  bd.timerMax = sec;
   updateTimer(sec);
   bd.timer = setInterval(() => {
     bd.timerVal--;
@@ -629,7 +639,8 @@ function updateTimer(val) {
   const text = document.getElementById('timerText');
   const ring = document.querySelector('.timer-ring');
   const circumference = 188.4;
-  const offset = circumference * (1 - val/15);
+  const max = state.battleData.timerMax || 10;
+  const offset = circumference * (1 - val / max);
   circle.style.strokeDashoffset = offset;
   text.textContent = val;
   if (val <= 5) { ring.classList.add('timer-urgent'); circle.style.stroke='#ff1744'; }
@@ -653,9 +664,10 @@ function timeOut() {
     battleWs.send(JSON.stringify({
       type: 'submit_answer',
       answerIdx: -1,  // -1 代表超時未作答
-      usedSec: 10     // 超時用完全部時間
+      usedSec: state.battleData.timerMax  // 超時用完全部時間
     }));
   }
+  if (_opponentUsedTimeSkill) showWaitingSkillOverlay();
 }
 
 function answerQuestion(chosen, btn) {
@@ -664,7 +676,7 @@ function answerQuestion(chosen, btn) {
   bd.answering = true;
 
   // 計算作答秒數
-  const usedSec = Math.min(10, (Date.now() - battleStartTime) / 1000);
+  const usedSec = Math.min(bd.timerMax, (Date.now() - battleStartTime) / 1000);
 
   // 禁用所有選項按鈕
   const btns = document.getElementById('optionsGrid').querySelectorAll('.option-btn');
@@ -679,6 +691,7 @@ function answerQuestion(chosen, btn) {
       usedSec: usedSec
     }));
   }
+  if (_opponentUsedTimeSkill) showWaitingSkillOverlay();
 }
 
 function updateScoreDisplay() {
@@ -775,7 +788,15 @@ async function endBattle(won, playerScore, oppScore) {
       console.log('[endBattle] xpGain 最終值:', xpGain, '(來自後端:', data.xp_gain, ')');
       
       serverCoinDelta = data.coin_delta !== undefined ? data.coin_delta : null;
-      if (data.leveled_up) showLevelUpOverlay(data.level, data.level_up_base || 0, data.level_up_milestone || 0);
+      if (data.leveled_up) {
+        const newBase = data.level_up_base || 0;
+        const newMilestone = data.level_up_milestone || 0;
+        _pendingLevelUpData = {
+          level: data.level,
+          base: (_pendingLevelUpData?.base || 0) + newBase,
+          milestone: (_pendingLevelUpData?.milestone || 0) + newMilestone
+        };
+      }
       updatePlayerBar();  // 更新玩家列
       renderRank();
     } else {
@@ -853,6 +874,26 @@ function declineRematch() {
   showDeclineAndExit('已拒絕再來一局，感謝遊玩！');
 }
 
+function showWaitingSkillOverlay() {
+  if (document.getElementById('waitingSkillOverlay')) return;
+  const el = document.createElement('div');
+  el.id = 'waitingSkillOverlay';
+  el.className = 'waiting-skill-overlay';
+  el.innerHTML = `
+    <div class="waiting-skill-card">
+      <div class="ws-icon">⏱️</div>
+      <div class="ws-title">對手使用了加時道具</div>
+      <div class="ws-sub">等待對手作答中，請稍候...</div>
+    </div>
+  `;
+  document.body.appendChild(el);
+}
+
+function hideWaitingSkillOverlay() {
+  document.getElementById('waitingSkillOverlay')?.remove();
+  _opponentUsedTimeSkill = false;
+}
+
 function showDeclineAndExit(message) {
   const banner = document.createElement('div');
   banner.className = 'decline-banner';
@@ -878,6 +919,12 @@ function leaveResultScreen(target) {
     battleWs = null;
   }
   showScreen(target);
+  // 真正離開結果畫面時才播放升等動畫（等畫面切換動畫完成後再出現）
+  if (_pendingLevelUpData) {
+    const { level, base, milestone } = _pendingLevelUpData;
+    _pendingLevelUpData = null;
+    setTimeout(() => showLevelUpOverlay(level, base, milestone), 500);
+  }
 }
 
 // ─── SKILLS ──────────────────────────────────────────────
@@ -916,9 +963,13 @@ function useSkillTime() {
   if (!(state.owned.skills || []).includes('skill-time')) return;
   deductSkill('skill-time');
   resetSkillBtns();
-  state.battleData.timerVal = Math.min(state.battleData.timerVal+10, 25);
-  updateTimer(state.battleData.timerVal);
   const bd = state.battleData;
+  bd.timerVal += 10;
+  bd.timerMax = bd.timerVal;  // 圓圈重置為新的滿格
+  updateTimer(bd.timerVal);
+  if (battleWs && battleWs.readyState === WebSocket.OPEN) {
+    battleWs.send(JSON.stringify({ type: 'use_skill_time' }));  // 通知後端延長本題時間
+  }
   clearInterval(bd.timer);
   bd.timer = setInterval(() => {
     bd.timerVal--;

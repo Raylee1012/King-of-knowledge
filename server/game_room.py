@@ -2,6 +2,7 @@
 import json  # 用於 JSON 序列化
 import random  # 用於隨機選擇題目和道具
 import threading  # 用於多執行緒計時器
+import time  # 用於記錄題目開始時間
 
 QUESTION_TIMEOUT = 10  # 每題的時間限制（秒）
 RESULT_DELAY = 1.5  # 題目結算後等待時間（秒）
@@ -21,6 +22,9 @@ class GameRoom:  # 遊戲房間類別
         self.removed_options = [set(), set()]  # 記錄兩位玩家刪除的選項
         self.current_q = 0  # 當前題目索引
         self.question_timer = None  # 題目計時器
+        self.question_start_time = 0  # 題目開始的時間戳
+        self.player_time_limit = [QUESTION_TIMEOUT, QUESTION_TIMEOUT]  # 各玩家本題時間上限
+        self.skill_time_notified = [False, False]  # 是否已通知該玩家對手使用了加時道具
         self.ended = False  # 遊戲是否已結束
         # 初始化題目分類統計，格式：{ 'category': { 'correct': 0, 'wrong': 0 } }
         self.topic_stats = [{}, {}]  # 兩位玩家各自的題目分類統計
@@ -52,6 +56,8 @@ class GameRoom:  # 遊戲房間類別
         self.answers = [None, None]  # 重置答案
         self.answered = [False, False]  # 重置作答狀態
         self.removed_options = [set(), set()]  # 重置已刪除選項
+        self.player_time_limit = [QUESTION_TIMEOUT, QUESTION_TIMEOUT]  # 重置各玩家時間上限
+        self.skill_time_notified = [False, False]  # 重置加時通知旗標
         category = q.get('category', '一般')
         is_daily = category in self.daily_categories
 
@@ -66,7 +72,8 @@ class GameRoom:  # 遊戲房間類別
                 'isDaily': is_daily,  # 是否為今日挑戰主題（答對 x2 分）
             })
 
-        self.question_timer = threading.Timer(QUESTION_TIMEOUT, self._resolve_question)  # 建立 10 秒計時器
+        self.question_start_time = time.time()  # 記錄題目開始時間
+        self.question_timer = threading.Timer(QUESTION_TIMEOUT, self._resolve_question)  # 建立計時器
         self.question_timer.start()  # 啟動計時器
 
         for i, p in enumerate(self.players):  # 若房間內有機器人，模擬機器人作答
@@ -82,7 +89,7 @@ class GameRoom:  # 遊戲房間類別
         self.answered[player_idx] = True  # 標記玩家已作答
         self.answers[player_idx] = {  # 儲存答案
             'answerIdx': answer_idx,  # 答案選項索引
-            'usedSec': max(0, min(QUESTION_TIMEOUT, used_sec)),  # 用時（限制在 0-10 秒）
+            'usedSec': max(0, min(self.player_time_limit[player_idx], used_sec)),  # 用時（限制在玩家自身時間上限內）
         }
 
         opponent = self.players[1 - player_idx]  # 取得對手
@@ -130,6 +137,29 @@ class GameRoom:  # 遊戲房間類別
             'removedOptionIdx': removed_idx,  # 已刪除的選項索引
             })
 
+    def use_skill_time(self, player_id):  # 玩家使用加時道具
+        player_idx = self._find_player_index(player_id)
+        if player_idx == -1 or self.answered[player_idx] or self.ended:
+            return
+
+        self.player_time_limit[player_idx] += 10  # 延長該玩家本題時間上限 10 秒
+
+        # 重新計算計時器：以尚未作答的玩家中，最早到期的時間為準
+        elapsed = time.time() - self.question_start_time
+        if self.question_timer:
+            self.question_timer.cancel()
+        min_remaining = None
+        for i in range(2):
+            if not self.answered[i]:
+                remaining = self.player_time_limit[i] - elapsed
+                if remaining > 0 and (min_remaining is None or remaining < min_remaining):
+                    min_remaining = remaining
+        if min_remaining and min_remaining > 0:
+            self.question_timer = threading.Timer(min_remaining, self._resolve_question)
+            self.question_timer.start()
+        else:
+            self._resolve_question()
+
     def _bot_answer(self, bot_id, used_sec):  # 機器人自動作答函式
         if self.ended:  # 若遊戲已結束，則不再作答
             return
@@ -145,6 +175,32 @@ class GameRoom:  # 遊戲房間類別
     def _resolve_question(self):  # 結算題目函式
         if self.ended:  # 若遊戲已結束
             return  # 函式結束
+
+        # 若有玩家使用加時道具，且尚未作答且還有剩餘時間，先等該玩家
+        elapsed = time.time() - self.question_start_time
+        earliest_remaining = None
+        for i in range(2):
+            if not self.answered[i]:
+                remaining = self.player_time_limit[i] - elapsed
+                if remaining > 0.1:  # 還有超過 100ms，值得等待
+                    if earliest_remaining is None or remaining < earliest_remaining:
+                        earliest_remaining = remaining
+        if earliest_remaining is not None:
+            # 通知已做完（作答或逾時）但對手還有剩餘加時的玩家
+            for i in range(2):
+                if self.skill_time_notified[i]:
+                    continue
+                i_done = self.answered[i] or (self.player_time_limit[i] - elapsed <= 0.1)
+                opp_still_going = (
+                    not self.answered[1 - i] and
+                    self.player_time_limit[1 - i] - elapsed > 0.1
+                )
+                if i_done and opp_still_going:
+                    self._send(self.players[i], {'type': 'opponent_used_skill_time'})
+                    self.skill_time_notified[i] = True
+            self.question_timer = threading.Timer(earliest_remaining, self._resolve_question)
+            self.question_timer.start()
+            return
         q = self.questions[self.current_q]  # 取得當前題目
         category = q.get('category', '一般')  # 取得題目分類
         is_daily = category in self.daily_categories  # 是否為今日主題

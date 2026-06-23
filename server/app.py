@@ -185,6 +185,12 @@ def handle_message(ws, msg):  # 訊息處理函式
         room.submit_answer(ws.id, msg.get('answerIdx', -1), float(msg.get('usedSec', 10)))  # 提交答案給房間
         return  # 函式結束
 
+    if msg_type == 'use_skill_time':  # 玩家使用加時道具
+        if not ws.room_id or ws.room_id not in rooms:
+            return
+        rooms[ws.room_id].use_skill_time(ws.id)
+        return
+
     if msg_type == 'use_item':  # 如果是使用道具
         if not ws.room_id or ws.room_id not in rooms:  # 檢查玩家是否在有效房間
             return  # 如果不在房間則返回
