@@ -1,19 +1,16 @@
 from flask import Blueprint, request, jsonify, redirect
-# Blueprint：將此檔案的路由獨立成一個藍圖，在 index.py 以 url_prefix='/auth' 掛載
-# request：讀取 HTTP 請求的 body（get_json）、query string（args）等
-# jsonify：將 Python dict 序列化成 JSON 格式的 HTTP 回應物件
-# redirect：產生 302 跳轉回應，用於驗證成功 / 失敗後引導到對應頁面
-from supabase import create_client  # 建立 Supabase 客戶端實例，提供 .table()、.auth、.storage 等操作介面
-import httpx  # 同步 HTTP 客戶端，用於直接呼叫 Supabase Admin REST API（supabase-py 未封裝的管理員功能）
-import smtplib  # Python 標準庫，提供 SMTP 協議支援，用於透過 Gmail SMTP SSL（port 465）寄送驗證 / 重設密碼信
-from email.mime.text import MIMEText  # 將純文字或 HTML 字串包裝成 MIME 文字部分，附加到信件物件
-from email.mime.multipart import MIMEMultipart  # 建立 multipart/alternative 格式的信件容器，同時包含純文字與 HTML 版本
-import os  # Python 標準庫，用於讀取環境變數（os.environ.get）與組合檔案路徑（os.path）
-import secrets  # Python 標準庫，產生密碼學強度的隨機字串（token_hex），用於驗證 / 重設密碼連結
-import time  # Python 標準庫，取得目前的 Unix 時間戳記（time.time），用於計算 token 到期時間
-import re  # Python 標準庫，提供正規表達式功能，用於驗證 email 格式與 custom_id 格式
-import random  # Python 標準庫，產生隨機整數，用於生成六位數的 email 驗證碼
-from dotenv import load_dotenv  # python-dotenv 套件，將 .env 檔案裡的 KEY=VALUE 載入到 os.environ，方便本地開發不需手動設定環境變數
+# Blueprint 把路由分組，request 讀前端資料，jsonify 回傳 JSON，redirect 做頁面跳轉
+from supabase import create_client  # 連接 Supabase 資料庫
+import httpx  # 呼叫 Supabase Admin API（刪帳號、改密碼用）
+import smtplib  # 寄 Email 用
+from email.mime.text import MIMEText          # 建立信件文字內容
+from email.mime.multipart import MIMEMultipart  # 建立多格式信件容器
+import os       # 讀取環境變數
+import secrets  # 產生安全的隨機 token
+import time     # 取得當前時間戳
+import re       # 正規表達式（驗證 email 和帳號格式）
+import random   # 產生六位數驗證碼
+from dotenv import load_dotenv  # 載入 .env 設定檔
 
 # 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)

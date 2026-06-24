@@ -1,11 +1,8 @@
 from flask import Flask, jsonify, request, redirect
-# Flask：建立 WSGI 應用程式實例，是整個後端服務的核心框架
-# jsonify：將 Python dict 序列化成 JSON 格式的 HTTP 回應，自動加上 Content-Type: application/json
-# request：讀取傳入的 HTTP 請求內容（body、query string、headers），用於 /config 路由讀取參數
-# redirect：產生 302 跳轉回應，用於重設密碼頁面中將過期 token 引導到錯誤提示頁
-from flask_cors import CORS  # Flask-CORS 擴充套件，替每個回應加上 Access-Control-Allow-* 標頭，允許前端（localhost:5500）跨來源呼叫後端 API
-from dotenv import load_dotenv  # python-dotenv 套件，將 .env 檔案裡的 KEY=VALUE 載入到 os.environ，讓 Flask 在本地開發時能讀取 Supabase 金鑰等機密設定
-import os  # Python 標準庫，用於讀取環境變數（os.environ.get）與組合 .env 的絕對路徑（os.path.join / os.path.dirname）
+# Flask 建框架，jsonify 回傳 JSON，request 讀前端資料，redirect 做頁面跳轉
+from flask_cors import CORS  # 讓前端可以跨網域呼叫後端 API
+from dotenv import load_dotenv  # 載入 .env 設定檔
+import os  # 讀取環境變數
 
 # 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)

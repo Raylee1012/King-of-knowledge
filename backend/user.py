@@ -1,12 +1,10 @@
 from flask import Blueprint, request, jsonify
-# Blueprint：將此檔案的路由獨立成一個藍圖，在 index.py 以 url_prefix='/user' 掛載
-# request：讀取 HTTP 請求的 body（get_json）與 query string（args），例如 user_id、item_type 等參數
-# jsonify：將 Python dict 序列化成 JSON 格式的 HTTP 回應物件，並自動設定 Content-Type: application/json
-from supabase import create_client  # 建立 Supabase 客戶端實例，提供 .table()、.auth、.storage 等操作介面
-import httpx  # 同步 HTTP 客戶端，用於直接呼叫 Supabase Admin REST API 執行刪除帳號等管理員操作
-import os  # Python 標準庫，用於讀取環境變數（os.environ.get）與組合檔案路徑（os.path）
-import base64  # Python 標準庫，將前端傳來的 base64 字串解碼為二進位圖片資料，再上傳到 Supabase Storage
-from dotenv import load_dotenv  # python-dotenv 套件，將 .env 檔案裡的 KEY=VALUE 載入到 os.environ，方便本地開發不需手動設定環境變數
+# Blueprint 把路由分組，request 讀前端資料，jsonify 把結果轉成 JSON 回傳
+from supabase import create_client  # 連接 Supabase 資料庫
+import httpx  # 呼叫 Supabase Admin API（刪帳號用）
+import os  # 讀取環境變數
+import base64  # 解碼前端傳來的圖片
+from dotenv import load_dotenv  # 載入 .env 設定檔
 
 # 指定 .env 的絕對路徑，不管從哪裡啟動都找得到
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=False)  # 載入同目錄下的 .env 設定，已有值時不覆蓋
