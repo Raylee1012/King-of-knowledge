@@ -9,7 +9,7 @@
 - 💰 **成長系統**：透過勝負獲得金幣、經驗值、升級等級
 - 🎁 **禮包系統**：初次登入禮包、每日登入禮包、升等禮包（Popup 顯示前即入帳）
 - 🛍️ **裝扮系統**：解鎖頭像框、稱號、特效等獎勵
-- 🤖 **AI 練習**：可與 AI 對手進行練習
+- 🤖 **AI 練習**：可與 AI 對手進行練習（金幣不獎懲，其餘統計全部計入）
 - 📊 **數據統計**：追蹤勝率、準確率、各主題成績、最強主題
 - 🏆 **排行榜**：依總分降序，最多顯示 50 筆，自己排名超出時以 ⋮ 標示區段
 - 🎯 **對戰技能**：「50/50 消去錯誤選項」、「加時 +10 秒」（庫存制，每次使用消耗一個）
@@ -219,6 +219,7 @@ API 路由：
    - 響應：{ coins, level, xp, xp_max, wins, losses, total_answered,
             avg_accuracy, total_score, topic_stats, leveled_up, coin_delta,
             xp_gain, level_up_base, level_up_milestone }
+   - mode='bot' 時：金幣固定為 0，其餘統計（wins / losses / topic_stats 等）照常更新
 
 8. POST /user/welcome-gift - 初次登入禮包
 9. POST /user/daily-gift - 每日登入禮包
@@ -486,7 +487,7 @@ POST /user/update-stats（上報對戰結果）
   ↓
 backend/user.py 處理：
   - 更新 wins / losses / total_score / total_answered / avg_accuracy
-  - 計算金幣 / XP 獎勵
+  - 計算金幣 / XP 獎勵（bot 模式金幣固定為 0）
   - 升等判斷：xp >= xp_max 時 level+1，升等禮包存入 pending_levelup_coins
   - 每升 10 級額外給 400 里程碑金幣
   - 合併 topic_stats
@@ -621,7 +622,7 @@ graph TD
 | **50/50 技能** | Frontend → Backend + GameServer | 扣庫存＋通知伺服器 | use-skill API + use_item WS |
 | **加時技能** | Frontend → GameServer | 延長本題計時 | use_skill_time WS → player_time_limit += 10 |
 | **等待對手** | GameServer → Frontend | 對手使用加時時通知 | opponent_used_skill_time → 鎖定畫面 |
-| **結算結果** | Frontend → Backend | 上報對戰結果 | update-stats → 分數、升等、topic_stats |
+| **結算結果** | Frontend → Backend | 上報對戰結果 | update-stats → 個人統計全模式更新；battle_records 僅真人對戰寫入 |
 | **升等動畫** | Frontend | 離開結果畫面時播放 | _pendingLevelUpData → showLevelUpOverlay |
 | **更新資料** | Backend → Frontend | 保存新數據 | 更新後玩家資訊＋排行榜刷新 |
 
@@ -677,4 +678,5 @@ python app.py  # http://localhost:5000
 - **改名兩段式**：免費次數（每月3次）→ 改名卡，兩者皆無則提示購買，不扣金幣
 - **自訂頭像**：前端裁切為 WebP → 上傳 Supabase Storage → DB 記錄 avatar_url
 - **禮包安全機制**：API 先入帳再顯示 Popup，關閉瀏覽器也不會漏領
+- **Bot 模式練習**：與 AI 對戰計入所有統計，金幣不獎懲
 - **模組化設計**：驗證、遊戲、題目生成各自獨立服務

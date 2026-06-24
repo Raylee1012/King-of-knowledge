@@ -817,7 +817,7 @@ async function endBattle(won, playerScore, oppScore) {
   if (serverCoinDelta !== null) {
     coinDelta = serverCoinDelta;
   } else if (currentBattleMode === 'bot') {
-    coinDelta = finalWon ? 100 + 20 * bd.correct : 0;
+    coinDelta = 0;  // bot 模式不計金幣
   } else if (currentBattleMode === 'create_room' || currentBattleMode === 'join_room') {
     coinDelta = 0;  // 房號配對不計錢
   } else {
