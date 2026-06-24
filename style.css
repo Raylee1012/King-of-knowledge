@@ -839,6 +839,13 @@ body {
   color: var(--text2);
 }
 
+.result-draw {
+  background: linear-gradient(135deg, #a8edea, #6ec6f5);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 .result-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -2467,33 +2474,139 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(10, 10, 26, .85);
+  background: rgba(5, 5, 18, .88);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   border-radius: inherit;
   z-index: 50;
-  animation: fadeIn .3s ease;
+  animation: rematchOverlayIn .4s ease forwards;
+  will-change: opacity;
+}
+.rematch-invite-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 215, 0, .18);
+  border-radius: inherit;
+  animation: rematchFlash .5s ease forwards;
+  pointer-events: none;
+}
+@keyframes rematchOverlayIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes rematchBoxIn {
+  0%   { transform: scale(0.15) rotate(-12deg); opacity: 0; }
+  55%  { transform: scale(1.12) rotate(3deg);   opacity: 1; }
+  75%  { transform: scale(0.95) rotate(-1deg); }
+  90%  { transform: scale(1.03) rotate(.5deg); }
+  100% { transform: scale(1)    rotate(0deg); }
+}
+@keyframes rematchFlash {
+  0%   { opacity: 0; }
+  30%  { opacity: .55; }
+  100% { opacity: 0; }
+}
+@keyframes rematchGlowPulse {
+  0%, 100% { opacity: .3; }
+  50%       { opacity: 1; }
+}
+@keyframes rematchIconBounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  40%      { transform: translateY(-10px) scale(1.12); }
+  60%      { transform: translateY(-6px) scale(1.06); }
 }
 .rematch-invite-box {
-  background: linear-gradient(135deg, #1a1a3e, #0d0d2b);
-  border: 1px solid rgba(255, 215, 0, .35);
-  border-radius: 20px;
-  padding: 36px 40px;
+  position: relative;
+  background: linear-gradient(145deg, #1c1c42, #0d0d2b);
+  border: 1.5px solid rgba(255, 215, 0, .55);
+  border-radius: 24px;
+  padding: 40px 44px 36px;
   text-align: center;
-  box-shadow: 0 0 40px rgba(255, 215, 0, .2);
+  box-shadow: 0 0 40px rgba(255,215,0,.3), 0 0 80px rgba(255,140,0,.12);
+  animation: rematchBoxIn .6s cubic-bezier(.22,.68,0,1.4) forwards;
+  min-width: 280px;
+  will-change: transform, opacity;
+}
+.rematch-invite-box::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 26px;
+  box-shadow: 0 0 50px rgba(255,215,0,.55), 0 0 100px rgba(255,140,0,.25);
+  animation: rematchGlowPulse 2s ease-in-out .6s infinite;
+  pointer-events: none;
+  z-index: -1;
+  will-change: opacity;
 }
 .rematch-invite-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
+  font-size: 52px;
+  display: block;
+  margin-bottom: 10px;
+  animation: rematchIconBounce 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px rgba(255,215,0,.6));
+}
+.rematch-invite-opp {
+  font-size: 18px;
+  font-weight: 900;
+  background: linear-gradient(90deg, #ffd700, #ff9500);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 4px;
+  letter-spacing: .5px;
 }
 .rematch-invite-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #fff;
-  margin-bottom: 24px;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,.75);
+  margin-bottom: 20px;
+  letter-spacing: .3px;
+}
+.rematch-invite-countdown-wrap {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 22px;
+}
+.rematch-countdown-ring {
+  width: 56px;
+  height: 56px;
+  transform: rotate(-90deg);
+}
+.rematch-countdown-track {
+  fill: none;
+  stroke: rgba(255,255,255,.1);
+  stroke-width: 3.5;
+}
+.rematch-countdown-arc {
+  fill: none;
+  stroke: #ffd700;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 125.66;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1s linear;
+}
+.rematch-countdown-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 900;
+  color: #ffd700;
 }
 .rematch-invite-btns {
   display: flex;
-  gap: 16px;
+  gap: 14px;
   justify-content: center;
+}
+.rematch-btn-accept, .rematch-btn-decline {
+  min-width: 96px;
+  font-size: 15px;
+  padding: 12px 20px;
 }
 
 /* ─── ANALYTICS SCREEN ───────────────────────────────────── */

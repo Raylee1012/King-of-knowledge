@@ -75,6 +75,7 @@ function showScreen(id) {
   const current = document.querySelector('.screen.active');
   if (current) {
     current.classList.remove('visible');  // 淡出目前頁面
+    if (current.id === 'rankScreen') stopRankPoll();
     if (current.id === 'registerScreen') {
       ['regIdInput', 'regNicknameInput', 'regEmailInput',
        'regPasswordInput', 'regPasswordInputVisible',
@@ -114,7 +115,7 @@ function showScreen(id) {
       setTimeout(() => next.classList.add('visible'), 10);  // 稍微延遲讓 CSS transition 生效
       if(id==='analyticsScreen') { switchAnalytics('distribution'); setTimeout(initCharts, 100); }
       if(id==='shopScreen') switchShop('frames');
-      if(id==='rankScreen') renderRank();
+      if(id==='rankScreen') { renderRank(); startRankPoll(); }
       if(id==='profileScreen') { switchProfileTab('edit'); updateProfileEditUI(); updateStatsDisplay(); }
       if(id==='adminScreen') { switchAdminTab('generate'); initAdminScreen(); }
 
@@ -176,6 +177,16 @@ function renderPlayerTag() {
 }
 
 let _coinSyncTimer = null;
+let _rankPollTimer = null;
+
+function startRankPoll() {
+  stopRankPoll();
+  _rankPollTimer = setInterval(renderRank, 30000);
+}
+
+function stopRankPoll() {
+  if (_rankPollTimer) { clearInterval(_rankPollTimer); _rankPollTimer = null; }
+}
 
 function startCoinSync() {
   stopCoinSync();
@@ -409,9 +420,17 @@ function handleBattleMessage(msg) {
   }
 
   if (msg.type === 'rematch_requested') {
-    // 對手邀請再來一局，顯示詢問覆蓋層
     const overlay = document.getElementById('rematchInviteOverlay');
-    if (overlay) overlay.style.display = 'flex';
+    if (overlay) {
+      overlay.style.display = 'flex';
+      // 每次重啟入場動畫
+      const box = overlay.querySelector('.rematch-invite-box');
+      if (box) { box.style.animation = 'none'; box.offsetHeight; box.style.animation = ''; }
+      overlay.style.animation = 'none'; overlay.offsetHeight; overlay.style.animation = '';
+    }
+    const oppNameEl = document.getElementById('rematchOppName');
+    if (oppNameEl) oppNameEl.textContent = document.getElementById('oppName')?.textContent || '對手';
+    startRematchCountdown();
     return;
   }
 
@@ -597,13 +616,14 @@ function handleBattleMessage(msg) {
   if (msg.type === 'game_end') {
     // 遊戲結束
     const bd = state.battleData;
-    const won = msg.winner === bd.playerIndex;
+    const isDraw = msg.winner === null && msg.scores[0] === msg.scores[1];
+    const won = !isDraw && msg.winner === bd.playerIndex;
     // 保存當前玩家的題目分類統計
     if (msg.topicStats && msg.topicStats[bd.playerIndex]) {
       bd.topicStats = msg.topicStats[bd.playerIndex];
     }
     suppressBattleError();
-    endBattle(won, msg.scores[bd.playerIndex], msg.scores[1 - bd.playerIndex]);
+    endBattle(won, msg.scores[bd.playerIndex], msg.scores[1 - bd.playerIndex], isDraw);
     return;
   }
 
@@ -703,7 +723,7 @@ function updateScoreDisplay() {
   document.getElementById('oppHp').style.width = Math.max(5,(bd.oppScore/maxP*100)).toFixed(0)+'%';
 }
 
-async function endBattle(won, playerScore, oppScore) {
+async function endBattle(won, playerScore, oppScore, isDraw = false) {
   const bd = state.battleData;
   if (bd.timer) clearInterval(bd.timer);  // 停止計時器
 
@@ -748,6 +768,7 @@ async function endBattle(won, playerScore, oppScore) {
       body: JSON.stringify({
         user_id: state.userId,   // 玩家 ID
         won: finalWon,            // 是否獲勝
+        is_draw: isDraw,          // 是否平手
         score: finalPlayerScore,  // 本場得分
         correct: bd.correct,      // 答對題數
         total: bd.total,          // 總題數
@@ -824,10 +845,16 @@ async function endBattle(won, playerScore, oppScore) {
     // queue 模式
     coinDelta = finalWon ? 100 + 20 * bd.correct : -(50 + 20 * (bd.oppCorrect || 0));
   }
-  document.getElementById('resultIcon').textContent = finalWon ? '🏆' : '💀';
-  document.getElementById('resultTitle').className = 'result-title ' + (finalWon ? 'result-win' : 'result-lose');
-  document.getElementById('resultTitle').textContent = finalWon ? '勝利！' : '敗北';
-  document.getElementById('resultSub').textContent = finalWon ? `你以 ${finalPlayerScore} 分擊敗了對手！` : `對手以 ${finalOppScore} 分獲勝`;
+  const resultIcon  = isDraw ? '🤝' : finalWon ? '🏆' : '💀';
+  const resultClass = isDraw ? 'result-draw' : finalWon ? 'result-win' : 'result-lose';
+  const resultText  = isDraw ? '平手！' : finalWon ? '勝利！' : '敗北';
+  const resultSub   = isDraw ? `雙方同為 ${finalPlayerScore} 分，勢均力敵！`
+                             : finalWon ? `你以 ${finalPlayerScore} 分擊敗了對手！`
+                                        : `對手以 ${finalOppScore} 分獲勝`;
+  document.getElementById('resultIcon').textContent = resultIcon;
+  document.getElementById('resultTitle').className = 'result-title ' + resultClass;
+  document.getElementById('resultTitle').textContent = resultText;
+  document.getElementById('resultSub').textContent = resultSub;
   document.getElementById('statScore').textContent = finalPlayerScore;
   document.getElementById('statCorrect').textContent = `${bd.correct}/${bd.total}`;
   document.getElementById('statAccuracy').textContent = acc + '%';
@@ -858,7 +885,36 @@ function requestRematch() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ 等待對手...'; }
 }
 
+let _rematchCountdownTimer = null;
+
+function startRematchCountdown() {
+  clearRematchCountdown();
+  const TOTAL = 15;
+  let remaining = TOTAL;
+  const numEl = document.getElementById('rematchCountdown');
+  const arcEl = document.getElementById('rematchCountdownArc');
+  const circumference = 2 * Math.PI * 20; // r=20 → ~125.66
+  if (arcEl) { arcEl.style.transition = 'none'; arcEl.style.strokeDashoffset = 0; }
+
+  function tick() {
+    if (numEl) numEl.textContent = remaining;
+    if (arcEl) {
+      arcEl.style.transition = 'stroke-dashoffset 1s linear';
+      arcEl.style.strokeDashoffset = circumference * (1 - remaining / TOTAL);
+    }
+    if (remaining <= 0) { declineRematch(); return; }
+    remaining--;
+    _rematchCountdownTimer = setTimeout(tick, 1000);
+  }
+  tick();
+}
+
+function clearRematchCountdown() {
+  if (_rematchCountdownTimer) { clearTimeout(_rematchCountdownTimer); _rematchCountdownTimer = null; }
+}
+
 function acceptRematch() {
+  clearRematchCountdown();
   document.getElementById('rematchInviteOverlay').style.display = 'none';
   if (battleWs && battleWs.readyState === WebSocket.OPEN) {
     battleWs.send(JSON.stringify({ type: 'rematch_request' }));
@@ -867,6 +923,7 @@ function acceptRematch() {
 }
 
 function declineRematch() {
+  clearRematchCountdown();
   document.getElementById('rematchInviteOverlay').style.display = 'none';
   if (battleWs && battleWs.readyState === WebSocket.OPEN) {
     battleWs.send(JSON.stringify({ type: 'rematch_decline' }));

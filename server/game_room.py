@@ -26,6 +26,7 @@ class GameRoom:  # 遊戲房間類別
         self.player_time_limit = [QUESTION_TIMEOUT, QUESTION_TIMEOUT]  # 各玩家本題時間上限
         self.skill_time_notified = [False, False]  # 是否已通知該玩家對手使用了加時道具
         self.ended = False  # 遊戲是否已結束
+        self.question_resolved = False  # 當前題目是否已結算（防止 race condition 導致雙重結算）
         # 初始化題目分類統計，格式：{ 'category': { 'correct': 0, 'wrong': 0 } }
         self.topic_stats = [{}, {}]  # 兩位玩家各自的題目分類統計
 
@@ -58,6 +59,7 @@ class GameRoom:  # 遊戲房間類別
         self.removed_options = [set(), set()]  # 重置已刪除選項
         self.player_time_limit = [QUESTION_TIMEOUT, QUESTION_TIMEOUT]  # 重置各玩家時間上限
         self.skill_time_notified = [False, False]  # 重置加時通知旗標
+        self.question_resolved = False  # 重置結算旗標
         category = q.get('category', '一般')
         is_daily = category in self.daily_categories
 
@@ -201,6 +203,10 @@ class GameRoom:  # 遊戲房間類別
             self.question_timer = threading.Timer(earliest_remaining, self._resolve_question)
             self.question_timer.start()
             return
+        if self.question_resolved:  # 防止 race condition：計時器與 submit_answer 同時觸發時只結算一次
+            return
+        self.question_resolved = True
+
         q = self.questions[self.current_q]  # 取得當前題目
         category = q.get('category', '一般')  # 取得題目分類
         is_daily = category in self.daily_categories  # 是否為今日主題

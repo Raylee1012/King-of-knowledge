@@ -54,6 +54,8 @@
 
 - shopData：商城數據（頭像框、稱號、特效、技能、道具價格）
 
+- _rankPollTimer：排行榜畫面的自動更新計時器（每 30 秒呼叫一次 renderRank，離開排行榜畫面時清除）
+
 - _pendingLevelUpData：{ level, base, milestone }
   * 升等資料暫存，不立即播放動畫
   * 跨再來一場累積（base / milestone 相加）

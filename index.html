@@ -446,10 +446,18 @@
   <div id="rematchInviteOverlay" class="rematch-invite-overlay">
     <div class="rematch-invite-box">
       <div class="rematch-invite-icon">⚔️</div>
-      <div class="rematch-invite-title">對手邀請再來一局！</div>
+      <div class="rematch-invite-opp" id="rematchOppName"></div>
+      <div class="rematch-invite-title">邀請你再來一局！</div>
+      <div class="rematch-invite-countdown-wrap">
+        <svg class="rematch-countdown-ring" viewBox="0 0 48 48">
+          <circle class="rematch-countdown-track" cx="24" cy="24" r="20"/>
+          <circle class="rematch-countdown-arc" id="rematchCountdownArc" cx="24" cy="24" r="20"/>
+        </svg>
+        <span class="rematch-countdown-num" id="rematchCountdown">15</span>
+      </div>
       <div class="rematch-invite-btns">
-        <button class="btn btn-gold" onclick="acceptRematch()">✅ 接受</button>
-        <button class="btn btn-outline" onclick="declineRematch()">❌ 拒絕</button>
+        <button class="btn btn-gold rematch-btn-accept" onclick="acceptRematch()">接受</button>
+        <button class="btn btn-outline rematch-btn-decline" onclick="declineRematch()">拒絕</button>
       </div>
     </div>
   </div>
